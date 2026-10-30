@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {LOCAL_DATA_EVENT,type LocalDataEvent} from '@/lib/motes/local-data';
 import { displayModeStorageKey, parseDisplayMode, type DisplayMode } from '@/lib/motes/display-mode';
 
 export type DisplayModeStorageStatus = 'loading' | 'local' | 'memory' | 'disabled' | 'unavailable';
@@ -43,6 +44,7 @@ export function useDisplayMode(workspaceId: string | null, enabled: boolean) {
     setReady(true);
   }, [workspaceId, enabled]);
 
+  useEffect(()=>{const receive=(event:Event)=>{const detail=(event as CustomEvent<LocalDataEvent>).detail;if(detail?.scope!=='display'||detail.workspaceId!==workspaceId||!workspaceId)return;memory.current.delete(workspaceId);setModeState('summary');setStorageStatus(enabled?'local':'disabled');};window.addEventListener(LOCAL_DATA_EVENT,receive);return()=>window.removeEventListener(LOCAL_DATA_EVENT,receive);},[workspaceId,enabled]);
   const setMode = useCallback((next: DisplayMode) => {
     const scope = active.current;
     if (!scope.workspaceId || scope.workspaceId !== workspaceId || scope.enabled !== enabled) return;

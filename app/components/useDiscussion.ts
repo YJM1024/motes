@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { DiscussionContext, DiscussionRequestStatus, DiscussionSnapshot, DiscussionTurn } from '@/lib/motes/discussion-types';
+import {LOCAL_DATA_EVENT,type LocalDataEvent} from '@/lib/motes/local-data';
 import { DISCUSSION_RECOVERY, mergeDiscussion, type DiscussionAttempt } from '@/lib/motes/discussion-client';
 
 class DiscussionApiError extends Error { constructor(message:string,public status:number,public retry?:'new'){super(message)} }
@@ -49,6 +50,7 @@ export function useDiscussion(context:Omit<DiscussionContext,'threadId'>,intent:
   useEffect(()=>{if(intent==='discuss'&&!loading&&!snapshot?.thread&&!error)void newThread()},[intent,loading,snapshot?.thread,error]);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset the displayed timer when an external request lifecycle ends.
   useEffect(()=>{if(!busy){setElapsed(0);return}const started=Date.now(),timer=setInterval(()=>setElapsed(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer)},[busy]);
+  useEffect(()=>{const receive=(event:Event)=>{const detail=(event as CustomEvent<LocalDataEvent>).detail;if(detail?.scope==='drafts'&&detail.workspaceId===namespace.current)setDrafts({});};window.addEventListener(LOCAL_DATA_EVENT,receive);return()=>window.removeEventListener(LOCAL_DATA_EVENT,receive);},[]);
   async function poll(requestId:string){
     if(polling.current||active.current||checking.current)return;polling.current=true;setBusy(true);const generation=epoch.current,selected=state.current?.thread?.id;
     try{for(let count=0;count<DISCUSSION_RECOVERY.checks;count++){

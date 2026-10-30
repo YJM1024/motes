@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {LOCAL_DATA_EVENT,type LocalDataEvent} from '@/lib/motes/local-data';
 import { CHAT_WIDTH_MAX, CHAT_WIDTH_MIN, clampChatWidth, DEFAULT_WORKBENCH_LAYOUT, parseWorkbenchLayout, workbenchLayoutStorageKey, type WorkbenchLayout, type WorkbenchMode } from '@/lib/motes/workbench-layout';
 
 export type WorkbenchLayoutStorageStatus = 'loading' | 'local' | 'memory' | 'disabled';
@@ -50,6 +51,7 @@ export function useWorkbenchLayout(workspaceId: string | null, enabled: boolean)
   }, [workspaceId, enabled]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  useEffect(()=>{const receive=(event:Event)=>{const detail=(event as CustomEvent<LocalDataEvent>).detail;if(detail?.scope!=='display'||detail.workspaceId!==workspaceId||!workspaceId)return;layoutMemory.delete(workspaceId);current.current=DEFAULT_WORKBENCH_LAYOUT;setLayout(DEFAULT_WORKBENCH_LAYOUT);setStorageStatus(enabled?'local':'memory');};window.addEventListener(LOCAL_DATA_EVENT,receive);return()=>window.removeEventListener(LOCAL_DATA_EVENT,receive);},[workspaceId,enabled]);
   const update = useCallback((patch: Partial<WorkbenchLayout>) => {
     const scope = active.current;
     if (!scope.workspaceId || scope.workspaceId !== workspaceId || scope.enabled !== enabled) return;

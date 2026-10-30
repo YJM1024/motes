@@ -3,7 +3,7 @@ export function composerDraftStore(storage:StorageLike){
   let workspace:string|null=null,values:Record<string,string>={};
   function save(){if(workspace)storage.setItem('motes-build-drafts:'+workspace,JSON.stringify(values))}
   return{
-    load(id:string){if(workspace===id)return;workspace=id;let next:unknown={};try{next=JSON.parse(storage.getItem('motes-build-drafts:'+id)||'{}')}catch{}values=next&&typeof next==='object'&&!Array.isArray(next)?Object.fromEntries(Object.entries(next).filter(([,value])=>typeof value==='string')):{}},
+    load(id:string,force=false){if(workspace===id&&!force)return;workspace=id;let next:unknown={};try{next=JSON.parse(storage.getItem('motes-build-drafts:'+id)||'{}')}catch{}values=next&&typeof next==='object'&&!Array.isArray(next)?Object.fromEntries(Object.entries(next).filter(([,value])=>typeof value==='string')):{}},
     read(key:string){return values[key]||''},
     entries(){return{...values}},
     write(id:string,key:string,text:string){if(id!==workspace)return false;values={...values,[key]:text};save();return true},
