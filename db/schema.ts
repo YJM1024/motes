@@ -121,3 +121,7 @@ export const appTemplates = sqliteTable("motes_app_templates", {
  id:text("id").primaryKey(),workspaceId:text("workspace_id").notNull().references(()=>workspaces.id),name:text("name").notNull(),description:text("description").notNull().default(''),html:text("html").notNull(),
  sourceAppId:text("source_app_id").notNull(),sourceVersionId:text("source_version_id").notNull(),createdAt:text("created_at").notNull(),updatedAt:text("updated_at").notNull(),
 }, t=>[index("motes_app_template_workspace").on(t.workspaceId,t.updatedAt)]);
+
+export const publications = sqliteTable("motes_publications", {
+ appId:text("app_id").primaryKey().references(()=>projects.id),versionId:text("version_id").notNull().references(()=>versions.id),title:text("title").notNull(),token:text("token").notNull(),publishedAt:text("published_at").notNull(),updatedAt:text("updated_at").notNull(),enabled:integer("enabled").notNull().default(1),revision:integer("revision").notNull().default(1),lastRequestId:text("last_request_id").notNull(),
+},t=>[uniqueIndex("motes_publication_token").on(t.token)]);
