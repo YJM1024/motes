@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Project } from '@/lib/forma/types';
 import { compareLines } from '@/lib/motes/line-diff';
+import { summarizeLineChanges } from '@/lib/motes/version-diff-summary';
 import styles from './VersionTools.module.css';
 import SharePanel from './SharePanel';
 
@@ -33,7 +34,10 @@ function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,o
   const panel=useRef<HTMLElement>(null),closeButton=useRef<HTMLButtonElement>(null);
   const before=project.versions.find(v=>v.id===left),after=project.versions.find(v=>v.id===right);
   const diff=useMemo(()=>compareLines(before?.html??'',after?.html??''),[before?.html,after?.html]);
+  const summary=useMemo(()=>summarizeLineChanges(before?.html??'',after?.html??''),[before?.html,after?.html]);
   const rows=changesOnly?diff.lines.filter(l=>l.kind!=='same'):diff.lines;
+  const sourceLabel=(mode:Project['versions'][number]['mode'])=>mode==='manual'?'手工源码':mode==='demo'?'示例生成':'模型生成';
+  const createdAt=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?'时间未知':date.toLocaleString();};
   useEffect(()=>{
     const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
     closeButton.current?.focus();
@@ -82,7 +86,9 @@ function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,o
         <label className={styles.check}><input type="checkbox" checked={changesOnly} onChange={e=>setChangesOnly(e.target.checked)}/>只看更改</label>
         <label className={styles.check}><input type="checkbox" checked={wrapLines} onChange={e=>setWrapLines(e.target.checked)}/>折行查看（保留源码行号）</label>
       </div>
-      <div className={styles.caption}><span>+ 新增 {diff.added} 行 · − 删除 {diff.removed} 行</span><span>左侧行号为基准，右侧行号为所选版本</span></div>
+      <div className={styles.capacity}><span>此应用保留 {project.versions.length} / 60 个版本</span><span>每位访客最多创建 100 个应用</span></div>
+      <div className={styles.caption}><span>比较 v{before?.number??'—'} → v{after?.number??'—'}：{summary.added===null?'代码较大，暂不提供行数摘要':`增加 ${summary.added} 行 · 删除 ${summary.removed} 行`}</span><span>行数为精确文本差异；此摘要不使用 AI</span></div>
+      {after&&<div className={styles.versionInfo}><div><strong>所选 v{after.number}{after.id===project.currentVersionId?' · 当前应用指向此版本':''}</strong><span>{sourceLabel(after.mode)}{after.model?` · ${after.model}`:''} · {createdAt(after.createdAt)}</span></div><details><summary>查看版本记录信息</summary><p><b>来源记录：</b>{after.prompt||'无记录'}</p><p><b>摘要：</b>{after.summary||'无记录'}</p></details><p>历史版本不会被此处替换；编辑历史源码后保存会新增版本。创建副本会以所选版本作为副本的 v1，不改变原应用当前指针。</p></div>}
       {(diff.limited||diff.coarse)&&<p className={styles.notice}>{diff.limited?'内容较长，仅比较每份前 10 万字符、1400 行。':'变更较多，已改用整段增删比较。'} 复制和创建副本仍使用所选版本的完整源码。</p>}
       {before&&after&&diff.added===0&&diff.removed===0&&<p className={styles.notice}>{left===right?'所选为同一个版本，没有源码差异。':'这两个版本的源码一致。'}{diff.limited?'此结果仅指已展示的比较范围。':''}</p>}
       {before&&after?<div className={`${styles.code} ${wrapLines?styles.wrap:''}`} tabIndex={0} role="region" aria-label="源码差异">
