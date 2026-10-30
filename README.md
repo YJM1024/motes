@@ -4,7 +4,7 @@
 
 [在线体验](https://forma-junmin.warmgrove10.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地运行补充](docs/local-setup.md) · [架构与取舍](docs/architecture.md) · [验收与上线状态](docs/acceptance.md)
 
-当前生产环境仍为 v6，真实模型核心流程与应用管理已上线；本轮其他能力已合入源码，尚待发布。
+当前生产环境为 v7（2026-10-31，环境修订 2），本批 23 组功能已上线并完成分层验收。线上综合接口 9 组、49 次请求通过，零额外模型调用；另完成一次真实 Luna 讨论，回答、草稿与历史保留均通过。具体范围见验收记录，不代表长期产品规划全部完成。
 
 本页描述当前源码能力。线上部署与实际验证范围以[验收状态表](docs/acceptance.md#当前验收状态)为准，发布后逐项更新。项目原名 Forma，沿用原地址和存储标识以保留已有作品。
 
