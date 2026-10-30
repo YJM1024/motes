@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 async function harness(model = 'fake-configured-model') {
   const sqlite = new DatabaseSync(':memory:'); sqlite.exec('PRAGMA foreign_keys=ON');
-  const migrations = ['0000_great_roland_deschain', '0001_first_wind_dancer', '0002_workspace_settings', '0004_version_annotations', '0006_model_usage'];
+  const migrations = ['0000_great_roland_deschain', '0001_first_wind_dancer', '0002_workspace_settings', '0004_version_annotations', '0006_model_usage', '0011_generation_results'];
   for (const name of migrations) sqlite.exec(await readFile(new URL(`../drizzle/${name}.sql`, import.meta.url), 'utf8'));
   function prepare(sql, args = []) { return { bind(...values) { return prepare(sql, values); }, async first() { return sqlite.prepare(sql).get(...args) ?? null; }, async all() { return { results: sqlite.prepare(sql).all(...args) }; }, async run() { return { meta: { changes: Number(sqlite.prepare(sql).run(...args).changes) } }; } }; }
   const env = { OPENAI_API_KEY: model ? 'test-only-not-a-real-key' : '', OPENAI_MODEL: model || '', DB: { prepare, async batch(statements) { sqlite.exec('BEGIN'); try { const results = []; for (const s of statements) results.push(await s.run()); sqlite.exec('COMMIT'); return results; } catch (e) { sqlite.exec('ROLLBACK'); throw e; } } } };

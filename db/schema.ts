@@ -111,3 +111,8 @@ export const candidateAttempts = sqliteTable("motes_candidate_attempts", {
  requestId: text("request_id").primaryKey().references(() => requests.id), candidateId: text("candidate_id").notNull().references(() => candidates.id),
  previousRequestId: text("previous_request_id").notNull(), fingerprint: text("fingerprint").notNull(), createdAt: text("created_at").notNull(),
 }, t => [index("motes_candidate_attempt_lane").on(t.candidateId,t.createdAt)]);
+
+export const generationResults = sqliteTable("motes_generation_results", {
+ requestId: text("request_id").primaryKey().references(() => requests.id), owner: text("owner").notNull(), kind: text("kind").notNull(), resultJson: text("result_json").notNull(),
+ createdAt: text("created_at").notNull(), expiresAt: text("expires_at").notNull(), committedAt: text("committed_at"),
+}, t => [index("motes_result_owner_expiry").on(t.owner,t.expiresAt)]);

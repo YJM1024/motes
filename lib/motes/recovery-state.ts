@@ -7,10 +7,10 @@ export type RecoveryAttempt = {
 };
 export type RecoveryContext = {projectId?:string;managedProjectId?:string;contextId?:string};
 export type RecoveryIdentity = {attemptId:string;requestId:string;contextKey:string;epoch:number};
-export type RecoveryPhase = 'checking'|'running'|'done'|'failed'|'expired'|'not-found'|'unavailable'|'paused'|'cancelled';
+export type RecoveryPhase = 'checking'|'running'|'save_pending'|'done'|'failed'|'expired'|'not-found'|'unavailable'|'paused'|'cancelled';
 export type RecoveryState = {
   identity:RecoveryIdentity;phase:RecoveryPhase;checks:number;maxChecks:number;
-  retry:'check'|'same'|'new'|'none';nextDelayMs:number|null;message:string;
+  retry:'check'|'same'|'new'|'none'|'save';nextDelayMs:number|null;message:string;
 };
 export const RECOVERY_MAX_CHECKS=20;
 const delays=[2000,3000,5000,8000,12000,15000];
@@ -44,6 +44,7 @@ export function recoveryReducer(state:RecoveryState,action:Action):RecoveryState
     if(action.status.requestId!==a.requestId)return state;
     const status=action.status.status;
     if(status==='done')return {...state,checks,phase:'done',retry:'none',nextDelayMs:null,message:'已找到原请求保存的结果。'};
+    if(status==='save_pending')return {...state,checks,phase:'save_pending',retry:'save',nextDelayMs:null,message:'原请求结果已暂存7天，可仅重试保存，不会重新调用模型。'};
     if(status==='failed'||status==='expired')return {...state,checks,phase:status,retry:'new',nextDelayMs:null,message:status==='failed'?'原请求已确认失败，可以重新发送。':'原请求已超出有效处理时限，可以重新发送。'};
     if(status==='not-found')return {...state,checks,phase:'not-found',retry:'same',nextDelayMs:null,message:'暂未找到原请求。重试会沿用原编号，避免重复发送。'};
   }

@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { stageResult, stagedResult, commitGenerationResult } from '../motes/results';
 import { generateDemo } from './demo';
 import { initialAppTitle } from './app-title';
 import { configuredModels, defaultModel } from './model-config';
@@ -39,6 +40,7 @@ export async function generate(request:Request){
   const prior=await db.prepare('SELECT owner,project_id,status,fingerprint FROM forma_requests WHERE id=?').bind(requestId).first<{owner:string;project_id:string;status:string;fingerprint:string}>();
   if(prior){
     if(prior.owner!==who||prior.fingerprint!==fingerprint)throw new HttpError(409,'该请求编号已被使用。');
+    if(await stagedResult(db,who,requestId,'generation')){const id=await commitGenerationResult(db,who,requestId);return json({project:await readProject(who,id)});}
     // A terminated worker cannot release its lease. Retire only an expired request;
     // the commit below also requires this request to still own a live lease.
     await db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND status='running' AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE request_id=? AND expires_at>?)").bind(requestId,requestId,Date.now()).run();
@@ -79,25 +81,10 @@ export async function generate(request:Request){
   try{
     const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base),value=>{observation=value});
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
-    // Every write is fenced by the live lease in this atomic batch. An expired
-    // worker must never overwrite a newer request or a restored version.
-    const leaseGuard="EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.status='running')"+(managedProjectId?" AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=? AND g.archived=0)":"");
-    const leaseBindings=[id,requestId,Date.now(),...managedProjectId?[managedProjectId,who]:[]];
-    // Only publish dependent rows after the first write admitted this exact version.
-    // Repeating the capacity predicate after inserting the final slot would reject
-    // its version and leave a dangling current pointer.
-    const guard=leaseGuard+' AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?)';
-    const lease=[...leaseBindings,id,who,version.id];
-    const committed=await db.batch([
-      project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${leaseGuard}`).bind(version.id,version.createdAt,id,who,...leaseBindings):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${leaseGuard} AND (SELECT count(*) FROM forma_projects WHERE owner=?)<100`).bind(id,who,demo?.title??initialAppTitle(html,prompt),now,version.createdAt,version.id,...leaseBindings,who),
-      db.prepare(`INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,?,?,?,?,?,?,? WHERE ${guard}`).bind(version.id,id,version.number,prompt,version.summary,html,version.createdAt,mode,version.model??null,...lease),
-      ...managedProjectId?[db.prepare(`INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,g.workspace_id,g.id,? FROM motes_projects g WHERE g.id=? AND ${guard}`).bind(id,version.createdAt,managedProjectId,...lease)]:[],
-      ...mode==='model'?[usageCompletion(db,requestId,who,'succeeded',observation,null,{sql:guard,bindings:lease})]:[],
-      db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,requestId,who,...lease),
-      db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),
-    ]);
-    if(!committed[0].meta.changes)throw new HttpError(409,'应用容量、创建目标或请求状态已变化，请检查后重新发起生成。','new');
+    await stageResult(db,who,requestId,'generation',{projectId:id,isNew:!project,title:demo?.title??initialAppTitle(html,prompt),version,expectedCurrentVersionId:project?.currentVersionId??null,managedProjectId:managedProjectId??null,observation});
+    await commitGenerationResult(db,who,requestId,true);
   }catch(error){
+    if(await stagedResult(db,who,requestId,'generation')){if(error instanceof HttpError)throw error;throw new HttpError(503,'生成结果已暂存，请仅重试保存。');}
     const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);
     if(mode==='model')await usageCompletion(db,requestId,who,'failed',observation,error instanceof HttpError?'state_changed':(observation as ModelObservation|null)?.errorCode??'storage').run();
     // Only a confirmed failed reservation can be retried with a new ID. An

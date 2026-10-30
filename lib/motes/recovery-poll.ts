@@ -8,7 +8,7 @@ export async function queryRequestStatus(id:string,signal:AbortSignal):Promise<R
   if(response.status===404)return {requestId:id,status:'not-found'};
   if(!response.ok)throw new RecoveryQueryError(response.status===401?'会话已失效，请重新连接后核对。':'暂时无法查询原请求。',[400,401,403].includes(response.status));
   const value=await response.json() as RequestStatus;
-  if(value.requestId!==id||!['done','running','failed','expired'].includes(value.status))throw new RecoveryQueryError('请求状态响应无效。');
+  if(value.requestId!==id||!['done','running','failed','expired','save_pending'].includes(value.status))throw new RecoveryQueryError('请求状态响应无效。');
   if(value.status==='done'&&(!value.projectId||!value.resultVersionId||value.result?.projectId!==value.projectId||value.result?.versionId!==value.resultVersionId))throw new RecoveryQueryError('保存结果尚未完整返回。');
   return value;
 }

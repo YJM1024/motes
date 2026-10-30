@@ -52,6 +52,7 @@ async function serverHarness() {
   sqlite.exec(await readFile(new URL('../drizzle/0002_workspace_settings.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0004_version_annotations.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0006_model_usage.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0011_generation_results.sql',import.meta.url),'utf8'));
   const harness={sqlite,failRead:false};
   function prepare(sql,args=[]) {
     return {
@@ -82,6 +83,7 @@ async function serverHarness() {
   const usageSource=await readFile(new URL('../lib/motes/usage.ts',import.meta.url),'utf8');
   const usageJs=ts.transpileModule(usageSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   source=source.replaceAll("'../motes/usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));
+  let resultSource=await readFile(new URL('../lib/motes/results.ts',import.meta.url),'utf8');resultSource=resultSource.replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64'))).replaceAll("'./usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));const resultJs=ts.transpileModule(resultSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/results'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(resultJs).toString('base64')));
   const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   const server=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   delete globalThis[key];
@@ -147,9 +149,10 @@ test('metadata insert failure rolls back the new app and version together',async
   const h=await serverHarness();t.after(h.close);const target=await targetProject(h,await owner(h.request({})));
   h.sqlite.exec("CREATE TRIGGER fail_metadata BEFORE INSERT ON motes_apps BEGIN SELECT RAISE(ABORT,'simulated metadata failure'); END");
   const requestId=crypto.randomUUID();
-  await assert.rejects(h.server.generate(h.request({prompt:'番茄钟',mode:'demo',managedProjectId:target,requestId})),e=>e.status===502&&e.retry==='new');
+  await assert.rejects(h.server.generate(h.request({prompt:'番茄钟',mode:'demo',managedProjectId:target,requestId})),e=>e.status===503&&e.retry===undefined);
   for(const table of ['forma_projects','forma_versions','motes_apps','forma_locks'])assert.equal(h.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get().n,0,table);
-  assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(requestId).status,'failed');
+  assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(requestId).status,'running');
+  h.sqlite.exec('DROP TRIGGER fail_metadata');const saved=await h.server.generate(h.request({prompt:'番茄钟',mode:'demo',managedProjectId:target,requestId}));assert.equal(saved.status,200);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
 });
 
 test('target changes during model generation reject the entire application/version/metadata commit',async(t)=>{
@@ -163,9 +166,9 @@ test('target changes during model generation reject the entire application/versi
       const pending=h.server.generate(h.request(body));await started;
       if(change==='archive')h.sqlite.prepare('UPDATE motes_projects SET archived=1 WHERE id=?').run(target);
       else h.sqlite.prepare('UPDATE motes_projects SET workspace_id=(SELECT workspace_id FROM motes_projects WHERE id=?) WHERE id=?').run(foreign,target);
-      release();await assert.rejects(pending,e=>e.status===409&&e.retry==='new');
+      release();await assert.rejects(pending,e=>e.status===409&&e.retry===undefined);
       for(const table of ['forma_projects','forma_versions','motes_apps','forma_locks'])assert.equal(h.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get().n,0,table);
-      assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(body.requestId).status,'failed');
+      assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(body.requestId).status,'running');
     }finally{mocked.mock.restore();h.close()}
   }
 });
@@ -234,7 +237,7 @@ test('expired running request can be reissued and its old worker cannot commit o
   assert.equal((await expired.json()).retry,'new');
   assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(old.requestId).status,'failed');
   const fresh=await (await h.server.generate(h.request({prompt:'改成蓝色主题',mode:'demo',projectId,requestId:crypto.randomUUID()}))).json();
-  release();await assert.rejects(pending,e=>e.status===409&&/重新发起/.test(e.message));
+  release();await assert.rejects(pending,e=>e.status===409&&/暂存/.test(e.message));
   const stored=await h.server.readProject(await owner(h.request(old)),projectId);
   assert.equal(stored.currentVersionId,fresh.project.currentVersionId);
   assert.equal(stored.versions.length,2);

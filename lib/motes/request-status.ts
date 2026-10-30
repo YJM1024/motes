@@ -20,7 +20,8 @@ export async function requestStatus(request:Request,id:string) {
       FROM forma_projects p JOIN forma_versions v ON v.project_id=p.id WHERE p.id=? AND p.owner=? AND v.id=?`).bind(row.project_id,who,row.result_version_id).first<SavedRequestResult>();
     if(!saved)return missing();
     state={requestId:id,status:'done',projectId:saved.projectId,resultVersionId:saved.versionId,result:saved};
-  }else if(row.status==='failed')state={requestId:id,status:'failed',retry:'new'};
+  }else if(await db.prepare("SELECT request_id FROM motes_generation_results WHERE request_id=? AND owner=? AND kind='generation' AND committed_at IS NULL AND expires_at>?").bind(id,who,new Date().toISOString()).first())state={requestId:id,status:'save_pending',retry:'save'};
+  else if(row.status==='failed')state={requestId:id,status:'failed',retry:'new'};
   else if(row.status==='running')state=row.expires_at?{requestId:id,status:'running',leaseExpiresAt:row.expires_at}:{requestId:id,status:'expired',retry:'new'};
   else return missing();
   return json(state);

@@ -78,6 +78,13 @@
       "when": 1793381683816,
       "tag": "0010_candidate_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793381818246,
+      "tag": "0011_generation_results",
+      "breakpoints": true
     }
   ]
 }

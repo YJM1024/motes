@@ -20,6 +20,7 @@ function loader(key){
 }
 async function harness(){
   const sqlite=new DatabaseSync(':memory:');sqlite.exec('PRAGMA foreign_keys=ON');sqlite.exec(await readFile(new URL('../drizzle/0000_great_roland_deschain.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0011_generation_results.sql',import.meta.url),'utf8'));
   const sql=[];
   const prepare=(query,args=[])=>({bind(...values){return prepare(query,values);},async first(){sql.push(query);return sqlite.prepare(query).get(...args)??null;}});
   const key=crypto.randomUUID();globalThis[key]={DB:{prepare}};

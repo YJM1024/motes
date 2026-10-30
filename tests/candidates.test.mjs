@@ -15,9 +15,12 @@ async function harness(config={}){
   async function call(action,body,visitor='a',origin='https://motes.test'){const req=new Request('https://motes.test/api/candidates',{method:body?'POST':'GET',headers:{cookie:'forma_session='+visitor.repeat(64),...body?{origin,'content-type':'application/json'}:{}},...body?{body:JSON.stringify(body)}:{}});const response=await server.route(()=>action(req));return{status:response.status,data:await response.json()}}
   const create=(body,visitor='a',origin)=>call(req=>tools.createCandidates(req),body,visitor,origin),read=(id,visitor='a')=>call(req=>tools.getCandidates(req,id),null,visitor),adopt=(groupId,candidateId,asNew=false,visitor='a')=>call(req=>tools.adoptCandidate(req,groupId),{candidateId,asNew},visitor);
   const success=(title='候选')=>Response.json({status:'completed',model:'gpt-6-luna',usage:{input_tokens:10,output_tokens:20,total_tokens:30},output:[{content:[{type:'output_text',text:demo.generateDemo('番茄钟').html.replace(/<title>.*?<\/title>/,'<title>'+title+'</title>')}]}]});
+  const tasks=await import(await urlFor('motes/tasks'));
+  const listTasks=(visitor='a')=>call(req=>tasks.listTasks(req),null,visitor),saveTask=(id,visitor='a')=>call(req=>tasks.saveTask(req,id),{},visitor);
   const generate=body=>call(req=>server.generate(req),body);
   const retry=(groupId,body,visitor='a')=>call(req=>tools.retryCandidate(req,groupId),body,visitor);
-  return{retry,sqlite,control,env,who,tools,server,seed,create,read,adopt,generate,success,close:()=>sqlite.close()};
+  const save=(groupId,candidate)=>call(req=>tools.saveCandidate(req,groupId),{candidateId:candidate.id,attemptId:candidate.attemptId});
+  return{listTasks,saveTask,save,retry,sqlite,control,env,who,tools,server,seed,create,read,adopt,generate,success,close:()=>sqlite.close()};
 }
 const body=(extra={})=>({requestId:crypto.randomUUID(),prompt:'生成计时工具',mode:'model',confirmTwoCalls:true,...extra});
 async function fillApps(h,count){const who=await h.who('a'),now=new Date().toISOString();while(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects WHERE owner=?').get(who).n<count){const id=crypto.randomUUID(),version=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,who,'已有作品',now,now,version);h.sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'原需求','原摘要','<!doctype html><html><body>existing</body></html>',now,'manual',null);}}
@@ -81,10 +84,11 @@ test('late source mutation inside adoption transaction is fenced and concurrent 
   const copies=await Promise.all(group.candidates.map(c=>h.adopt(group.id,c.id,true)));assert.deepEqual(copies.map(c=>c.status).sort(),[201,409]);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,100);assert.equal(h.sqlite.prepare('PRAGMA foreign_key_check').all().length,0);
 });
 
-test('candidate save failure affects one peer only and retains paid usage without automatic model retry',async t=>{
-  const h=await harness();t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
-  h.sqlite.exec("CREATE TRIGGER fail_peer BEFORE UPDATE ON motes_candidates WHEN NEW.slot=1 AND NEW.status='ready' BEGIN SELECT RAISE(ABORT,'simulated peer storage failure'); END");
-  const input=body(),result=await h.create(input);assert.equal(result.status,201);assert.deepEqual(result.data.group.candidates.map(c=>c.status),['ready','failed']);assert.equal(result.data.group.candidates[1].errorCode,'storage');assert.equal(h.sqlite.prepare("SELECT total_tokens FROM motes_model_usage WHERE status='failed'").get().total_tokens,30);await h.create(input);assert.equal(calls,2);
+test('candidate storage failure stages paid output and only retries saving without model calls',async t=>{
+ const h=await harness();t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
+ h.sqlite.exec("CREATE TRIGGER fail_peer BEFORE UPDATE ON motes_candidates WHEN NEW.slot=1 AND NEW.status='ready' BEGIN SELECT RAISE(ABORT,'simulated peer storage failure'); END");
+ const input=body(),result=await h.create(input);assert.equal(result.status,201);assert.deepEqual(result.data.group.candidates.map(c=>c.status),['ready','save_pending']);const candidate=result.data.group.candidates[1];assert.equal(candidate.errorCode,'storage');assert.equal((await h.retry(result.data.group.id,{requestId:crypto.randomUUID(),candidateId:candidate.id,previousAttemptId:candidate.attemptId,confirmOneCall:true})).status,409);await h.create(input);assert.equal(calls,2);
+ h.sqlite.exec('DROP TRIGGER fail_peer');assert.equal((await h.save(result.data.group.id,candidate)).status,200);assert.equal((await h.save(result.data.group.id,candidate)).status,200);assert.equal(calls,2);assert.equal(h.sqlite.prepare('SELECT total_tokens FROM motes_model_usage WHERE request_id=?').get(candidate.attemptId).total_tokens,30);assert.equal((await h.read(result.data.group.id)).data.group.candidates[1].status,'ready');
 });
 
 test('no-key demo has two honest preset outputs, no paid usage and rejects unsafe inputs before reserving',async t=>{
@@ -103,15 +107,15 @@ test('candidate adoption can fill the last slot during generation without a 101s
   const input={requestId:crypto.randomUUID(),mode:'model',prompt:'番茄钟',managedProjectId:group.managedProjectId},pending=h.generate(input);
   for(let n=0;!finish&&n<500;n++)await new Promise(r=>setImmediate(r));assert.ok(finish);
   const adopted=await h.adopt(group.id,group.candidates[0].id);assert.equal(adopted.status,201);finish();
-  const result=await pending;assert.equal(result.status,409);assert.equal(result.data.retry,'new');
+  const result=await pending;assert.equal(result.status,409);assert.equal(result.data.retry,undefined);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,100);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,100);
-  const rejected=h.sqlite.prepare('SELECT * FROM forma_requests WHERE id=?').get(input.requestId);assert.equal(rejected.status,'failed');
+  const rejected=h.sqlite.prepare('SELECT * FROM forma_requests WHERE id=?').get(input.requestId);assert.equal(rejected.status,'running');
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects WHERE id=?').get(rejected.project_id).n,0);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_apps WHERE app_id=?').get(rejected.project_id).n,0);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_locks').get().n,0);
   assert.equal((await h.generate(input)).status,409);assert.equal(calls,1);
-  assert.equal(h.sqlite.prepare('SELECT status FROM motes_model_usage WHERE request_id=?').get(input.requestId).status,'failed');
+  assert.equal(h.sqlite.prepare('SELECT status FROM motes_model_usage WHERE request_id=?').get(input.requestId).status,'succeeded');
   const saved=await h.server.readProject(await h.who('a'),adopted.data.appId);assert.equal(saved.currentVersionId,adopted.data.versionId);assert.equal(saved.versions.length,1);
   assert.equal(h.sqlite.prepare('PRAGMA foreign_key_check').all().length,0);
 });
@@ -153,4 +157,11 @@ test('retry CAS admits only one concurrent attempt, rejects unresolved peers and
  const h=await harness();t.after(h.close);let fail=true,finish,calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;if(fail)throw new DOMException('timeout','TimeoutError');return new Promise(resolve=>{finish=()=>resolve(h.success())})});const app=await h.seed(),group=(await h.create(body({appId:app.id,baseVersionId:app.version}))).data.group,candidate=group.candidates[0],retry={requestId:crypto.randomUUID(),candidateId:candidate.id,previousAttemptId:candidate.attemptId,confirmOneCall:true};
  h.sqlite.prepare('INSERT INTO forma_locks VALUES(?,?,?)').run(app.id,'other',Date.now()+60000);assert.equal((await h.retry(group.id,retry)).status,409);h.sqlite.prepare('DELETE FROM forma_locks').run();assert.equal(calls,2);
  fail=false;const pending=h.retry(group.id,retry);for(let n=0;!finish&&n<500;n++)await new Promise(r=>setImmediate(r));assert.ok(finish);assert.equal((await h.retry(group.id,retry)).status,200);assert.equal((await h.retry(group.id,{...retry,requestId:crypto.randomUUID()})).status,409);assert.equal(calls,3);h.sqlite.prepare('UPDATE forma_locks SET expires_at=0').run();assert.equal((await h.read(group.id)).data.group.candidates[0].status,'unresolved');assert.equal((await h.retry(group.id,{...retry,requestId:crypto.randomUUID(),previousAttemptId:retry.requestId})).status,409);finish();await pending;assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,3);
+});
+
+test('generation paid output survives storage failure, owner-scoped task saves once and expires after seven days',async t=>{
+ const h=await harness();t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});h.sqlite.exec("CREATE TRIGGER fail_version BEFORE INSERT ON forma_versions BEGIN SELECT RAISE(ABORT,'simulated version outage'); END");
+ const input={requestId:crypto.randomUUID(),mode:'model',prompt:'original paid output'},result=await h.generate(input);assert.equal(result.status,503);assert.equal(result.data.retry,undefined);assert.equal(calls,1);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,0);const own=(await h.listTasks()).data.items;assert.equal(own[0].phase,'save_pending');assert.equal((await h.listTasks('b')).data.items.length,0);assert.equal((await h.saveTask(input.requestId,'b')).status,404);
+ h.sqlite.exec('DROP TRIGGER fail_version');const saves=await Promise.all([h.saveTask(input.requestId),h.saveTask(input.requestId)]);assert.ok(saves.some(r=>r.status===200));assert.equal((await h.saveTask(input.requestId)).status,200);assert.equal(calls,1);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,1);assert.equal((await h.listTasks()).data.items[0].phase,'saved');
+ h.sqlite.exec("CREATE TRIGGER fail_version BEFORE INSERT ON forma_versions BEGIN SELECT RAISE(ABORT,'simulated version outage'); END");const expired={requestId:crypto.randomUUID(),mode:'model',prompt:'expires'};assert.equal((await h.generate(expired)).status,503);h.sqlite.prepare("UPDATE motes_generation_results SET expires_at='2000-01-01T00:00:00.000Z' WHERE request_id=?").run(expired.requestId);h.sqlite.exec('DROP TRIGGER fail_version');assert.equal((await h.saveTask(expired.requestId)).status,410);assert.equal(calls,2);assert.equal(h.sqlite.prepare('PRAGMA foreign_key_check').all().length,0);
 });
