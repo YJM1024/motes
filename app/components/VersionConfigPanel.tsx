@@ -46,7 +46,7 @@ export default function VersionConfigPanel({ projectId, versionId, onClose }: Pr
   const current = snapshot?.versionId === versionId ? snapshot : null;
 
   const dateLabel = (value?: string) => formatVersionConfigDate(value, locale);
-  const displayError = (value: string) => value === '服务没有返回有效的配置记录，请重试读取。' ? t('服务没有返回有效的配置记录，请重试读取。') : value === '服务返回的配置记录格式无效。' ? t('服务返回的配置记录格式无效。') : value === '配置记录读取失败。' ? t('配置记录读取失败。') : value;
+  const displayError = (value:string) => { const status=/^配置记录读取失败（(\d{3})）。$/.exec(value); return status ? t('配置记录读取失败（{status}）。',{status:status[1]}) : value === '服务没有返回有效的配置记录，请重试读取。' ? t('服务没有返回有效的配置记录，请重试读取。') : value === '服务返回的配置记录格式无效。' ? t('服务返回的配置记录格式无效。') : value === '配置记录读取失败。' ? t('配置记录读取失败。') : value; };
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="version-config-title" onCancel={event => { event.preventDefault(); close(); }}>
     <header className={styles.header}><div><h2 id="version-config-title">{t('版本配置')}</h2><p>{t('仅显示该版本保存时记录的信息，不会修改或恢复设置。')}</p></div><button ref={closeButton} type="button" onClick={close} aria-label={t('关闭版本配置')}>{t('关闭')}</button></header>
     <div className={styles.body}>

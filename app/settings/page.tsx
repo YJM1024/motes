@@ -7,6 +7,7 @@ import type { SettingKey, SettingsPatch, SettingsSnapshot, SettingScope } from '
 import type { WorkspaceSnapshot } from '@/lib/motes/types';
 import './settings.css';
 import UsagePanel from '../components/UsagePanel';
+import InterfaceLanguagePreferences from '../components/InterfaceLanguagePreferences';
 import MotionPreferences from '../components/MotionPreferences';
 import ThemePreferences from '../components/ThemePreferences';
 import { useHostLocale, hostText } from '@/app/components/HostLocaleProvider';
@@ -89,6 +90,7 @@ export default function SettingsPage() {
           return <div className="settings-row" key={field.key}><div><span className="settings-field-group">{field.group}</span><h4>{field.title}</h4><p>{field.description}</p><small>{t('当前生效：')}{currentLabel} <span>{t('· 来源：')}{t(sourceNames[settings.sources[field.key]])}</span></small></div><select aria-label={field.title} value={selected} disabled={busy} onChange={e => { const value = e.target.value === 'inherit' ? null : e.target.value === 'true' ? true : e.target.value === 'false' ? false : e.target.value; setDraft(prev => ({ ...prev, [field.key]: value } as SettingsPatch)); }}><option value="inherit">{scope === 'workspace' ? t('使用系统默认') : t('继承上级设置')}</option>{field.key === 'model' && selected !== 'inherit' && !options.some(o=>o[0]===selected) && <option value={selected} disabled>{t('原模型不可用，请改用继承')}</option>}{options.map(([value, label]) => <option value={value} key={value} disabled={field.key === 'creationMode' && value === 'model' && !settings.modelAvailable}>{label}</option>)}</select></div>;
         }) : <p className="settings-loading">{t('没有匹配的设置，试试其他关键词。')}</p>}<div className="settings-actions"><button disabled={busy} onClick={() => setDraft({})}>{t(scope === 'workspace' ? '恢复系统默认' : '全部恢复继承')}</button><span>{t(dirty ? '有未保存的修改' : '已与服务端同步')}</span><button disabled={busy || !dirty} onClick={() => { setDraft(settings.overrides[scope]); setError(''); }}>{t('取消')}</button><button className="settings-primary" disabled={busy || !dirty} onClick={() => void save()}>{t(busy ? '保存中…' : '保存设置')}</button></div></>}
       </section>
+      <InterfaceLanguagePreferences />
       <ThemePreferences />
       <MotionPreferences />
       {workspace && <UsagePanel/>}

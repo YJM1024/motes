@@ -9,7 +9,7 @@ const files = ['app/page.tsx', 'app/manage/page.tsx', 'app/settings/page.tsx', '
 for (const name of await readdir(path.join(root, 'app/components'))) {
   if (/\.(?:tsx|ts)$/.test(name)) files.push(`app/components/${name}`);
 }
-const directMisses = [], reviewLiterals = [], fixedDateLocales = [];
+const directMisses = [], reviewLiterals = [], fixedDateLocales = [], translatedProps = [], preservedValues = [];
 const chinese = /[\u3400-\u9fff]/;
 for (const file of files) {
   const text = await readFile(path.join(root, file), 'utf8');
@@ -23,14 +23,19 @@ for (const file of files) {
   }
   function visit(node) {
     if (ts.isJsxText(node) && chinese.test(node.text)) directMisses.push(record(node, 'jsx-text', node.text));
-    if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer) && chinese.test(node.initializer.text)) directMisses.push(record(node, 'jsx-attribute', node.initializer.text));
+    if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer) && chinese.test(node.initializer.text)) {
+      const typedTranslationProp = node.parent.parent.tagName?.getText(tree) === 'InlineConfirm' && ['message','confirmLabel'].includes(node.name.getText(tree));
+      const preservedValue = node.name.getText(tree) === 'value';
+      (preservedValue ? preservedValues : typedTranslationProp ? translatedProps : directMisses).push(record(node, preservedValue ? 'stable-value-not-translated' : typedTranslationProp ? 'typed-key-translated-by-InlineConfirm' : 'jsx-attribute', node.initializer.text));
+    }
     if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && chinese.test(node.text) && !translated(node) && !ts.isJsxAttribute(node.parent)) reviewLiterals.push(record(node, 'literal-needs-review', node.text));
+    if (ts.isTemplateExpression(node) && chinese.test(node.getText(tree)) && !translated(node)) reviewLiterals.push(record(node, 'template-needs-review', node.getText(tree)));
     if (ts.isCallExpression(node) && /\.toLocale(?:DateString|TimeString|String)$/.test(node.expression.getText(tree)) && node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === 'zh-CN') fixedDateLocales.push(record(node, 'fixed-host-date-locale', node.getText(tree)));
     ts.forEachChild(node, visit);
   }
   visit(tree);
 }
-const report = { files: files.length, directMisses, fixedDateLocales, reviewLiterals, note: 'Direct JSX misses and fixed host date locales need correction. Review literals may be intentional prompt payloads, data enums, or source snapshots; do not translate user or generated content.' };
+const report = { files: files.length, directMisses, fixedDateLocales, translatedProps, preservedValues, reviewLiterals, note: 'Direct JSX misses and fixed host date locales need correction. Review literals may be intentional prompt payloads, data enums, or source snapshots; do not translate user or generated content.' };
 const output = process.argv[2];
 if (output) await writeFile(output, JSON.stringify(report, null, 2) + '\n');
-console.log(JSON.stringify({ files: files.length, directMisses: directMisses.length, fixedDateLocales: fixedDateLocales.length, reviewLiterals: reviewLiterals.length, ...(output ? { output } : {}) }));
+console.log(JSON.stringify({ files: files.length, directMisses: directMisses.length, fixedDateLocales: fixedDateLocales.length, translatedProps: translatedProps.length, preservedValues: preservedValues.length, reviewLiterals: reviewLiterals.length, ...(output ? { output } : {}) }));
