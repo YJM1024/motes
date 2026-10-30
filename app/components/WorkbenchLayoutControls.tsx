@@ -1,6 +1,6 @@
 'use client';
 
-import type { KeyboardEvent } from 'react';
+import { useRef,type KeyboardEvent } from 'react';
 import type { WorkbenchMode } from '@/lib/motes/workbench-layout';
 import styles from './WorkbenchLayoutControls.module.css';
 
@@ -27,6 +27,7 @@ export default function WorkbenchLayoutControls({ mode, onModeChange, sidebarCol
 }
 
 export function WorkbenchResizeHandle({ value, onChange, min = 280, max = 720, disabled = false }: { value: number; onChange: (value: number) => void; min?: number; max?: number; disabled?: boolean }) {
+  const drag=useRef<{x:number;value:number}|null>(null);
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     const step = event.shiftKey ? 32 : 8;
     let next: number | null = null;
@@ -36,5 +37,5 @@ export function WorkbenchResizeHandle({ value, onChange, min = 280, max = 720, d
     if (event.key === 'End') next = max;
     if (next !== null) { event.preventDefault(); onChange(Math.max(min, Math.min(max, next))); }
   }
-  return <div className={styles.resizeHandle} role="separator" aria-label="调整对话面板宽度" aria-orientation="vertical" aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${value} 像素`} tabIndex={disabled ? -1 : 0} onKeyDown={keyDown} />;
+  return <div className={styles.resizeHandle} role="separator" aria-label="调整对话面板宽度" aria-orientation="vertical" aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${value} 像素`} tabIndex={disabled ? -1 : 0} onKeyDown={keyDown} onPointerDown={event=>{if(disabled||event.button!==0)return;event.preventDefault();drag.current={x:event.clientX,value};event.currentTarget.setPointerCapture(event.pointerId);}} onPointerMove={event=>{if(!drag.current)return;onChange(Math.max(min,Math.min(max,drag.current.value+event.clientX-drag.current.x)));}} onPointerUp={event=>{drag.current=null;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onLostPointerCapture={()=>{drag.current=null;}} />;
 }
