@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 // Import pure TS modules through data URLs so Node's tests need no extra runner.
 import ts from 'typescript';
+import { DatabaseSync } from 'node:sqlite';
 async function moduleAt(path){const src=await readFile(new URL(path,import.meta.url),'utf8');const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'))}
 const {generateDemo}=await moduleAt('../lib/forma/demo.ts');
 const {parseModelOutput,generateModel}=await moduleAt('../lib/forma/model.ts');
@@ -41,4 +42,90 @@ test('model failures distinguish timeout, quota and authentication',async(t)=>{
  mocked.mock.mockImplementation(async()=>new Response('',{status:401}));
  await assert.rejects(generateModel('test',undefined,'test-key','gpt-6-luna'),e=>e.status===503&&/密钥/.test(e.message));
  mocked.mock.restore();
+});
+
+// Execute production queries against SQLite, with D1's transactional batch API.
+async function serverHarness() {
+  const sqlite=new DatabaseSync(':memory:');
+  sqlite.exec(await readFile(new URL('../drizzle/0000_great_roland_deschain.sql',import.meta.url),'utf8'));
+  const harness={sqlite,failRead:false};
+  function prepare(sql,args=[]) {
+    return {
+      bind(...values){return prepare(sql,values)},
+      async first(){
+        if(harness.failRead && sql.startsWith('SELECT id,title') && sql.includes('AND id=?')){harness.failRead=false;throw new Error('simulated read outage')}
+        return sqlite.prepare(sql).get(...args)??null;
+      },
+      async all(){return {results:sqlite.prepare(sql).all(...args)}},
+      async run(){const result=sqlite.prepare(sql).run(...args);return {meta:{changes:Number(result.changes)}}},
+    };
+  }
+  harness.env={DB:{prepare,async batch(statements){sqlite.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());sqlite.exec('COMMIT');return results}catch(e){sqlite.exec('ROLLBACK');throw e}}},OPENAI_API_KEY:'fake-test-key',OPENAI_MODEL:'fake-model'};
+  const key=crypto.randomUUID();globalThis[key]=harness.env;
+  let source=await readFile(new URL('../lib/forma/server.ts',import.meta.url),'utf8');
+  source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);
+  for(const file of ['demo','model','security']){
+    const raw=await readFile(new URL(`../lib/forma/${file}.ts`,import.meta.url),'utf8');
+    const js=ts.transpileModule(raw,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+    source=source.replaceAll(`'./${file}'`,JSON.stringify('data:text/javascript;base64,'+Buffer.from(js).toString('base64')));
+  }
+  const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+  const server=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+  delete globalThis[key];
+  const request=body=>new Request('https://forma.test/api/generate',{method:'POST',headers:{origin:'https://forma.test','content-type':'application/json',cookie:'forma_session='+'a'.repeat(64)},body:JSON.stringify(body)});
+  return {...harness,server,request,close:()=>sqlite.close(),setFailRead:()=>{harness.failRead=true}};
+}
+
+test('committed generation survives read failure and same request retries without a model call',async(t)=>{
+  const h=await serverHarness();t.after(h.close);
+  let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{calls++;h.setFailRead();return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})});
+  const body={prompt:'番茄钟',mode:'model',requestId:crypto.randomUUID()};
+  const first=await h.server.route(()=>h.server.generate(h.request(body)));
+  assert.equal(first.status,500);
+  assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests').get().status,'done');
+  const retry=await h.server.generate(h.request(body));
+  assert.equal(retry.status,200);
+  assert.equal((await retry.json()).project.versions.length,1);
+  assert.equal(calls,1);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
+});
+
+test('expired running request can be reissued and its old worker cannot commit over the new version',async(t)=>{
+  const h=await serverHarness();t.after(h.close);
+  const initial=await (await h.server.generate(h.request({prompt:'番茄钟',mode:'demo',requestId:crypto.randomUUID()}))).json();
+  const projectId=initial.project.id;
+  let release;const waiting=new Promise(resolve=>{release=resolve});let entered;const started=new Promise(resolve=>{entered=resolve});
+  t.mock.method(globalThis,'fetch',async()=>{entered();await waiting;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})});
+  const old={prompt:'调整页面',mode:'model',projectId,requestId:crypto.randomUUID()};
+  const pending=h.server.generate(h.request(old));await started;
+  h.sqlite.prepare('UPDATE forma_locks SET expires_at=0 WHERE request_id=?').run(old.requestId);
+  await assert.rejects(h.server.generate(h.request(old)),e=>e.status===409&&/重新发起/.test(e.message));
+  assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(old.requestId).status,'failed');
+  const fresh=await (await h.server.generate(h.request({prompt:'改成蓝色主题',mode:'demo',projectId,requestId:crypto.randomUUID()}))).json();
+  release();await assert.rejects(pending,e=>e.status===409&&/重新发起/.test(e.message));
+  const stored=await h.server.readProject(await owner(h.request(old)),projectId);
+  assert.equal(stored.currentVersionId,fresh.project.currentVersionId);
+  assert.equal(stored.versions.length,2);
+});
+
+test('late worker cannot delete a newer worker lease or publish after losing ownership',async(t)=>{
+  const h=await serverHarness();t.after(h.close);
+  const initial=await (await h.server.generate(h.request({prompt:'番茄钟',mode:'demo',requestId:crypto.randomUUID()}))).json();
+  const projectId=initial.project.id;
+  const gates=[];
+  t.mock.method(globalThis,'fetch',()=>new Promise(resolve=>gates.push(()=>resolve(Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})))));
+  const old={prompt:'旧修改',mode:'model',projectId,requestId:crypto.randomUUID()};
+  const pendingOld=h.server.generate(h.request(old));
+  while(gates.length<1)await new Promise(resolve=>setImmediate(resolve));
+  h.sqlite.prepare('UPDATE forma_locks SET expires_at=0 WHERE request_id=?').run(old.requestId);
+  const fresh={prompt:'新修改',mode:'model',projectId,requestId:crypto.randomUUID()};
+  const pendingFresh=h.server.generate(h.request(fresh));
+  while(gates.length<2)await new Promise(resolve=>setImmediate(resolve));
+  gates[0]();await assert.rejects(pendingOld,e=>e.status===409);
+  assert.equal(h.sqlite.prepare('SELECT request_id FROM forma_locks WHERE project_id=?').get(projectId).request_id,fresh.requestId);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
+  gates[1]();const result=await (await pendingFresh).json();
+  assert.equal(result.project.versions.length,2);
+  assert.equal(result.project.versions.at(-1).prompt,'新修改');
 });

@@ -25,7 +25,15 @@ export async function generate(request:Request){
   const prompt=body.prompt.trim(),mode=body.mode,requestId=body.requestId,db=database();
   const fingerprint=await digest(JSON.stringify([prompt,mode,body.projectId??null,body.baseVersionId??null]));
   const prior=await db.prepare('SELECT owner,project_id,status,fingerprint FROM forma_requests WHERE id=?').bind(requestId).first<{owner:string;project_id:string;status:string;fingerprint:string}>();
-  if(prior){if(prior.owner!==who||prior.fingerprint!==fingerprint)throw new HttpError(409,'该请求编号已被使用。');if(prior.status==='done')return json({project:await readProject(who,prior.project_id)});throw new HttpError(409,prior.status==='running'?'该请求正在处理，请稍后查看项目。':'该请求未完成，请重新发起生成。')}
+  if(prior){
+    if(prior.owner!==who||prior.fingerprint!==fingerprint)throw new HttpError(409,'该请求编号已被使用。');
+    // A terminated worker cannot release its lease. Retire only an expired request;
+    // the commit below also requires this request to still own a live lease.
+    await db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND status='running' AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE request_id=? AND expires_at>?)").bind(requestId,requestId,Date.now()).run();
+    const state=await db.prepare('SELECT status FROM forma_requests WHERE id=?').bind(requestId).first<{status:string}>();
+    if(state?.status==='done')return json({project:await readProject(who,prior.project_id)});
+    throw new HttpError(409,state?.status==='running'?'该请求正在处理，请稍后查看项目。':'该请求未完成，请重新发起生成。');
+  }
   const selectedModel=modelName();if(mode==='model'&&!selectedModel)throw new HttpError(503,'尚未连接模型。请先使用示例模式；管理员配置模型 Key 和模型名称后可启用。');
   const project=typeof body.projectId==='string'?await readProject(who,body.projectId):undefined;
   if(!project&&body.baseVersionId)throw new HttpError(400,'新项目不能指定历史版本。');
@@ -47,13 +55,18 @@ export async function generate(request:Request){
   try{
     const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!);
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
-    // D1 batch rolls back every write if any statement fails (including a version-number conflict).
-    await db.batch([
-      project?db.prepare('UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=?').bind(version.id,version.createdAt,id,who):db.prepare('INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) VALUES(?,?,?,?,?,?)').bind(id,who,demo?.title??prompt.slice(0,40),now,version.createdAt,version.id),
-      db.prepare('INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) VALUES(?,?,?,?,?,?,?,?,?)').bind(version.id,id,version.number,prompt,version.summary,html,version.createdAt,mode,version.model??null),
-      db.prepare("UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=?").bind(version.id,requestId,who),
+    // Every write is fenced by the live lease in this atomic batch. An expired
+    // worker must never overwrite a newer request or a restored version.
+    const guard="EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.status='running')";
+    const lease=[id,requestId,Date.now()];
+    const committed=await db.batch([
+      project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,version.createdAt,id,who,...lease):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${guard}`).bind(id,who,demo?.title??prompt.slice(0,40),now,version.createdAt,version.id,...lease),
+      db.prepare(`INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,?,?,?,?,?,?,? WHERE ${guard}`).bind(version.id,id,version.number,prompt,version.summary,html,version.createdAt,mode,version.model??null,...lease),
+      db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,requestId,who,...lease),
       db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),
     ]);
-    return json({project:await readProject(who,id)});
-  }catch(error){await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=?").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);if(error instanceof HttpError)throw error;if(error instanceof ModelError)throw new HttpError(error.status,error.message);throw new HttpError(502,error instanceof Error&&/模型/.test(error.message)?error.message:'生成未完成，请重试。已有版本仍然保留。')}
+    if(!committed[0].meta.changes)throw new HttpError(409,'本次请求已超时，请重新发起生成。');
+  }catch(error){await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);if(error instanceof HttpError)throw error;if(error instanceof ModelError)throw new HttpError(error.status,error.message);throw new HttpError(502,error instanceof Error&&/模型/.test(error.message)?error.message:'生成未完成，请重试。已有版本仍然保留。')}
+  // A read/response failure after commit must leave the idempotency record done.
+  return json({project:await readProject(who,id)});
 }

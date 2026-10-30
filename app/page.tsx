@@ -68,7 +68,7 @@ export default function Home() {
     try {
       const data = await api<Session>("/api/session");
       setSession(data); setProjects(data.projects); setMode(data.mode);
-      const saved = localStorage.getItem("forma-current-project");
+      let saved: string | null = null; try { saved = localStorage.getItem("forma-current-project"); } catch {}
       if (saved && data.projects.some(p => p.id === saved)) {
         const result = await api<{ project: Project }>(`/api/projects/${saved}`);
         setProject(result.project); setMode(result.project.versions.find(v => v.id === result.project.currentVersionId)?.mode || data.mode);
@@ -84,7 +84,7 @@ export default function Home() {
   useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setSource(false); setHistory(false); setSidebar(false); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, []);
   function remember(next: Project) {
     setProject(next); setViewVersion(null);
-    localStorage.setItem("forma-current-project", next.id);
+    try { localStorage.setItem("forma-current-project", next.id); } catch {}
     setProjects(previous => [{ id: next.id, title: next.title, createdAt: next.createdAt, updatedAt: next.updatedAt, currentVersionId: next.currentVersionId }, ...previous.filter(p => p.id !== next.id)]);
   }
   async function openProject(id: string) {
@@ -94,7 +94,7 @@ export default function Home() {
     catch (e) { setError(e instanceof Error ? e.message : "项目加载失败。"); }
     finally { setOpening(false); }
   }
-  function newProject() { if (busy || opening) return; setAttempts([]); setNotice(""); setProject(null); setPrompt(""); setError(""); setViewVersion(null); setHistory(false); setSidebar(false); localStorage.removeItem("forma-current-project"); }
+  function newProject() { if (busy || opening) return; setAttempts([]); setNotice(""); setProject(null); setPrompt(""); setError(""); setViewVersion(null); setHistory(false); setSidebar(false); try { localStorage.removeItem("forma-current-project"); } catch {} }
   async function generate(value = prompt, retry?: Attempt) {
     if (!session || sessionLoading || operationLock.current || opening || !value.trim()) return;
     const attempt: Attempt = retry ? { ...retry, state: "sending", error: undefined, startedAt: Date.now() } : { id: crypto.randomUUID(), requestId: crypto.randomUUID(), text: value.trim(), projectId: project?.id, baseVersionId: project?.currentVersionId, mode, state: "sending", startedAt: Date.now() };
@@ -105,7 +105,7 @@ export default function Home() {
       remember(result.project); setAttempts(previous => previous.filter(a => a.id !== attempt.id)); setNotice("新版本已保存，可切换到预览查看");
     } catch (e) {
       const message = e instanceof Error ? e.message : "连接中断，请重试。";
-      setAttempts(previous => previous.map(a => a.id === attempt.id ? { ...a, state: "failed", error: message, requestId: e instanceof ApiError && (e.status !== 409 || /重新发起/.test(message)) ? crypto.randomUUID() : a.requestId } : a));
+      setAttempts(previous => previous.map(a => a.id === attempt.id ? { ...a, state: "failed", error: message, requestId: e instanceof ApiError && e.status < 500 && (e.status !== 409 || /重新发起/.test(message)) ? crypto.randomUUID() : a.requestId } : a));
     } finally { operationLock.current = false; setBusy(false); textarea.current?.focus({ preventScroll: true }); }
   }
   async function restore(versionId: string) {
