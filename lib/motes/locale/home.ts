@@ -302,5 +302,13 @@ export const homeMessages = {
   "保存为新版本": "Save as new version",
   "版本资料尚未保存。请先保存资料，或恢复资料输入后再保存源码。": "Version details are not saved. Save or reset those details before saving source.",
   "HTML 最多 180000 个字符。": "HTML is limited to 180,000 characters.",
-  "请提供完整单文件 HTML：包含 doctype、html、head 和 body，至少 100 个字符。": "Provide a complete single HTML file with doctype, html, head and body, at least 100 characters long."
+  "请提供完整单文件 HTML：包含 doctype、html、head 和 body，至少 100 个字符。": "Provide a complete single HTML file with doctype, html, head and body, at least 100 characters long.",
+  "简洁清晰 · 操作优先": "Clean and clear · action first",
+  "丰富层次 · 信息优先": "Rich hierarchy · information first",
+  "紧凑高效 · 工作流优先": "Compact and efficient · workflow first",
+  "醒目直观 · 视觉优先": "Bold and intuitive · visuals first",
+  "蓝色示例": "Blue example",
+  "绿色示例": "Green example",
+  "深色示例": "Dark example",
+  "浅色示例": "Light example"
 } as const;
