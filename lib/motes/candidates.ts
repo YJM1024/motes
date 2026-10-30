@@ -71,7 +71,7 @@ export async function createCandidates(request:Request){
   try{reserved=await db.batch(statements);}catch(error){const retry=await prior();if(retry)return retry;throw error;}
   if(!reserved[0].meta.changes){const retry=await prior();if(retry)return retry;const day=now.slice(0,10),budget=GENERATION_LIMITS[mode];const counts=await db.prepare('SELECT count(*) AS global_count,sum(CASE WHEN owner=? THEN 1 ELSE 0 END) AS own FROM forma_requests WHERE day=? AND mode=?').bind(who,day,mode).first<{global_count:number;own:number}>();if(counts!.global_count+(count as number)>budget.global||(counts!.own??0)+(count as number)>budget.visitor)throw new HttpError(429,`剩余额度不足${count}次，未调用模型；可减少候选数后重新确认。`,'new');throw new HttpError(409,'应用、目标项目、生成锁或容量状态已变化；最多保留20组方案，请检查后重试。','new');}
   // All reservations exist before either fetch starts; failures are independent.
-  await Promise.allSettled(ids.map((candidateId,slot)=>runCandidate({who,groupId,candidateId,requestId:requests[slot],slot,mode,model,prompt,previousHtml:source?.html,context,example:examples[slot]})));
+  await Promise.allSettled(ids.map((candidateId,slot)=>runCandidate({who,groupId,candidateId,requestId:requests[slot],slot,count:count as 2|3|4,mode,model,prompt,previousHtml:source?.html,context,example:examples[slot]})));
   return json({group:await readCandidateGroup(who,groupId)},201);
 }
 
@@ -103,14 +103,14 @@ export async function retryCandidate(request:Request,groupId:string){
     ...group.mode==='model'?[usageReservation(db,requestId,who,group.model!,'candidate',now)]:[]];
   let results:D1Result[];try{results=await db.batch(reserved);}catch(error){const existing=await prior();if(existing)return existing;throw error;}
   if(!results[0].meta.changes){const existing=await prior();if(existing)return existing;const budget=GENERATION_LIMITS[group.mode],counts=await db.prepare('SELECT count(*) AS total,sum(CASE WHEN owner=? THEN 1 ELSE 0 END) AS own FROM forma_requests WHERE mode=? AND day=?').bind(who,group.mode,now.slice(0,10)).first<{total:number;own:number}>();if(counts!.total>=budget.global||(counts!.own??0)>=budget.visitor)throw new HttpError(429,'今日剩余额度不足一次，未重新调用模型。','new');throw new HttpError(409,'候选状态、原基准、生成锁或容量已变化，未重新调用模型。','new');}
-  await runCandidate({who,groupId,candidateId,requestId,slot:candidate.slot,mode:group.mode,model:group.model,prompt:group.prompt,previousHtml:source?.html,context,example});
+  await runCandidate({who,groupId,candidateId,requestId,slot:candidate.slot,count:group.candidate_count??2,mode:group.mode,model:group.model,prompt:group.prompt,previousHtml:source?.html,context,example});
   return json({group:await readCandidateGroup(who,groupId)},201);
 }
 
-async function runCandidate(value:{who:string;groupId:string;candidateId:string;requestId:string;slot:number;mode:'demo'|'model';model:string|null;prompt:string;previousHtml?:string;context:string;example?:string}){
-  const {who,groupId,candidateId,requestId,slot,mode,model,prompt,previousHtml,context,example}=value,db=database(),lockId='candidate:'+requestId;
+async function runCandidate(value:{who:string;groupId:string;candidateId:string;requestId:string;slot:number;count:2|3|4;mode:'demo'|'model';model:string|null;prompt:string;previousHtml?:string;context:string;example?:string}){
+  const {who,groupId,candidateId,requestId,slot,count,mode,model,prompt,previousHtml,context,example}=value,db=database(),lockId='candidate:'+requestId;
     let observation:ModelObservation|null=null,html:string|null=null,errorCode:string|null=null;
-    try{html=mode==='demo'?example!:await generateModel(prompt,previousHtml,env.OPENAI_API_KEY!,model!,context+` Explore alternative ${slot+1}: ${directions[slot]}. Preserve all requested functionality; explicit user constraints take priority.`,value=>{observation=value});}catch(error){errorCode=(observation as ModelObservation|null)?.errorCode??(error instanceof ModelError?'upstream':'output');}
+    try{html=mode==='demo'?example!:await generateModel(prompt,previousHtml,env.OPENAI_API_KEY!,model!,context+` Explore alternative ${slot+1}: ${directions[slot]}. Preserve all requested functionality; explicit user constraints take priority. The host workbench already schedules ${count} separate candidate alternatives. This call must produce only ONE complete standalone design for lane ${String.fromCharCode(65+slot)}. Group-level requests for two, three or four alternative layouts are handled by the host, so do not place a comparison gallery or duplicate alternative designs inside this single HTML. Preserve genuinely requested multiple business components, such as multiple timers or counters, when they are part of the application functionality.`,value=>{observation=value});}catch(error){errorCode=(observation as ModelObservation|null)?.errorCode??(error instanceof ModelError?'upstream':'output');}
     if(html){
       try{await stageResult(db,who,requestId,'candidate',{candidateId,groupId,html,observation});await saveCandidateResult(who,groupId,candidateId,requestId,true);return;}catch{
         const done=await db.prepare('SELECT status FROM motes_candidates WHERE id=? AND group_id=? AND request_id=?').bind(candidateId,groupId,requestId).first<{status:string}>();
