@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./components/motion-preferences.css";
+import MotionPreferenceProvider from "./components/MotionPreferenceProvider";
 
 export const metadata: Metadata = {
   title: "Motes · 微粒 — AI 应用工作台",
@@ -7,5 +9,5 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body>{children}</body></html>;
+  return <html lang="zh-CN"><body><MotionPreferenceProvider>{children}</MotionPreferenceProvider></body></html>;
 }

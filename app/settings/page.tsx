@@ -6,6 +6,7 @@ import type { Preferences, SettingKey, SettingsPatch, SettingsSnapshot, SettingS
 import type { WorkspaceSnapshot } from '@/lib/motes/types';
 import './settings.css';
 import UsagePanel from '../components/UsagePanel';
+import MotionPreferences from '../components/MotionPreferences';
 
 const fields: { key: SettingKey; title: string; description: string; group: string; options: [string, string][] }[] = [
   { key: 'creationMode', title: '默认创作模式', description: '打开工作台时使用，可在发送前临时切换。AI 模式需要服务端已连接模型。', group: '创作', options: [['demo', '示例模式'], ['model', 'AI 模式']] },
@@ -81,6 +82,7 @@ export default function SettingsPage() {
           return <div className="settings-row" key={field.key}><div><span className="settings-field-group">{field.group}</span><h4>{field.title}</h4><p>{field.description}</p><small>当前生效：{currentLabel} <span>· 来源：{sourceNames[settings.sources[field.key]]}</span></small></div><select aria-label={field.title} value={selected} disabled={busy} onChange={e => { const value = e.target.value === 'inherit' ? null : e.target.value === 'true' ? true : e.target.value === 'false' ? false : e.target.value; setDraft(prev => ({ ...prev, [field.key]: value } as SettingsPatch)); }}><option value="inherit">{scope === 'workspace' ? '使用系统默认' : '继承上级设置'}</option>{field.key === 'model' && selected !== 'inherit' && !options.some(o=>o[0]===selected) && <option value={selected} disabled>原模型不可用，请改用继承</option>}{options.map(([value, label]) => <option value={value} key={value} disabled={field.key === 'creationMode' && value === 'model' && !settings.modelAvailable}>{label}</option>)}</select></div>;
         }) : <p className="settings-loading">没有匹配的设置，试试其他关键词。</p>}<div className="settings-actions"><button disabled={busy} onClick={() => setDraft({})}>{scope === 'workspace' ? '恢复系统默认' : '全部恢复继承'}</button><span>{dirty ? '有未保存的修改' : '已与服务端同步'}</span><button disabled={busy || !dirty} onClick={() => { setDraft(settings.overrides[scope]); setError(''); }}>取消</button><button className="settings-primary" disabled={busy || !dirty} onClick={() => void save()}>{busy ? '保存中…' : '保存设置'}</button></div></>}
       </section>
+      <MotionPreferences />
       {workspace && <UsagePanel/>}
       <section className="settings-section settings-info" id="settings-identity"><h3>个人资料</h3><div><span className="settings-profile-avatar">{workspace?.profile.displayName.slice(0, 1) || 'M'}</span><p><strong>{workspace?.profile.displayName || '测试用户'}</strong><small>测试资料 · 显示名称不用于登录认证</small></p><a href="/manage" onClick={linkGuard}>编辑资料<ChevronRight size={14}/></a></div></section>
       <section className="settings-section settings-info" id="settings-security"><h3><ShieldCheck size={17}/>数据与安全</h3><dl><dt>身份与归属</dt><dd>匿名 HttpOnly Cookie 识别访客。清除 Cookie、更换浏览器或设备后无法找回原身份。每个设置作用范围均由服务端检查归属。</dd><dt>保存内容</dt><dd>项目、需求、代码版本和设置保存到服务端。预览中的费用、任务与计时等运行状态不持久化。</dd><dt>模型与密钥</dt><dd>密钥只保存在服务端，不返回浏览器。AI 生成会发送当前需求和代码到模型服务；这里不显示账户账单或余额。</dd><dt>固定安全边界</dt><dd>隔离预览、网络限制、3 分钟模型超时、输出上限与每日额度由服务端控制，不能被项目或应用偏好覆盖。</dd></dl><p className="settings-hint">当前不提供正式登录、数据清除或安全策略开关。需要带走应用时，可在工作台导出 HTML。</p></section>
