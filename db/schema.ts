@@ -106,3 +106,8 @@ export const candidates = sqliteTable("motes_candidates", {
   createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
   adoptedAppId: text("adopted_app_id").references(() => projects.id), adoptedVersionId: text("adopted_version_id").references(() => versions.id), adoptKind: text("adopt_kind"),
 }, t => [uniqueIndex("motes_candidate_slot").on(t.groupId,t.slot), uniqueIndex("motes_candidate_request").on(t.requestId)]);
+
+export const candidateAttempts = sqliteTable("motes_candidate_attempts", {
+ requestId: text("request_id").primaryKey().references(() => requests.id), candidateId: text("candidate_id").notNull().references(() => candidates.id),
+ previousRequestId: text("previous_request_id").notNull(), fingerprint: text("fingerprint").notNull(), createdAt: text("created_at").notNull(),
+}, t => [index("motes_candidate_attempt_lane").on(t.candidateId,t.createdAt)]);

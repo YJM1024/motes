@@ -20,8 +20,8 @@ const summary=(r:GroupRow):CandidateSummary=>({id:r.id,prompt:r.prompt,mode:r.mo
 async function groupFor(who:string,groupId:string){const group=await database().prepare('SELECT * FROM motes_candidate_groups WHERE id=? AND owner=?').bind(groupId,who).first<GroupRow>();if(!group)throw new HttpError(404,'方案组不存在或不属于当前访客。');return group;}
 export async function readCandidateGroup(who:string,groupId:string):Promise<CandidateGroup>{
   const group=await groupFor(who,groupId);
-  const rows=await database().prepare('SELECT c.*,EXISTS(SELECT 1 FROM forma_locks l WHERE l.request_id=c.request_id AND l.expires_at>?) AS live FROM motes_candidates c WHERE c.group_id=? ORDER BY c.slot').bind(Date.now(),groupId).all<{id:string;slot:number;strategy:string;status:'running'|'ready'|'failed';html:string|null;error_code:string|null;updated_at:string;adopted_app_id:string|null;adopted_version_id:string|null;adopt_kind:'current'|'new'|null;live:number}>();
-  return {...summary(group),candidates:rows.results.map(r=>({id:r.id,slot:r.slot,strategy:r.strategy,status:r.status==='running'&&!r.live?'unresolved':r.status,html:r.html,errorCode:r.error_code,updatedAt:r.updated_at,adoptedAppId:r.adopted_app_id,adoptedVersionId:r.adopted_version_id,adoptKind:r.adopt_kind}))};
+  const rows=await database().prepare('SELECT c.*,EXISTS(SELECT 1 FROM forma_locks l WHERE l.request_id=c.request_id AND l.expires_at>?) AS live FROM motes_candidates c WHERE c.group_id=? ORDER BY c.slot').bind(Date.now(),groupId).all<{id:string;request_id:string;slot:number;strategy:string;status:'running'|'ready'|'failed';html:string|null;error_code:string|null;updated_at:string;adopted_app_id:string|null;adopted_version_id:string|null;adopt_kind:'current'|'new'|null;live:number}>();
+  return {...summary(group),candidates:rows.results.map(r=>({id:r.id,attemptId:r.request_id,slot:r.slot,strategy:r.strategy,status:r.status==='running'&&!r.live?'unresolved':r.status,html:r.html,errorCode:r.error_code,updatedAt:r.updated_at,adoptedAppId:r.adopted_app_id,adoptedVersionId:r.adopted_version_id,adoptKind:r.adopt_kind}))};
 }
 export async function getCandidates(request:Request,groupId?:string){const who=await owner(request);if(groupId)return json({group:await readCandidateGroup(who,id(groupId))});const rows=await database().prepare('SELECT * FROM motes_candidate_groups WHERE owner=? ORDER BY created_at DESC,id DESC LIMIT 20').bind(who).all<GroupRow>();return json({groups:rows.results.map(summary),limit:MAX_GROUPS});}
 
@@ -67,33 +67,66 @@ export async function createCandidates(request:Request){
   let reserved:D1Result[];
   try{reserved=await db.batch(statements);}catch(error){const retry=await prior();if(retry)return retry;throw error;}
   if(!reserved[0].meta.changes){const retry=await prior();if(retry)return retry;const day=now.slice(0,10),budget=GENERATION_LIMITS[mode];const counts=await db.prepare('SELECT count(*) AS global_count,sum(CASE WHEN owner=? THEN 1 ELSE 0 END) AS own FROM forma_requests WHERE day=? AND mode=?').bind(who,day,mode).first<{global_count:number;own:number}>();if(counts!.global_count+(count as number)>budget.global||(counts!.own??0)+(count as number)>budget.visitor)throw new HttpError(429,`剩余额度不足${count}次，未调用模型；可减少候选数后重新确认。`,'new');throw new HttpError(409,'应用、目标项目、生成锁或容量状态已变化；最多保留20组方案，请检查后重试。','new');}
-  const run=async(slot:number)=>{
+  // All reservations exist before either fetch starts; failures are independent.
+  await Promise.allSettled(ids.map((candidateId,slot)=>runCandidate({who,groupId,candidateId,requestId:requests[slot],slot,mode,model,prompt,previousHtml:source?.html,context,example:examples[slot]})));
+  return json({group:await readCandidateGroup(who,groupId)},201);
+}
+
+
+export async function retryCandidate(request:Request,groupId:string){
+  const who=await owner(request),body=await payload(request),db=database(),group=await groupFor(who,id(groupId));
+  if(Object.keys(body).some(k=>!['requestId','candidateId','previousAttemptId','confirmOneCall'].includes(k))||body.confirmOneCall!==true)throw new HttpError(400,'请明确确认仅重试失败方案，并占用一次新额度。');
+  const requestId=uuid(body.requestId),candidateId=id(body.candidateId),previous=id(body.previousAttemptId);
+  const fingerprint=await digest(JSON.stringify(['candidate-retry-v1',groupId,candidateId,previous]));
+  const prior=async()=>{const attempt=await db.prepare('SELECT a.fingerprint,a.candidate_id,g.owner FROM motes_candidate_attempts a JOIN motes_candidates c ON c.id=a.candidate_id JOIN motes_candidate_groups g ON g.id=c.group_id WHERE a.request_id=?').bind(requestId).first<{fingerprint:string;candidate_id:string;owner:string}>();if(!attempt)return null;if(attempt.owner!==who||attempt.fingerprint!==fingerprint||attempt.candidate_id!==candidateId)throw new HttpError(409,'重试编号已被使用。');return json({group:await readCandidateGroup(who,groupId)});};
+  const old=await prior();if(old)return old;
+  const candidate=await db.prepare('SELECT slot,status,request_id,adopted_app_id FROM motes_candidates WHERE id=? AND group_id=?').bind(candidateId,groupId).first<{slot:number;status:string;request_id:string;adopted_app_id:string|null}>();
+  if(!candidate)throw new HttpError(404,'候选方案不存在。');
+  if(candidate.status!=='failed'||candidate.request_id!==previous||candidate.adopted_app_id)throw new HttpError(409,'仅已确认失败的当前尝试可重试；状态待核对时请先读取原结果。');
+  if(group.mode==='model'&&(!group.model||!modelNames().includes(group.model)))throw new HttpError(503,'原方案模型当前未连接，请保留候选并稍后重试。');
+  const wid='workspace:'+who,source=group.app_id?await db.prepare('SELECT v.html FROM forma_versions v JOIN forma_projects p ON p.id=v.project_id JOIN motes_apps a ON a.app_id=p.id WHERE v.id=? AND p.id=? AND p.owner=? AND a.workspace_id=?').bind(group.base_version_id,group.app_id,who,wid).first<{html:string}>():null;
+  if(group.app_id&&!source)throw new HttpError(404,'原基准版本不属于当前访客。');
+  const now=new Date().toISOString(),lockId='candidate:'+requestId;
+  const guard="EXISTS(SELECT 1 FROM motes_candidates c JOIN motes_candidate_groups g ON g.id=c.group_id WHERE c.id=? AND c.group_id=? AND g.owner=? AND c.request_id=? AND c.status='failed' AND c.adopted_app_id IS NULL) AND EXISTS(SELECT 1 FROM motes_projects p JOIN motes_workspaces w ON w.id=p.workspace_id WHERE p.id=? AND p.workspace_id=? AND w.owner=? AND p.archived=0)"+(group.app_id?" AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?) AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND expires_at>?) AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60":" AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?");
+  const bindings:(string|number)[]=[candidateId,groupId,who,previous,group.managed_project_id,wid,who,...group.app_id?[group.app_id,who,group.base_version_id!,group.app_id,Date.now(),group.app_id]:[who,LIMITS.apps]];
+  const reserved=[budgetReservation(db,{id:requestId,owner:who,projectId:lockId,fingerprint,mode:group.mode,createdAt:now,fence:{sql:guard,bindings}}),
+    db.prepare('INSERT INTO motes_candidate_attempts(request_id,candidate_id,previous_request_id,fingerprint,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(requestId,candidateId,previous,fingerprint,now,requestId,who),
+    db.prepare("UPDATE motes_candidates SET request_id=?,status='running',html=NULL,error_code=NULL,updated_at=? WHERE id=? AND group_id=? AND request_id=? AND status='failed' AND EXISTS(SELECT 1 FROM motes_candidate_attempts WHERE request_id=?)").bind(requestId,now,candidateId,groupId,previous,requestId),
+    db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_attempts WHERE request_id=?)').bind(lockId,requestId,Date.now()+210000,requestId),
+    ...group.mode==='model'?[usageReservation(db,requestId,who,group.model!,'candidate',now)]:[]];
+  let results:D1Result[];try{results=await db.batch(reserved);}catch(error){const existing=await prior();if(existing)return existing;throw error;}
+  if(!results[0].meta.changes){const existing=await prior();if(existing)return existing;const budget=GENERATION_LIMITS[group.mode],counts=await db.prepare('SELECT count(*) AS total,sum(CASE WHEN owner=? THEN 1 ELSE 0 END) AS own FROM forma_requests WHERE mode=? AND day=?').bind(who,group.mode,now.slice(0,10)).first<{total:number;own:number}>();if(counts!.total>=budget.global||(counts!.own??0)>=budget.visitor)throw new HttpError(429,'今日剩余额度不足一次，未重新调用模型。','new');throw new HttpError(409,'候选状态、原基准、生成锁或容量已变化，未重新调用模型。','new');}
+  let context=group.generation_context;
+  if(context===null){const prefs=await readSettings(db,who,modelName(),group.app_id?{appId:group.app_id}:{projectId:group.managed_project_id},modelNames());context=generationPreferences(prefs.effective,!!source);}
+  const example=group.mode==='demo'?generateDemo(['改成蓝色主题','改成绿色主题','改成深色主题','改成浅色主题'][candidate.slot],generateDemo(group.prompt,source?.html).html).html:undefined;
+  await runCandidate({who,groupId,candidateId,requestId,slot:candidate.slot,mode:group.mode,model:group.model,prompt:group.prompt,previousHtml:source?.html,context,example});
+  return json({group:await readCandidateGroup(who,groupId)},201);
+}
+
+async function runCandidate(value:{who:string;groupId:string;candidateId:string;requestId:string;slot:number;mode:'demo'|'model';model:string|null;prompt:string;previousHtml?:string;context:string;example?:string}){
+  const {who,groupId,candidateId,requestId,slot,mode,model,prompt,previousHtml,context,example}=value,db=database(),lockId='candidate:'+requestId;
     let observation:ModelObservation|null=null,html:string|null=null,errorCode:string|null=null;
-    try{html=mode==='demo'?examples[slot]:await generateModel(prompt,source?.html,env.OPENAI_API_KEY!,model!,context+` Explore alternative ${slot+1}: ${directions[slot]}. Preserve all requested functionality; explicit user constraints take priority.`,value=>{observation=value});}catch(error){errorCode=(observation as ModelObservation|null)?.errorCode??(error instanceof ModelError?'upstream':'output');}
-    const updated=new Date().toISOString(),fence={sql:"EXISTS(SELECT 1 FROM forma_requests r JOIN forma_locks l ON l.request_id=r.id WHERE r.id=? AND r.owner=? AND r.status='running' AND l.expires_at>?)",bindings:[requests[slot],who,Date.now()]};
+    try{html=mode==='demo'?example!:await generateModel(prompt,previousHtml,env.OPENAI_API_KEY!,model!,context+` Explore alternative ${slot+1}: ${directions[slot]}. Preserve all requested functionality; explicit user constraints take priority.`,value=>{observation=value});}catch(error){errorCode=(observation as ModelObservation|null)?.errorCode??(error instanceof ModelError?'upstream':'output');}
+    const updated=new Date().toISOString(),fence={sql:"EXISTS(SELECT 1 FROM forma_requests r JOIN forma_locks l ON l.request_id=r.id WHERE r.id=? AND r.owner=? AND r.status='running' AND l.expires_at>?)",bindings:[requestId,who,Date.now()]};
     let saveFailure='storage';
     try { const saved=await db.batch([
-      db.prepare(`UPDATE motes_candidates SET status=?,html=?,error_code=?,updated_at=? WHERE id=? AND group_id=? AND status='running' AND ${fence.sql}`).bind(html?'ready':'failed',html,errorCode,updated,ids[slot],groupId,...fence.bindings),
-      ...mode==='model'?[usageCompletion(db,requests[slot],who,html?'succeeded':'failed',observation,errorCode,{sql:fence.sql,bindings:fence.bindings})]:[],
-      db.prepare(`UPDATE forma_requests SET status=?,result_version_id=? WHERE id=? AND owner=? AND ${fence.sql}`).bind(html?'done':'failed',ids[slot],requests[slot],who,...fence.bindings),
-      db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(lockIds[slot],requests[slot]),
+      db.prepare(`UPDATE motes_candidates SET status=?,html=?,error_code=?,updated_at=? WHERE id=? AND group_id=? AND request_id=? AND status='running' AND ${fence.sql}`).bind(html?'ready':'failed',html,errorCode,updated,candidateId,groupId,requestId,...fence.bindings),
+      ...mode==='model'?[usageCompletion(db,requestId,who,html?'succeeded':'failed',observation,errorCode,{sql:fence.sql,bindings:fence.bindings})]:[],
+      db.prepare(`UPDATE forma_requests SET status=?,result_version_id=? WHERE id=? AND owner=? AND ${fence.sql}`).bind(html?'done':'failed',candidateId,requestId,who,...fence.bindings),
+      db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(lockId,requestId),
     ]);
     if(!saved[0].meta.changes){saveFailure='state_changed';throw new Error('candidate lease expired');}
     } catch {
       // A failed result transaction does not retry the model or affect its peer.
       // Reconcile first: a lost response after commit must retain ready output.
-      const current=await db.prepare('SELECT status FROM motes_candidates WHERE id=? AND group_id=?').bind(ids[slot],groupId).first<{status:string}>();
+      const current=await db.prepare('SELECT status FROM motes_candidates WHERE id=? AND group_id=? AND request_id=?').bind(candidateId,groupId,requestId).first<{status:string}>();
       if(current?.status==='running')await db.batch([
-        db.prepare("UPDATE motes_candidates SET status='failed',error_code=?,updated_at=? WHERE id=? AND group_id=? AND status='running'").bind(saveFailure,updated,ids[slot],groupId),
-        db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requests[slot],who),
-        ...mode==='model'?[usageCompletion(db,requests[slot],who,'failed',observation,saveFailure)]:[],
-        db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(lockIds[slot],requests[slot]),
+        db.prepare("UPDATE motes_candidates SET status='failed',error_code=?,updated_at=? WHERE id=? AND group_id=? AND request_id=? AND status='running'").bind(saveFailure,updated,candidateId,groupId,requestId),
+        db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),
+        ...mode==='model'?[usageCompletion(db,requestId,who,'failed',observation,saveFailure)]:[],
+        db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(lockId,requestId),
       ]);
     }
-  };
-  // All reservations exist before either fetch starts; failures are independent.
-  await Promise.allSettled(ids.map((_,slot)=>run(slot)));
-  return json({group:await readCandidateGroup(who,groupId)},201);
 }
 
 export async function adoptCandidate(request:Request,groupId:string){

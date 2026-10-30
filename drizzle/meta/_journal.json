@@ -64,6 +64,20 @@
       "when": 1793373712035,
       "tag": "0008_text_discussions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793381683815,
+      "tag": "0009_candidate_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793381683816,
+      "tag": "0010_candidate_attempts",
+      "breakpoints": true
     }
   ]
 }
