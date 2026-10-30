@@ -6,6 +6,7 @@ import type { WorkspaceSnapshot } from "@/lib/motes/types";
 import WorkbenchLayoutControls,{WorkbenchResizeHandle} from './components/WorkbenchLayoutControls';
 import { useWorkbenchLayout } from './hooks/useWorkbenchLayout';
 import { usePanelScrollMemory } from './hooks/usePanelScrollMemory';
+import AppTemplateLibrary from './components/AppTemplateLibrary';
 import StylePresetPanel from './components/StylePresetPanel';
 import DisplayModeToggle from './components/DisplayModeToggle';
 import PreviewControls from './components/PreviewControls';
@@ -75,6 +76,7 @@ export default function Home() {
   const draftContextKey = project ? "app:" + project.id : preDraftPrefix + (creationContextId || "default");
   const buildDraft = useWorkspaceDraft(workspaceId, draftContextKey);
   const prompt = buildDraft.value, setPrompt = buildDraft.set;
+  const [appTemplatesOpen,setAppTemplatesOpen]=useState(false);
   const [styleBase,setStyleBase]=useState<{appId:string;baseVersionId:string;expectedCurrentVersionId:string;html:string}|null>(null);
   const styleAttempt=useRef<{fingerprint:string;requestId:string}|null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -358,7 +360,7 @@ export default function Home() {
     </aside>
     {sidebar && <button className="sidebar-scrim" aria-label="关闭导航" onClick={() => setSidebar(false)}/>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu icon-button" aria-label="打开导航" onClick={() => setSidebar(true)}><Layers3 size={20}/></button><span>工作空间</span><span className="slash">/</span><strong>{project?.title || (creationTarget ? creationTarget.name + " · 新建应用" : "我的应用")}</strong>{opening && <LoaderCircle size={14} className="spin"/>}</div><div className="topbar-right"><DisplayModeToggle value={displayMode.mode} onChange={displayMode.setMode}/><button className="workbench-text-button" disabled={!session||sessionLoading} onClick={()=>{setTasksOpen(true);void loadTasks();}}>任务中心</button><a hidden={!detailed} href="/settings" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>设置</a><a href="/compare" hidden={!detailed} style={{fontSize:12,color:"#6b7d99",textDecoration:"none",marginRight:12}}>比较候选</a><a href="/manage" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>应用管理</a><span className="demo-badge"><span/>{intent === "discuss" ? session?.mode === "model" ? "AI 讨论" : "讨论未连接" : mode === "demo" ? "示例模式" : "AI 模式"}</span></div></header>
+      <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu icon-button" aria-label="打开导航" onClick={() => setSidebar(true)}><Layers3 size={20}/></button><span>工作空间</span><span className="slash">/</span><strong>{project?.title || (creationTarget ? creationTarget.name + " · 新建应用" : "我的应用")}</strong>{opening && <LoaderCircle size={14} className="spin"/>}</div><div className="topbar-right"><DisplayModeToggle value={displayMode.mode} onChange={displayMode.setMode}/><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening} onClick={()=>setAppTemplatesOpen(true)}>应用模板</button><button className="workbench-text-button" disabled={!session||sessionLoading} onClick={()=>{setTasksOpen(true);void loadTasks();}}>任务中心</button><a hidden={!detailed} href="/settings" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>设置</a><a href="/compare" hidden={!detailed} style={{fontSize:12,color:"#6b7d99",textDecoration:"none",marginRight:12}}>比较候选</a><a href="/manage" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>应用管理</a><span className="demo-badge"><span/>{intent === "discuss" ? session?.mode === "model" ? "AI 讨论" : "讨论未连接" : mode === "demo" ? "示例模式" : "AI 模式"}</span></div></header>
       <div className="mode-notice"><Sparkles size={14}/><span>{intent === "discuss" ? session?.mode === "model" ? `讨论将使用 ${preferences.model || session.model || "AI"} 返回文字，不更新预览或版本。` : "尚未连接模型，讨论草稿可保留；可切回示例构建。" : mode === "demo" ? "当前为示例模式：使用预设模板体验创建与迭代，不调用 AI。" : `已连接 ${preferences.model || session?.model || "AI 模型"}，可以自由描述你的应用。`}</span>{intent === "build" && session?.mode === "model" && <button disabled={busy || discussionBusy || opening} onClick={() => setMode(mode === "demo" ? "model" : "demo")}>{mode === "demo" ? "切换 AI 模式" : "体验示例"}<ArrowUpRight size={12}/></button>}</div>
       {workspace&&detailed&&<div className="workbench-layout-controls"><WorkbenchLayoutControls mode={layout.mode} onModeChange={value=>{layout.setMode(value);if(value!=="split")setPane(value);}} sidebarCollapsed={layout.sidebarCollapsed} onSidebarCollapsedChange={layout.setSidebarCollapsed} chatWidth={layout.chatWidth} onChatWidthChange={layout.setChatWidth}/></div>}
       {error && <div className="error-banner" role="alert"><span>{error}</span>{!session && <button onClick={() => void initialize()}>重新连接</button>}<button className="icon-button" aria-label="关闭错误" onClick={() => setError("")}><X size={15}/></button></div>}
@@ -377,6 +379,7 @@ export default function Home() {
       {notice && <div className="workspace-toast" role="status"><Check size={15}/>{notice}</div>}
     </main>
     {questionChoice && <IntentQuestion onCancel={()=>setQuestionChoice(null)} onDiscuss={()=>{const text=questionChoice;setQuestionChoice(null);changeIntent("discuss");setDiscussionSeed({id:Date.now(),text})}} onBuild={()=>{const text=questionChoice;setQuestionChoice(null);void generate(text,undefined,true)}}/>}
+    {appTemplatesOpen&&<AppTemplateLibrary project={project} onClose={()=>setAppTemplatesOpen(false)} onCopied={next=>{adoptSavedProject(next);setAppTemplatesOpen(false);setNotice("已从模板创建独立私有应用，未调用模型。");}}/>}
     {styleBase&&<StylePresetPanel html={styleBase.html} baseVersionId={styleBase.baseVersionId} disabled={busy||discussionBusy||opening} onApply={applyStyle} onClose={()=>setStyleBase(null)}/>}
     {tasksOpen&&<TaskCenter items={taskItems} busy={tasksBusy||busy||discussionBusy} onCheck={()=>void loadTasks()} onSave={id=>void saveTask(id)} onClose={()=>setTasksOpen(false)}/>}
     {repairCandidate && <RuntimeRepairDialog initial={repairCandidate} draft={prompt} onClose={() => setRepairCandidate(null)} onApply={fillRepair}/>}
