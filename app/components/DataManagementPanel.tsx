@@ -44,7 +44,7 @@ export default function DataManagementPanel({ onClose, onClearDrafts, onResetDis
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="data-management-title" onCancel={event => { event.preventDefault(); close(); }}>
     <header className={styles.header}><div><h2 id="data-management-title">数据与偏好</h2><p>管理已保存作品、归档和本地输入。</p></div><button ref={closeButton} type="button" onClick={close} disabled={!!busy}>关闭</button></header>
     <div className={styles.content}>
-      <section className={styles.card} aria-labelledby="saved-work-title"><h3 id="saved-work-title">已保存作品</h3><p>云端作品和版本会保留在工作空间中。预览 iframe 中临时输入的数据会在关闭或刷新后清空。</p><div className={styles.actions}><button type="button" onClick={onOpenArchive} disabled={!!busy}>归档与恢复</button><button type="button" onClick={onOpenBackup} disabled={!!busy}>工作空间备份</button></div></section>
+      <section className={styles.card} aria-labelledby="saved-work-title"><h3 id="saved-work-title">已保存作品</h3><p>云端作品和版本会保留在工作空间中。预览中临时输入的数据会在关闭或刷新后清空。</p><div className={styles.actions}><button type="button" onClick={onOpenArchive} disabled={!!busy}>归档与恢复</button><button type="button" onClick={onOpenBackup} disabled={!!busy}>工作空间备份</button></div></section>
 
       <section className={styles.card} aria-labelledby="quota-alert-title"><h3 id="quota-alert-title">额度提醒</h3><p>设置仅保存在此浏览器的当前工作空间。余额真实降至所选阈值时，站内显示提示；不会发送浏览器外的通知。</p>
         <label className={styles.toggle}><input type="checkbox" checked={alertPreferences.enabled} onChange={event => onAlertPreferencesChange({ ...alertPreferences, enabled: event.target.checked })} />启用站内额度提示</label>
@@ -55,7 +55,7 @@ export default function DataManagementPanel({ onClose, onClearDrafts, onResetDis
         </label>
       </section>
 
-      <section className={styles.card} aria-labelledby="local-data-title"><h3 id="local-data-title">当前设备上的临时数据</h3><p>清理仅移除当前工作空间的本地构建输入，以及当前标签页中的讨论输入。不会清理 outbox、身份信息或已保存内容。</p>
+      <section className={styles.card} aria-labelledby="local-data-title"><h3 id="local-data-title">当前设备上的临时数据</h3><p>清理仅移除当前工作空间的本地构建输入，以及当前标签页中的讨论输入。不会清理已提交请求及其恢复记录、身份信息或已保存内容。</p>
         {confirm === 'drafts' ? <div className={styles.confirm}><strong>确认清理这些本地输入？</strong><div className={styles.actions}><button type="button" onClick={() => setConfirm(null)} disabled={!!busy}>取消</button><button type="button" className={styles.danger} onClick={() => void run('drafts')} disabled={!!busy}>{busy === 'drafts' ? '正在清理…' : '确认清理输入'}</button></div></div> : <button type="button" onClick={() => { setError(''); setConfirm('drafts'); }}>清理本地输入…</button>}
       </section>
 

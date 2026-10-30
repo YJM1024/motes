@@ -1,11 +1,16 @@
 "use client";
 
+import {useRouter} from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState,type CSSProperties } from "react";
 import type { Preferences, SettingsSnapshot } from "@/lib/motes/settings";
 import type { WorkspaceSnapshot } from "@/lib/motes/types";
 import WorkbenchLayoutControls,{WorkbenchResizeHandle} from './components/WorkbenchLayoutControls';
 import { useWorkbenchLayout } from './hooks/useWorkbenchLayout';
 import { usePanelScrollMemory } from './hooks/usePanelScrollMemory';
+import NewAppOptions from './components/NewAppOptions';
+import DataManagementPanel from './components/DataManagementPanel';
+import {LOCAL_DATA_EVENT,clearWorkspaceDraftStorage,resetWorkspaceDisplayStorage,usageAlertStorageKey,parseUsageAlerts,showUsageAlert,DEFAULT_USAGE_ALERTS,type UsageAlertPreferences} from '@/lib/motes/local-data';
+import type {UsageSnapshot} from '@/lib/motes/usage';
 import PublicationPanel from './components/PublicationPanel';
 import WorkspaceBackupPanel from './components/WorkspaceBackupPanel';
 import AppTemplateLibrary from './components/AppTemplateLibrary';
@@ -53,6 +58,7 @@ function Logo({ small = false }: { small?: boolean }) { return <span className={
 function dateLabel(value: string) { return new Date(value).toLocaleDateString("zh-CN", { month: "short", day: "numeric" }); }
 
 export default function Home() {
+  const router=useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [projects, setProjects] = useState<Summary[]>([]);
@@ -80,6 +86,10 @@ export default function Home() {
   const buildDraft = useWorkspaceDraft(workspaceId, draftContextKey);
   const prompt = buildDraft.value, setPrompt = buildDraft.set;
   const [workspaceBackup,setWorkspaceBackup]=useState<WorkspaceSnapshot|null>(null),[backupLoading,setBackupLoading]=useState(false);
+  const [newAppOptions,setNewAppOptions]=useState(false),[dataManagement,setDataManagement]=useState(false);
+  const seedAttempt=useRef<{fingerprint:string;requestId:string}|null>(null),usageEpoch=useRef(0);
+  const [usageRefresh,setUsageRefresh]=useState(0);
+  const [usageSnapshot,setUsageSnapshot]=useState<UsageSnapshot|null>(null),[usageAlerts,setUsageAlerts]=useState<UsageAlertPreferences>(DEFAULT_USAGE_ALERTS);
   const [publicationOpen,setPublicationOpen]=useState(false);
   const [appTemplatesOpen,setAppTemplatesOpen]=useState(false);
   const [versionConfig,setVersionConfig]=useState<{appId:string;versionId:string}|null>(null);
@@ -134,6 +144,9 @@ export default function Home() {
     window.addEventListener("message", receive); return () => window.removeEventListener("message", receive);
   }, [diagnosticScope,displayedId]);
   useEffect(()=>{if(!diagnosticScope)return;previewFrame.current?.contentWindow?.postMessage({protocol:ELEMENT_PROTOCOL,channel:diagnosticScope.channel,kind:'control',enabled:selectingElement},'*');},[diagnosticScope,selectingElement]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore only this workspace's external local preference before paint.
+  useLayoutEffect(()=>{try{setUsageAlerts(workspaceId?parseUsageAlerts(localStorage.getItem(usageAlertStorageKey(workspaceId))):{...DEFAULT_USAGE_ALERTS});}catch{setUsageAlerts({...DEFAULT_USAGE_ALERTS});}},[workspaceId]);
+  useEffect(()=>{usageEpoch.current++;if(!workspaceId||busy||discussionBusy)return;const request=usageEpoch.current;void api<UsageSnapshot>('/api/usage').then(value=>{if(request===usageEpoch.current&&workspaceRef.current===workspaceId)setUsageSnapshot(value);}).catch(()=>{if(request===usageEpoch.current)setUsageSnapshot(null);});},[workspaceId,busy,discussionBusy,usageRefresh]);
   const chatEnd = useRef<HTMLDivElement>(null);
   const recovery = useAttemptRecovery({attempts,context:recoveryContext,generation:recoveryGeneration,
     enabled:!!session && intent === "build" && !questionChoice && !sessionLoading && !busy && !opening && !recoveryPaused,
@@ -146,7 +159,7 @@ export default function Home() {
       if(project?.id!==result.project.id)interruptRecovery();
       setAttempts(previous=>removeFinishedAttempt(previous,attempt));
       await linkAdoptedDiscussion(attempt,result.project,guard.signal);if(!guard.isCurrent())return;
-      remember(result.project,true);setNotice("已取回原请求保存的结果，未重复生成；下一条草稿已保留");
+      remember(result.project,true);setUsageRefresh(value=>value+1);setNotice("已取回原请求保存的结果，未重复生成；下一条草稿已保留");
     }});
   const unresolvedRecovery = visibleAttempts.some(a=>a.recovered && !["failed","expired"].includes(recovery.stateFor(a)?.phase??"checking"));
   function interruptRecovery() { const epoch=++operationEpoch.current;setRecoveryGeneration(epoch);return epoch; }
@@ -162,7 +175,7 @@ export default function Home() {
       const data = await api<Session>("/api/session");
       if(!mounted.current || epoch!==operationEpoch.current)return;
       if (!data.workspaceId) throw new Error("会话未返回草稿归属，请刷新后重试。");
-      if (workspaceRef.current && workspaceRef.current !== data.workspaceId) { setTasksOpen(false);setTaskItems([]);setProject(null); setPreDiscussionActive(false);  }
+      if (workspaceRef.current && workspaceRef.current !== data.workspaceId) { setTasksOpen(false);setTaskItems([]);setDataManagement(false);setNewAppOptions(false);seedAttempt.current=null;setUsageSnapshot(null);setProject(null); setPreDiscussionActive(false);  }
       workspaceRef.current = data.workspaceId; setWorkspaceId(data.workspaceId);
       let owned = restoredAttempts(sessionStorage.getItem("motes-outbox:" + data.workspaceId));
       if (!owned.length) { const legacy = restoredAttempts(sessionStorage.getItem("motes-outbox")).slice(-10); const checked = await Promise.allSettled(legacy.map(async a => { const receipt = await api<{requestId:string;status:string}>("/api/requests/" + encodeURIComponent(a.requestId)); if(receipt.requestId!==a.requestId||!["running","done","failed","expired","save_pending"].includes(receipt.status))throw new Error("旧请求归属尚未确认"); return a; })); owned = checked.flatMap(r => r.status === "fulfilled" ? [r.value] : []); }
@@ -228,9 +241,19 @@ export default function Home() {
     finally { if(mounted.current && epoch===operationEpoch.current)setOpening(false); }
   }
   function newProject() { if (busy || discussionBusy || opening || sessionLoading) return; interruptRecovery();setRecoveryPaused(false);const nextContext=crypto.randomUUID();setCreationContextId(nextContext);setNotice(visibleAttempts.some(a=>a.recovered)?"已切换到新建应用；停止本页等待不会取消服务端调用或费用。":"");setProject(null);setOpening(false);setPreDiscussionActive(false);setDiscussionReset(value=>value+1);setIntent("build");try{if(workspaceId){localStorage.setItem("motes-pre-active:"+workspaceId,"false");localStorage.setItem("motes-intent:"+workspaceId,"build")}}catch{}setError("");setViewVersion(null);setHistory(false);setSidebar(false);try{localStorage.removeItem("forma-current-project");sessionStorage.setItem("motes-new-context:" + workspaceRef.current,JSON.stringify({managedProjectId:creationTarget?.id??null,contextId:nextContext}));}catch{} }
+  async function createNewPrivateApp(kind:'empty'|'budget'|'kanban'|'timer'){
+    if(operationLock.current||busy||discussionBusy||opening||!workspaceId)throw new Error('请等待当前操作完成，再创建新副本。');
+    const fingerprint=JSON.stringify([kind,creationTarget?.id??null]);if(seedAttempt.current?.fingerprint!==fingerprint)seedAttempt.current={fingerprint,requestId:crypto.randomUUID()};
+    const epoch=interruptRecovery(),operation=crypto.randomUUID();activeOperation.current=operation;operationLock.current=true;setBusy(true);
+    try{const result=await api<{project:Project}>('/api/apps/seed',{requestId:seedAttempt.current.requestId,kind,...creationTarget?{managedProjectId:creationTarget.id}:{}},AbortSignal.timeout(30000));if(!mounted.current||epoch!==operationEpoch.current||activeOperation.current!==operation)return;seedAttempt.current=null;adoptSavedProject(result.project);setMode(kind==='empty'?session?.mode??'demo':'demo');setNewAppOptions(false);setNotice(kind==='empty'?'已创建独立空白私有应用，未调用模型。':'已创建新的示例副本，旧作品和临时运行状态均未被重置。');}
+    finally{if(activeOperation.current===operation){activeOperation.current=null;operationLock.current=false;setBusy(false);}}
+  }
+  async function clearLocalDrafts(){if(!workspaceId||workspaceRef.current!==workspaceId)throw new Error('当前空间归属尚未确认。');clearWorkspaceDraftStorage(localStorage,sessionStorage,workspaceId);window.dispatchEvent(new CustomEvent(LOCAL_DATA_EVENT,{detail:{workspaceId,scope:'drafts'}}));}
+  async function resetLocalDisplay(){if(!workspaceId||workspaceRef.current!==workspaceId)throw new Error('当前空间归属尚未确认。');resetWorkspaceDisplayStorage(localStorage,workspaceId);window.dispatchEvent(new CustomEvent(LOCAL_DATA_EVENT,{detail:{workspaceId,scope:'display'}}));}
+  function changeUsageAlertPreference(next:UsageAlertPreferences){if(!workspaceId||typeof next.enabled!=='boolean'||!Number.isInteger(next.threshold)||next.threshold<0||next.threshold>10)return;setUsageAlerts(next);try{localStorage.setItem(usageAlertStorageKey(workspaceId),JSON.stringify({schemaVersion:1,...next}));}catch{setNotice('额度提醒偏好仅在本页生效，浏览器存储暂不可用。');}}
   async function openWorkspaceBackup(){if(backupLoading||busy||discussionBusy||opening)return;const scope=workspaceRef.current;setBackupLoading(true);try{const snapshot=await api<WorkspaceSnapshot>('/api/workspace?archived=all');if(workspaceRef.current!==scope||snapshot.workspace.id!==scope)return;setWorkspaceBackup(snapshot);}catch(e){setError(e instanceof Error?e.message:'读取备份范围失败。');}finally{setBackupLoading(false);}}
   async function refreshProjectList(){const scope=workspaceRef.current;try{const data=await api<Session>('/api/session');if(workspaceRef.current===scope&&data.workspaceId===scope)setProjects(data.projects);}catch{setNotice('导入内容已保存，应用列表暂未刷新；可前往应用管理查看。');}}
-  async function loadTasks(){const scope=workspaceRef.current;setTasksBusy(true);try{const result=await api<{items:TaskCenterItem[]}>('/api/tasks');if(workspaceRef.current!==scope)return;setTaskItems(result.items);}catch(e){setTasksOpen(false);setError(e instanceof Error?e.message:'读取任务失败。');}finally{setTasksBusy(false);}}
+  async function loadTasks(){const scope=workspaceRef.current;setTasksBusy(true);try{const result=await api<{items:TaskCenterItem[]}>('/api/tasks');if(workspaceRef.current!==scope)return;setTaskItems(result.items);setUsageRefresh(value=>value+1);}catch(e){setTasksOpen(false);setError(e instanceof Error?e.message:'读取任务失败。');}finally{setTasksBusy(false);}}
   async function saveTask(requestId:string){if(operationLock.current||discussionBusy||opening)return;operationLock.current=true;setBusy(true);setTasksBusy(true);try{const result=await api<{project?:Project}>('/api/tasks/'+encodeURIComponent(requestId)+'/save',{});const attempt=attempts.find(a=>a.requestId===requestId);if(result.project&&(result.project.id===project?.id||(attempt&&matchesContext(attempt,recoveryContext)))){remember(result.project,true);if(attempt)setAttempts(previous=>removeFinishedAttempt(previous,attempt));}setNotice('原结果已保存，未重新调用模型。');await loadTasks();}catch(e){setTasksOpen(false);setError(e instanceof Error?e.message:'保存未完成，原结果仍暂存。');}finally{operationLock.current=false;setBusy(false);setTasksBusy(false);}}
   function refreshPreview(){if(window.confirm('刷新会清空预览中未保存的临时输入，已保存版本不受影响。'))setRefresh(n=>n+1);}
   async function fullscreenPreview(){try{if(document.fullscreenElement)await document.exitFullscreen();else await previewSurface.current?.requestFullscreen();}catch{setNotice('当前浏览器未允许全屏，可继续调整预览宽度。');}}
@@ -373,9 +396,10 @@ export default function Home() {
     </aside>
     {sidebar && <button className="sidebar-scrim" aria-label="关闭导航" onClick={() => setSidebar(false)}/>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu icon-button" aria-label="打开导航" onClick={() => setSidebar(true)}><Layers3 size={20}/></button><span>工作空间</span><span className="slash">/</span><strong>{project?.title || (creationTarget ? creationTarget.name + " · 新建应用" : "我的应用")}</strong>{opening && <LoaderCircle size={14} className="spin"/>}</div><div className="topbar-right"><DisplayModeToggle value={displayMode.mode} onChange={displayMode.setMode}/><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening||backupLoading} onClick={()=>void openWorkspaceBackup()}>{backupLoading?"读取范围…":"空间备份"}</button><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening} onClick={()=>setAppTemplatesOpen(true)}>应用模板</button><button className="workbench-text-button" disabled={!session||sessionLoading} onClick={()=>{setTasksOpen(true);void loadTasks();}}>任务中心</button><a hidden={!detailed} href="/settings" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>设置</a><a href="/compare" hidden={!detailed} style={{fontSize:12,color:"#6b7d99",textDecoration:"none",marginRight:12}}>比较候选</a><a href="/manage" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>应用管理</a><span className="demo-badge"><span/>{intent === "discuss" ? session?.mode === "model" ? "AI 讨论" : "讨论未连接" : mode === "demo" ? "示例模式" : "AI 模式"}</span></div></header>
+      <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu icon-button" aria-label="打开导航" onClick={() => setSidebar(true)}><Layers3 size={20}/></button><span>工作空间</span><span className="slash">/</span><strong>{project?.title || (creationTarget ? creationTarget.name + " · 新建应用" : "我的应用")}</strong>{opening && <LoaderCircle size={14} className="spin"/>}</div><div className="topbar-right"><DisplayModeToggle value={displayMode.mode} onChange={displayMode.setMode}/><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening} onClick={()=>setNewAppOptions(true)}>空白 / 示例副本</button><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening} onClick={()=>setDataManagement(true)}>数据与提醒</button><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening||backupLoading} onClick={()=>void openWorkspaceBackup()}>{backupLoading?"读取范围…":"空间备份"}</button><button className="workbench-text-button" hidden={!detailed} disabled={!session||sessionLoading||busy||discussionBusy||opening} onClick={()=>setAppTemplatesOpen(true)}>应用模板</button><button className="workbench-text-button" disabled={!session||sessionLoading} onClick={()=>{setTasksOpen(true);void loadTasks();}}>任务中心</button><a hidden={!detailed} href="/settings" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>设置</a><a href="/compare" hidden={!detailed} style={{fontSize:12,color:"#6b7d99",textDecoration:"none",marginRight:12}}>比较候选</a><a href="/manage" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>应用管理</a><span className="demo-badge"><span/>{intent === "discuss" ? session?.mode === "model" ? "AI 讨论" : "讨论未连接" : mode === "demo" ? "示例模式" : "AI 模式"}</span></div></header>
       <div className="mode-notice"><Sparkles size={14}/><span>{intent === "discuss" ? session?.mode === "model" ? `讨论将使用 ${preferences.model || session.model || "AI"} 返回文字，不更新预览或版本。` : "尚未连接模型，讨论草稿可保留；可切回示例构建。" : mode === "demo" ? "当前为示例模式：使用预设模板体验创建与迭代，不调用 AI。" : `已连接 ${preferences.model || session?.model || "AI 模型"}，可以自由描述你的应用。`}</span>{intent === "build" && session?.mode === "model" && <button disabled={busy || discussionBusy || opening} onClick={() => setMode(mode === "demo" ? "model" : "demo")}>{mode === "demo" ? "切换 AI 模式" : "体验示例"}<ArrowUpRight size={12}/></button>}</div>
       {workspace&&detailed&&<div className="workbench-layout-controls"><WorkbenchLayoutControls mode={layout.mode} onModeChange={value=>{layout.setMode(value);if(value!=="split")setPane(value);}} sidebarCollapsed={layout.sidebarCollapsed} onSidebarCollapsedChange={layout.setSidebarCollapsed} chatWidth={layout.chatWidth} onChatWidthChange={layout.setChatWidth}/></div>}
+      {usageSnapshot&&showUsageAlert(usageSnapshot.quota.model.remaining,usageAlerts)&&<div className="mode-notice" role="status"><span>模型额度剩余 {usageSnapshot.quota.model.remaining} / {usageSnapshot.quota.model.limit}（最近核对，额度日 {usageSnapshot.day} UTC）。</span><button onClick={()=>setDataManagement(true)}>提醒偏好</button><a href="/settings">查看真实用量</a></div>}
       {error && <div className="error-banner" role="alert"><span>{error}</span>{!session && <button onClick={() => void initialize()}>重新连接</button>}<button className="icon-button" aria-label="关闭错误" onClick={() => setError("")}><X size={15}/></button></div>}
       {!workspace ? <div className="home-content"><h1>一个想法，<br className="mobile-break"/>就能开始<span>创造。</span></h1><p className="home-description">用自然语言构建属于你的应用。<br className="mobile-break"/> 无需代码，让灵感即刻成形。</p><div style={{display:"flex",justifyContent:"center",marginBottom:14}}><IntentSwitch value={intent} disabled={!session||sessionLoading||busy||discussionBusy} onChange={changeIntent}/></div>{composer(true)}{Object.entries(buildDraft.entries).some(([key,text])=>key.startsWith(preDraftPrefix)&&!!text.trim()&&key!==draftContextKey)&&<select aria-label="恢复构建前草稿" value="" style={{marginTop:12,fontSize:11,color:"#91a2bc",border:"1px solid #e1e8f2",borderRadius:6,padding:7}} onChange={e=>{if(!e.target.value)return;const id=e.target.value.slice(preDraftPrefix.length);interruptRecovery();setCreationContextId(id==="default"?undefined:id);try{if(workspaceId)sessionStorage.setItem("motes-new-context:"+workspaceId,JSON.stringify({managedProjectId:creationTarget?.id??null,contextId:id==="default"?undefined:id}))}catch{}}}><option value="">恢复其他未发送构建草稿…</option>{Object.entries(buildDraft.entries).filter(([key,text])=>key.startsWith(preDraftPrefix)&&!!text.trim()&&key!==draftContextKey).map(([key,text])=><option key={key} value={key}>{text.slice(0,35)}</option>)}</select>}<div className="inspiration-label"><span/>或从一个灵感开始<span/></div><div className="example-grid">{examples.map(item => <button className={`example-card ${item.color}`} key={item.title} disabled={busy || !session || preferencesLoading} onClick={() => chooseInspiration(item)}><span className="example-icon">{item.icon}</span><span className="example-copy"><strong>{item.title}</strong><small>{item.tag}</small></span><ArrowUpRight size={17}/></button>)}</div><div className="home-footnote"><Check size={13}/>即时预览<span>·</span>历史版本<span>·</span>导出 HTML，带走你的作品</div>{sessionLoading && <p className="connecting"><LoaderCircle size={14} className="spin"/>正在连接你的工作空间…</p>}</div> : <div className="workspace-body">
         <div className="mobile-workspace-tabs"><button className={pane === "chat" ? "active" : ""} onClick={() => setPane("chat")}><MessageSquare size={14}/>对话</button><button className={pane === "preview" ? "active" : ""} onClick={() => setPane("preview")}><Eye size={14}/>预览</button></div>
@@ -392,6 +416,8 @@ export default function Home() {
       {notice && <div className="workspace-toast" role="status"><Check size={15}/>{notice}</div>}
     </main>
     {questionChoice && <IntentQuestion onCancel={()=>setQuestionChoice(null)} onDiscuss={()=>{const text=questionChoice;setQuestionChoice(null);changeIntent("discuss");setDiscussionSeed({id:Date.now(),text})}} onBuild={()=>{const text=questionChoice;setQuestionChoice(null);void generate(text,undefined,true)}}/>}
+    {newAppOptions&&<NewAppOptions busy={busy||discussionBusy||opening} targetLabel={creationTarget?.name??"默认项目"} onCreate={createNewPrivateApp} onClose={()=>setNewAppOptions(false)}/>}
+    {dataManagement&&<DataManagementPanel onClose={()=>setDataManagement(false)} onClearDrafts={clearLocalDrafts} onResetDisplayPreferences={resetLocalDisplay} onOpenBackup={()=>{setDataManagement(false);void openWorkspaceBackup();}} onOpenArchive={()=>router.push("/manage")} alertPreferences={usageAlerts} onAlertPreferencesChange={changeUsageAlertPreference}/>}
     {publicationOpen&&project&&<PublicationPanel project={project} onClose={()=>setPublicationOpen(false)}/>}
     {workspaceBackup&&<WorkspaceBackupPanel snapshot={workspaceBackup} onClose={()=>setWorkspaceBackup(null)} onImported={result=>{setWorkspaceBackup(null);setNotice(`已导入 ${result.projectIds.length} 个新项目、${result.appIds.length} 个独立应用及所选资料；当前草稿保留。`);void refreshProjectList();}}/>}
     {appTemplatesOpen&&<AppTemplateLibrary project={project} onClose={()=>setAppTemplatesOpen(false)} onCopied={next=>{adoptSavedProject(next);setAppTemplatesOpen(false);setNotice("已从模板创建独立私有应用，未调用模型。");}}/>}
