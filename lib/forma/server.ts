@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { generateDemo } from './demo';
+import { readSettings, generationPreferences } from '../motes/settings';
 import { generateModel, ModelError } from './model';
 import type { Project, Summary, Version } from './types';
 import { HttpError, digest, owner, assertOrigin } from './security';
@@ -53,7 +54,7 @@ export async function generate(request:Request){
     if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();throw new HttpError(429,'今日生成额度已用完，请明天再试。')}
   }catch(error){if(error instanceof HttpError)throw error;throw new HttpError(409,'项目正在处理其他请求，请稍后重试。')}
   try{
-    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!);
+    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences((await readSettings(db,who,selectedModel,project?{appId:project.id}:{})).effective,!!base));
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
     // Every write is fenced by the live lease in this atomic batch. An expired
     // worker must never overwrite a newer request or a restored version.

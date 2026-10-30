@@ -15,6 +15,13 @@
       "when": 1793367543020,
       "tag": "0001_first_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793368325244,
+      "tag": "0002_workspace_settings",
+      "breakpoints": true
     }
   ]
 }

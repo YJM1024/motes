@@ -48,6 +48,8 @@ test('model failures distinguish timeout, quota and authentication',async(t)=>{
 async function serverHarness() {
   const sqlite=new DatabaseSync(':memory:');
   sqlite.exec(await readFile(new URL('../drizzle/0000_great_roland_deschain.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0001_first_wind_dancer.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0002_workspace_settings.sql',import.meta.url),'utf8'));
   const harness={sqlite,failRead:false};
   function prepare(sql,args=[]) {
     return {
@@ -69,6 +71,12 @@ async function serverHarness() {
     const js=ts.transpileModule(raw,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
     source=source.replaceAll(`'./${file}'`,JSON.stringify('data:text/javascript;base64,'+Buffer.from(js).toString('base64')));
   }
+  let settingsSource=await readFile(new URL('../lib/motes/settings.ts',import.meta.url),'utf8');
+  const securitySource=await readFile(new URL('../lib/forma/security.ts',import.meta.url),'utf8');
+  const securityJs=ts.transpileModule(securitySource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+  settingsSource=settingsSource.replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64')));
+  const settingsJs=ts.transpileModule(settingsSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+  source=source.replaceAll("'../motes/settings'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(settingsJs).toString('base64')));
   const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   const server=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   delete globalThis[key];

@@ -47,3 +47,9 @@ export const tags = sqliteTable("motes_tags", {
 export const appTags = sqliteTable("motes_app_tags", {
   appId: text("app_id").notNull().references(() => managedApps.appId), tagId: text("tag_id").notNull().references(() => tags.id),
 }, t => [uniqueIndex("motes_app_tag").on(t.appId,t.tagId)]);
+
+export const settings = sqliteTable("motes_settings", {
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  scopeType: text("scope_type").notNull(), scopeId: text("scope_id").notNull(),
+  settingKey: text("setting_key").notNull(), valueJson: text("value_json").notNull(), updatedAt: text("updated_at").notNull(),
+}, t => [uniqueIndex("motes_setting_scope_key").on(t.workspaceId, t.scopeType, t.scopeId, t.settingKey)]);
