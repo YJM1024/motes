@@ -29,6 +29,13 @@
       "when": 1793369566093,
       "tag": "0003_fixed_version_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793370394567,
+      "tag": "0004_version_annotations",
+      "breakpoints": true
     }
   ]
 }

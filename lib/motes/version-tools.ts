@@ -28,7 +28,7 @@ export async function forkVersion(request: Request, sourceId: string) {
   const existing = await priorResult(); if (existing) return existing;
   const source = await db.prepare('SELECT p.title,v.number,v.html,v.mode,v.model FROM forma_projects p JOIN forma_versions v ON v.project_id=p.id WHERE p.id=? AND p.owner=? AND v.id=?').bind(sourceId, who, versionId).first<{title:string;number:number;html:string;mode:string;model:string|null}>();
   if (!source) throw new HttpError(404, '应用或历史版本不存在，或不属于当前访客。');
-  if (!source.html || source.html.length > 180000 || !['demo','model'].includes(source.mode) || (source.model?.length ?? 0) > 200) throw new HttpError(422, '该历史版本内容超出复制限制。');
+  if (!source.html || source.html.length > 180000 || !['demo','model','manual'].includes(source.mode) || (source.model?.length ?? 0) > 200) throw new HttpError(422, '该历史版本内容超出复制限制。');
   const wid = await initializeWorkspace(who), target = typeof body.targetProjectId === 'string' ? body.targetProjectId : `project:${who}`;
   const targetRow = await db.prepare('SELECT id,archived FROM motes_projects WHERE id=? AND workspace_id=?').bind(target, wid).first<{id:string;archived:number}>();
   if (!targetRow) throw new HttpError(404, '目标项目不存在或不属于当前访客。');

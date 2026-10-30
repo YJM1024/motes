@@ -9,6 +9,7 @@ const managementSql=await readFile(new URL('../drizzle/0001_first_wind_dancer.sq
 async function harness({migrate=true}={}) {
   const sqlite=new DatabaseSync(':memory:');sqlite.exec('PRAGMA foreign_keys=ON');sqlite.exec(initialSql);
   if(migrate)sqlite.exec(managementSql);
+  sqlite.exec(await readFile(new URL('../drizzle/0004_version_annotations.sql',import.meta.url),'utf8'));
   function prepare(sql,args=[]) {return {bind(...values){return prepare(sql,values)},async first(){return sqlite.prepare(sql).get(...args)??null},async all(){return {results:sqlite.prepare(sql).all(...args)}},run(){return {meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}}}}}
   const key=crypto.randomUUID();
   globalThis[key]={DB:{prepare,async batch(statements){sqlite.exec('BEGIN');try{const results=statements.map(statement=>statement.run());sqlite.exec('COMMIT');return results}catch(error){sqlite.exec('ROLLBACK');throw error}}}};

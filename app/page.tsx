@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Preferences, SettingsSnapshot } from "@/lib/motes/settings";
 import type { WorkspaceSnapshot } from "@/lib/motes/types";
 import VersionTools from "./components/VersionTools";
+import SourceEditor from "./components/SourceEditor";
+import { safeDocument, PREVIEW_POLICY } from "@/lib/motes/preview-document";
+import type { Version, Project, Summary } from "@/lib/forma/types";
 import { ArrowUp, ArrowUpRight, Check, ChevronDown, Code2, Download, Eye, Globe2, History, Layers3, LoaderCircle, MessageSquare, Monitor, Plus, RotateCcw, Smartphone, Sparkles, WandSparkles, X } from "lucide-react";
 
-type Version = { id: string; number: number; prompt: string; summary: string; html: string; createdAt: string; mode: "demo" | "model"; model?: string };
-type Project = { id: string; title: string; createdAt: string; updatedAt: string; currentVersionId: string; versions: Version[] };
-type Summary = Omit<Project, "versions">;
 type Session = { mode: "demo" | "model"; model: string | null; persistence: "cloud"; projects: Summary[] };
 type Attempt = { id: string; requestId: string; text: string; projectId?: string; managedProjectId?: string; baseVersionId?: string; mode: "demo" | "model"; state: "sending" | "failed"; error?: string; startedAt: number };
 const examples = [
@@ -22,15 +22,6 @@ async function api<T>(url: string, body?: object): Promise<T> {
   const data = await response.json().catch(() => ({ error: "服务暂时没有返回有效结果，请重试。" })) as T & { error?: string; retry?: "new" };
   if (!response.ok) throw new ApiError(data.error || "暂时无法完成，请稍后重试。", response.status, data.retry);
   return data;
-}
-function safeDocument(html: string) {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll('meta[http-equiv]').forEach(node => { if (node.getAttribute('http-equiv')?.toLowerCase() === 'refresh') node.remove(); });
-  const policy = doc.createElement("meta");
-  policy.httpEquiv = "Content-Security-Policy";
-  policy.content = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
-  doc.head.insertBefore(policy, doc.head.firstChild);
-  return "<!DOCTYPE html>" + doc.documentElement.outerHTML;
 }
 function Logo({ small = false }: { small?: boolean }) { return <span className={`forma-logo ${small ? "small" : ""}`}><span className="brand-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="2.5"/><circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="17" r="3"/></svg></span>{!small && <span>motes<span className="brand-dot">.</span></span>}</span>; }
 function dateLabel(value: string) { return new Date(value).toLocaleDateString("zh-CN", { month: "short", day: "numeric" }); }
@@ -52,6 +43,7 @@ export default function Home() {
   const [pane, setPane] = useState<"chat" | "preview">("preview");
   const [history, setHistory] = useState(false);
   const [source, setSource] = useState(false);
+  const [editorVersionId, setEditorVersionId] = useState<string | null>(null);
   const [viewVersion, setViewVersion] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [sidebar, setSidebar] = useState(false);
@@ -66,7 +58,7 @@ export default function Home() {
   const workspace = !!project || visibleAttempts.length > 0;
   const current = project?.versions.find(v => v.id === project.currentVersionId) || project?.versions.at(-1);
   const displayed = project?.versions.find(v => v.id === viewVersion) || current;
-  const srcDoc = useMemo(() => displayed ? safeDocument(displayed.html) : "", [displayed]);
+  const srcDoc = useMemo(() => displayed ? safeDocument(displayed.html, PREVIEW_POLICY) : "", [displayed]);
   const chatEnd = useRef<HTMLDivElement>(null);
 
   async function initialize() {
@@ -86,7 +78,7 @@ export default function Home() {
       let saved: string | null = null; try { saved = localStorage.getItem("forma-current-project"); } catch {}
       if (saved && data.projects.some(p => p.id === saved)) {
         const result = await api<{ project: Project }>(`/api/projects/${saved}`);
-        setProject(result.project); setMode(result.project.versions.find(v => v.id === result.project.currentVersionId)?.mode || data.mode);
+        setProject(result.project); setMode(result.project.versions.find(v => v.id === result.project.currentVersionId)?.mode === "demo" ? "demo" : data.mode);
       }
     } catch (e) { setSession(null); setError(e instanceof Error ? e.message : "初始化失败，请重试。"); }
     finally { setSessionLoading(false); }
@@ -112,7 +104,7 @@ export default function Home() {
   async function openProject(id: string) {
     if (busy || opening) return;
     setOpening(true); setError("");
-    try { const result = await api<{ project: Project }>(`/api/projects/${id}`); remember(result.project); setPrompt(""); setSidebar(false); setHistory(false); setSource(false); setMode(result.project.versions.find(v => v.id === result.project.currentVersionId)?.mode || "demo"); }
+    try { const result = await api<{ project: Project }>(`/api/projects/${id}`); remember(result.project); setPrompt(""); setSidebar(false); setHistory(false); setSource(false); setMode(result.project.versions.find(v => v.id === result.project.currentVersionId)?.mode === "demo" ? "demo" : session?.mode || "demo"); }
     catch (e) { setError(e instanceof Error ? e.message : "项目加载失败。"); }
     finally { setOpening(false); }
   }
@@ -142,7 +134,7 @@ export default function Home() {
     const url = URL.createObjectURL(new Blob([displayed.html], { type: "text/html;charset=utf-8" }));
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${project?.title.replace(/[\\/:*?"<>|]/g, "_") || "forma-app"}.html`; anchor.click(); setNotice("HTML 已导出"); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const versionMessage = (v: Version) => <div className="conversation-pair" key={v.id}><div className="user-message">{v.prompt}</div><div className="assistant-message"><span className="assistant-avatar"><Sparkles size={14}/></span><div><div className="message-author">Motes <span>{v.mode === "demo" ? "示例模式" : v.model || "AI"}</span></div><p>{v.summary}</p><button className="version-card" onClick={() => { setViewVersion(v.id === current?.id ? null : v.id); setPane("preview"); }}><span><Code2 size={16}/></span><div>应用已更新<small>版本 {v.number} · {dateLabel(v.createdAt)}</small></div><ArrowUpRight size={14}/></button></div></div></div>;
+  const versionMessage = (v: Version) => <div className="conversation-pair" key={v.id}><div className="user-message">{v.prompt}</div><div className="assistant-message"><span className="assistant-avatar"><Sparkles size={14}/></span><div><div className="message-author">Motes <span>{v.mode === "manual" ? "手工编辑" : v.mode === "demo" ? "示例模式" : v.model || "AI"}</span></div><p>{v.summary}</p><button className="version-card" onClick={() => { setViewVersion(v.id === current?.id ? null : v.id); setPane("preview"); }}><span><Code2 size={16}/></span><div>应用已更新<small>版本 {v.number}{v.name ? ` · ${v.name}` : ""}{v.important ? " ★" : ""} · {dateLabel(v.createdAt)}</small></div><ArrowUpRight size={14}/></button></div></div></div>;
   const attemptMessage = (a: Attempt) => <div className="conversation-pair" key={a.id}><div className="user-message">{a.text}</div><div className={`message-delivery ${a.state}`} role={a.state === "failed" ? "alert" : "status"}>{a.state === "sending" ? <><LoaderCircle size={17} className="spin"/><div><strong>{a.mode === "demo" ? "正在准备示例…" : elapsed >= 30 ? "模型仍在生成，请稍候…" : "正在构建你的应用…"}</strong><small>{preferences.showWaitTimer ? `已等待 ${elapsed} 秒 · ` : ""}完成后自动保存{displayed ? "，当前预览仍可使用" : ""}</small></div></> : <><button className="retry-message" aria-label="重试这条消息" title="重试这条消息" disabled={busy} onClick={() => void generate(a.text, a)}><RotateCcw size={16}/></button><div><strong>发送未完成</strong><small>{a.error}</small><button className="edit-failed" disabled={busy} onClick={() => { setPrompt(a.text); textarea.current?.focus(); }}>编辑需求</button></div></>}</div></div>;
   const composer = (home: boolean) => <div className={`composer ${home ? "home-composer" : "chat-composer"}`}>
     <textarea ref={textarea} aria-label={home ? "描述你想创建的应用" : "描述修改需求"} placeholder={home ? "描述你的想法，剩下的交给 Motes…" : "继续描述你想调整的地方…"} value={prompt} disabled={opening} onChange={e => { setPrompt(e.target.value);  }} onKeyDown={e => { if (!e.nativeEvent.isComposing && e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void generate(); } }}/>
@@ -168,12 +160,13 @@ export default function Home() {
         <section className={`preview-panel ${pane === "preview" ? "mobile-visible" : ""}`}><div className="preview-toolbar"><div className="preview-title"><Eye size={15}/><span>实时预览</span>{displayed && <span className="preview-version">v{displayed.number}</span>}</div><div className="preview-actions"><div className="device-toggle"><button aria-label="桌面预览" title="桌面预览" className={device === "desktop" ? "active" : ""} onClick={() => setDevice("desktop")}><Monitor size={15}/></button><button aria-label="手机预览" title="手机预览" className={device === "mobile" ? "active" : ""} onClick={() => setDevice("mobile")}><Smartphone size={15}/></button></div><span className="toolbar-divider"/><button className="icon-button" aria-label="刷新预览" title="刷新预览" disabled={!displayed} onClick={() => setRefresh(n => n + 1)}><RotateCcw size={15}/></button><button className={`icon-button ${history ? "selected" : ""}`} aria-label="版本历史" title="版本历史" onClick={() => setHistory(!history)}><History size={16}/></button><button className="icon-button" aria-label="源码与版本" title="源码与版本比较" disabled={!displayed} onClick={() => setSource(true)}><Code2 size={17}/></button><button className="export-button" aria-label="导出 HTML" title="导出 HTML" disabled={!displayed} onClick={download}><Download size={14}/><span>导出 HTML</span></button></div></div>
           {viewVersion && viewVersion !== current?.id && <div className="history-notice">正在查看历史版本 v{displayed?.number}<button onClick={() => setViewVersion(null)}>回到当前版本<ArrowUpRight size={12}/></button></div>}
           <div className="preview-stage">{displayed ? <div className={`browser-frame ${device}`}><div className="browser-chrome"><div className="traffic-lights"><i/><i/><i/></div><span><Globe2 size={11}/>{(project?.title || "新应用").toLowerCase().replace(/\s+/g, "-")}<span className="preview-url-end">.motes.preview</span></span><span className="secure-dot"/></div><iframe key={`${displayed?.id}-${refresh}`} title={`${project?.title || "新应用"} 应用预览`} srcDoc={srcDoc} sandbox="allow-scripts" referrerPolicy="no-referrer"/></div> : <div className="preview-empty"><Layers3 size={32}/><h2>你的应用将在这里呈现</h2><p>{busy ? "正在构建，完成后即可预览和操作。" : "尚未生成应用，可以在对话中重试或调整需求。"}</p></div>}{busy && displayed && <div className="preview-busy"><LoaderCircle size={14} className="spin"/>正在更新，当前预览仍可使用</div>}</div><div className="preview-bottom"><span><span className="status-dot"/>独立安全预览</span><span>{device === "mobile" ? "手机 · 390px" : "桌面 · 自适应"}<span className="bottom-separator">/</span>Made with Motes</span></div>
-          {history && <div className="history-panel"><div className="panel-heading"><strong>版本历史</strong><button className="icon-button" aria-label="关闭历史" onClick={() => setHistory(false)}><X size={16}/></button></div><p>每一次迭代，都有迹可循。</p>{[...(project?.versions || [])].reverse().map(v => <div className="history-item" key={v.id}><button onClick={() => setViewVersion(v.id === current?.id ? null : v.id)}><span>版本 {v.number}{v.id === current?.id && <small>当前</small>}</span><p>{v.prompt}</p><time>{new Date(v.createdAt).toLocaleString("zh-CN")}</time></button>{v.id !== current?.id && <button className="restore-button" disabled={busy} onClick={() => void restore(v.id)}><RotateCcw size={12}/>还原此版</button>}</div>)}</div>}
+          {history && <div className="history-panel"><div className="panel-heading"><strong>版本历史</strong><button className="icon-button" aria-label="关闭历史" onClick={() => setHistory(false)}><X size={16}/></button></div><p>每一次迭代，都有迹可循。</p>{[...(project?.versions || [])].reverse().map(v => <div className="history-item" key={v.id}><button onClick={() => setViewVersion(v.id === current?.id ? null : v.id)}><span>版本 {v.number}{v.name ? ` · ${v.name}` : ""}{v.important ? " ★" : ""}{v.mode === "manual" ? " · 手工" : ""}{v.id === current?.id && <small>当前</small>}</span><p>{v.prompt}</p><time>{new Date(v.createdAt).toLocaleString("zh-CN")}</time></button>{v.id !== current?.id && <button className="restore-button" disabled={busy} onClick={() => void restore(v.id)}><RotateCcw size={12}/>还原此版</button>}</div>)}</div>}
         </section>
       </div>}
       {notice && <div className="workspace-toast" role="status"><Check size={15}/>{notice}</div>}
     </main>
-    {source && project && <VersionTools project={project} selectedVersionId={viewVersion ?? project.currentVersionId} onClose={() => setSource(false)} onSaved={next => { remember(next); setSource(false); setHistory(false); setViewVersion(null); setNotice("已创建独立副本，原应用与历史完整保留"); }}/>}
+    {editorVersionId && project && <SourceEditor project={project} selectedVersionId={editorVersionId} onClose={() => setEditorVersionId(null)} onMetadataUpdated={next => setProject(next)} onSaved={next => { remember(next); setEditorVersionId(null); setSource(false); setHistory(false); setViewVersion(null); setNotice("手工新版本已保存，未调用模型"); }}/>}
+    {source && project && <VersionTools project={project} selectedVersionId={viewVersion ?? project.currentVersionId} onEdit={versionId => { setSource(false); setHistory(false); setEditorVersionId(versionId); }} onClose={() => setSource(false)} onSaved={next => { remember(next); setSource(false); setHistory(false); setViewVersion(null); setNotice("已创建独立副本，原应用与历史完整保留"); }}/>}
   </div>;
 }
 

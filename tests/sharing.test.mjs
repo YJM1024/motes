@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import ts from 'typescript';
 import {createServer} from 'node:http';
 
-const migrations=['0000_great_roland_deschain','0001_first_wind_dancer','0002_workspace_settings','0003_fixed_version_shares'];
+const migrations=['0000_great_roland_deschain','0001_first_wind_dancer','0002_workspace_settings','0003_fixed_version_shares','0004_version_annotations'];
 async function harness(){
   const sqlite=new DatabaseSync(':memory:');sqlite.exec('PRAGMA foreign_keys=ON');
   for(const name of migrations)sqlite.exec(await readFile(new URL('../drizzle/'+name+'.sql',import.meta.url),'utf8'));

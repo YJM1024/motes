@@ -50,6 +50,7 @@ async function serverHarness() {
   sqlite.exec(await readFile(new URL('../drizzle/0000_great_roland_deschain.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0001_first_wind_dancer.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0002_workspace_settings.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0004_version_annotations.sql',import.meta.url),'utf8'));
   const harness={sqlite,failRead:false};
   function prepare(sql,args=[]) {
     return {
