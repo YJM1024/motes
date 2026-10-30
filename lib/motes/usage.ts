@@ -1,9 +1,9 @@
 import type { ModelObservation } from '../forma/model';
 export const GENERATION_LIMITS = { model: { visitor: 10, global: 50 }, demo: { visitor: 100, global: 2000 } };
 export type ModelOperation = 'generate' | 'modify' | 'repair' | 'candidate';
-export function budgetReservation(db: D1Database, value: { id:string; owner:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string }) {
+export function budgetReservation(db: D1Database, value: { id:string; owner:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string; units?: 1 | 2; fence?: { sql: string; bindings: (string | number)[] } }) {
   const day=value.createdAt.slice(0,10),limits=GENERATION_LIMITS[value.mode];
-  return db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) SELECT ?,?,?,?,?,?,'running',? WHERE (SELECT count(*) FROM forma_requests WHERE owner=? AND day=? AND mode=?)<? AND (SELECT count(*) FROM forma_requests WHERE day=? AND mode=?)<?").bind(value.id,value.owner,value.projectId,value.fingerprint,day,value.mode,value.createdAt,value.owner,day,value.mode,limits.visitor,day,value.mode,limits.global);
+  return db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) SELECT ?,?,?,?,?,?,'running',? WHERE (SELECT count(*) FROM forma_requests WHERE owner=? AND day=? AND mode=?)+?<=? AND (SELECT count(*) FROM forma_requests WHERE day=? AND mode=?)+?<=?"+(value.fence?' AND '+value.fence.sql:'')).bind(value.id,value.owner,value.projectId,value.fingerprint,day,value.mode,value.createdAt,value.owner,day,value.mode,value.units??1,limits.visitor,day,value.mode,value.units??1,limits.global,...value.fence?.bindings??[]);
 }
 export function usageReservation(db: D1Database, requestId: string, who: string, model: string, operation: ModelOperation, startedAt: string) {
   return db.prepare("INSERT INTO motes_model_usage(request_id,owner,operation,requested_model,status,started_at) SELECT ?,?,?,?,'running',? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=? AND mode='model' AND status='running')").bind(requestId,who,operation,model,startedAt,requestId,who);

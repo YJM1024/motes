@@ -50,6 +50,13 @@
       "when": 1793371341730,
       "tag": "0006_model_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793372577464,
+      "tag": "0007_generation_candidates",
+      "breakpoints": true
     }
   ]
 }

@@ -81,3 +81,17 @@ export const modelUsage = sqliteTable("motes_model_usage", {
   status: text("status").notNull().default("running"), startedAt: text("started_at").notNull(), finishedAt: text("finished_at"),
   elapsedMs: integer("elapsed_ms"), httpStatus: integer("http_status"), inputTokens: integer("input_tokens"), outputTokens: integer("output_tokens"), totalTokens: integer("total_tokens"), errorCode: text("error_code"),
 }, t => [index("motes_usage_owner_started").on(t.owner, t.startedAt)]);
+
+export const candidateGroups = sqliteTable("motes_candidate_groups", {
+  id: text("id").primaryKey(), owner: text("owner").notNull(), fingerprint: text("fingerprint").notNull(),
+  prompt: text("prompt").notNull(), mode: text("mode").notNull(), model: text("model"),
+  appId: text("app_id").references(() => projects.id), baseVersionId: text("base_version_id").references(() => versions.id),
+  managedProjectId: text("managed_project_id").notNull().references(() => managedProjects.id), createdAt: text("created_at").notNull(),
+}, t => [index("motes_candidate_owner_created").on(t.owner, t.createdAt)]);
+export const candidates = sqliteTable("motes_candidates", {
+  id: text("id").primaryKey(), groupId: text("group_id").notNull().references(() => candidateGroups.id), slot: integer("slot").notNull(),
+  requestId: text("request_id").notNull().references(() => requests.id), strategy: text("strategy").notNull(),
+  status: text("status").notNull().default("running"), html: text("html"), errorCode: text("error_code"),
+  createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
+  adoptedAppId: text("adopted_app_id").references(() => projects.id), adoptedVersionId: text("adopted_version_id").references(() => versions.id), adoptKind: text("adopt_kind"),
+}, t => [uniqueIndex("motes_candidate_slot").on(t.groupId,t.slot), uniqueIndex("motes_candidate_request").on(t.requestId)]);

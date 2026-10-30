@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       { source: "/", headers: previewHost },
       { source: "/manage", headers: previewHost },
       { source: "/manage/:path*", headers: previewHost },
+      { source: "/compare", headers: previewHost },
     ];
   },
 };

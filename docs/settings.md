@@ -5,6 +5,7 @@
 | 字段 | 合法值 | 实际作用 |
 | --- | --- | --- |
 | creationMode | demo / model | 打开工作台时的默认模式，发送前可临时切换 |
+| model | 服务端白名单内的模型 ID | 真实用于下一次 AI 调用；停用后回退当前默认模型，来源显示 server |
 | previewDevice | desktop / mobile | 打开应用时的预览设备，手机为 390px |
 | autoFollow | boolean | 新消息是否自动跟随；主动查看上文时保留位置 |
 | showWaitTimer | boolean | 是否显示等待秒数，不隐藏任务状态或改变超时 |
