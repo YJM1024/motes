@@ -13,25 +13,35 @@ npm run build
 
 ## 全新本地库
 
-按顺序执行以下九份迁移。已有库不要照抄整组命令，先看下一节。
+新建本地库时，按文件名顺序执行 `drizzle/` 中的全部 SQL 文件。此命令会动态读取当前文件清单，新增迁移不需要再手工更新序号范围：
 
-```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_great_roland_deschain.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_first_wind_dancer.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_workspace_settings.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_fixed_version_shares.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_version_annotations.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_personal_prompt_templates.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_model_usage.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0007_generation_candidates.sql
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0008_text_discussions.sql
+```powershell
+Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | ForEach-Object {
+  node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file $_.FullName
+  if ($LASTEXITCODE -ne 0) { throw "本地迁移失败：$($_.Name)" }
+}
 ```
 
 ## 已有本地库
 
-先保留 `.wrangler/state` 的本地备份，确认此前执行到哪一份，**只依次执行尚未应用的迁移**。例如已执行 0000–0006，就只依次执行 0007 和 0008；已执行到 0007，则只执行 0008。不要删除状态目录来“修复”缺表，也不要修改已应用的迁移。
+先保留 `.wrangler/state` 的本地备份，确认已执行的具体迁移文件，**只执行尚未应用的迁移**。用以下命令显式列出待补的文件名；数组默认为空，避免把全新库的命令误用于已有库：
 
-手动 `d1 execute --file` 不会替你建立迁移编号清单，请记录已执行的文件。若不确定，可只读检查表清单并结合迁移文件与已有执行记录核对，不能从某个页面能打开推断所有表已齐全：
+```powershell
+$pendingFiles = @(
+  # 仅填写已确认尚未执行的文件名，例如 '0009_example.sql'
+)
+Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File |
+  Where-Object { $pendingFiles -contains $_.Name } |
+  Sort-Object Name |
+  ForEach-Object {
+    node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file $_.FullName
+    if ($LASTEXITCODE -ne 0) { throw "本地迁移失败：$($_.Name)" }
+  }
+```
+
+不要删除状态目录来“修复”缺表，也不要修改已应用的迁移。迁移文件按名称排序运行，新增迁移会在新库命令中自动纳入。
+
+手动 `d1 execute --file` 不会替你建立迁移编号清单，请在项目外的本地记录中记下每个已执行文件。若不确定，可只读检查表清单并结合迁移文件与已有执行记录核对，不能从某个页面能打开推断所有表已齐全：
 
 ```sh
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -45,7 +55,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 npm run dev
 ```
 
-通常打开 `http://127.0.0.1:5173/`，以终端实际地址为准。`/manage` 管理应用，`/settings` 设置与用量，`/compare` 为用户主动进入的固定两方案比较。保持同一项目目录和 `.wrangler/state`；更换目录或状态路径会使用另一份本地数据。
+通常打开 `http://127.0.0.1:5173/`，以终端实际地址为准。`/manage` 管理应用，`/settings` 设置与用量，`/compare` 为用户主动进入的候选比较（v8 生产固定两组，v9 组数选择待发布）。保持同一项目目录和 `.wrangler/state`；更换目录或状态路径会使用另一份本地数据。
 
 无模型配置也可使用明确标记的示例。真实生成时，复制 `.dev.vars.example` 为 `.dev.vars`，仅在本地填写已有授权的服务端 `OPENAI_API_KEY` 与账户可用的 `OPENAI_MODEL`；`OPENAI_MODELS` 是可选逗号白名单，留空仅使用默认模型。真实值不得提交 Git、传给浏览器或写入公开文档。配置、服务端 CSP 等启动配置变更后需重启本地服务；普通源码可热更新。
 
