@@ -6,14 +6,14 @@ import type { SettingsSnapshot } from '@/lib/motes/settings';
 import type { Candidate, CandidateGroup, CandidateSummary, CreateCandidates } from '@/lib/motes/candidate-types';
 import { PREVIEW_POLICY, safeDocument } from '@/lib/motes/preview-document';
 import './compare.css';
-import { useHostLocale } from '@/app/components/HostLocaleProvider';
+import { useHostLocale, hostText } from '@/app/components/HostLocaleProvider';
 import type { HostMessageKey, HostMessageParams } from '@/lib/motes/locale';
 
 class ApiError extends Error { constructor(message:string,public status:number,public retry?:string){super(message)} }
 type RetryBody={groupId:string;requestId:string;candidateId:string;previousAttemptId:string;confirmOneCall:true};
 type Session={mode:'demo'|'model';model:string|null;models:string[]};
 type Translate = (key: HostMessageKey, params?: HostMessageParams) => string;
-async function api<T>(url:string,body?:object,signal?:AbortSignal,t?:Translate):Promise<T>{const response=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(200000)]):AbortSignal.timeout(200000)}:{cache:'no-store',signal:AbortSignal.timeout(15000)});const data=await response.json().catch(()=>({error:t?.('服务没有返回有效结果，请核对原请求。')||'服务没有返回有效结果，请核对原请求。'})) as T&{error?:string;retry?:string};if(!response.ok||data.error)throw new ApiError(data.error||t?.('操作未完成。')||'操作未完成。',response.status,data.retry);return data;}
+async function api<T>(url:string,body?:object,signal?:AbortSignal,text?:Translate):Promise<T>{const response=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(200000)]):AbortSignal.timeout(200000)}:{cache:'no-store',signal:AbortSignal.timeout(15000)});const data=await response.json().catch(()=>({error:text?.('服务没有返回有效结果，请核对原请求。')||hostText('服务没有返回有效结果，请核对原请求。')})) as T&{error?:string;retry?:string};if(!response.ok||data.error)throw new ApiError(data.error||text?.('操作未完成。')||hostText('操作未完成。'),response.status,data.retry);return data;}
 const statusName={running:'正在生成',ready:'已保存候选',failed:'此方案失败',unresolved:'结果待核对',save_pending:'结果已暂存 · 待保存'} as const;
 const errorName={timeout:'等待超时',quota:'模型账户额度不足',rate_limit:'服务限流',authentication:'模型权限不可用',upstream:'模型服务异常',output:'输出未通过完整性检查',connection:'连接中断',storage:'候选保存未完成',state_changed:'执行状态已变化'} as const;
 function errorStatus(code:string) { return code==='timeout'?errorName.timeout:code==='quota'?errorName.quota:code==='rate_limit'?errorName.rate_limit:code==='authentication'?errorName.authentication:code==='upstream'?errorName.upstream:code==='output'?errorName.output:code==='connection'?errorName.connection:code==='storage'?errorName.storage:code==='state_changed'?errorName.state_changed:null; }
@@ -25,8 +25,6 @@ function Preview({candidate,device}:{candidate:Candidate;device:'desktop'|'mobil
 }
 export default function ComparePage(){
   const { t } = useHostLocale();
-  const localeTextRef=useRef(t);localeTextRef.current=t;
-  const hostText:Translate=(key,params)=>localeTextRef.current(key,params);
   const [space,setSpace]=useState<WorkspaceSnapshot|null>(null),[session,setSession]=useState<Session|null>(null),[groups,setGroups]=useState<CandidateSummary[]>([]),[group,setGroup]=useState<CandidateGroup|null>(null);
   const [prompt,setPrompt]=useState(''),[appId,setAppId]=useState(''),[projectId,setProjectId]=useState(''),[mode,setMode]=useState<'demo'|'model'>('demo'),[model,setModel]=useState(''),[confirmed,setConfirmed]=useState(false),[count,setCount]=useState<2|3|4>(2);
   const [busyLabel,setBusyLabel]=useState(t('正在处理…'));

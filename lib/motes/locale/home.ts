@@ -241,5 +241,10 @@ export const homeMessages = {
   "已停止本页等待；原问题、请求编号及下一条草稿保留。服务端是否停止及费用尚未确认。": "Stopped waiting on this page. The original question, request ID and next draft are preserved. Server cancellation and charges are not confirmed.",
   "请先核对原讨论请求结果；下一条草稿已保留，不会重复发送。": "Check the original discussion request first. Your next draft is preserved and will not be sent again.",
   "该回复已暂存，请仅重试保存；不会再次调用模型。": "This reply is staged. Retry saving only; the model will not be called again.",
-  "核对失败，未再次调用模型。": "Could not check the result. The model was not called again."
+  "核对失败，未再次调用模型。": "Could not check the result. The model was not called again.",
+  "服务没有返回有效结果。": "The service did not return a valid result.",
+  "加载失败，请重试。": "Could not load. Please try again.",
+  "加载设置失败。": "Could not load settings.",
+  "保存失败，修改已保留。": "Could not save. Your changes are preserved.",
+  "有尚未保存的设置，放弃这些修改？": "Discard these unsaved settings changes?"
 } as const;
