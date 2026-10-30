@@ -1,4 +1,4 @@
-export type TaskKind = 'generation' | 'candidate';
+export type TaskKind = 'generation' | 'candidate' | 'discussion';
 export type TaskPhase = 'running' | 'saved' | 'failed' | 'save_pending' | 'unresolved';
 export type TaskCenterItem = {
   id: string;
@@ -8,6 +8,13 @@ export type TaskCenterItem = {
   phase: TaskPhase;
   createdAt: string;
   expiresAt?: string;
+  modelStartedAt?: string|null;
+  modelFinishedAt?: string|null;
+  resultStagedAt?: string|null;
+  savedAt?: string|null;
+  modelElapsedMs?: number|null;
+  totalElapsedMs?: number|null;
+  saveElapsedMs?: number|null;
 };
 
 export function taskHasExpired(item: Pick<TaskCenterItem, 'expiresAt'>, now: number): boolean {
@@ -28,3 +35,5 @@ export function formatTaskDate(value: string): string {
   if (!Number.isFinite(date.getTime())) return '时间记录无效';
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
+
+export function formatTaskDuration(value:number|null|undefined):string{if(typeof value!=='number'||!Number.isFinite(value)||value<0)return '未记录';return value<1000?Math.round(value)+' 毫秒':(value/1000).toFixed(1)+' 秒';}
