@@ -31,3 +31,5 @@
 
 /* Restore native dialog placement after the base stylesheet resets margins. */
 dialog{margin:auto}
+
+.workbench-text-button{font-size:12px;color:#6b7d99;border:1px solid #e0e6ef;border-radius:6px;padding:6px 9px;background:white;white-space:nowrap}.topbar-right{gap:8px;flex-wrap:wrap}.topbar-right [hidden],.preview-actions [hidden],.advanced-preview-controls[hidden]{display:none!important}.advanced-preview-controls{padding:8px 14px;border-bottom:1px solid #e8e5ed;background:#fff;flex-shrink:0}.preview-panel:fullscreen{background:#f8f8f8;width:100vw;height:100dvh;max-width:none}.preview-stage{overflow:auto}.preview-toolbar{flex-wrap:wrap;height:auto;min-height:54px;gap:7px;padding-block:7px}.preview-actions{flex-wrap:wrap}@media(max-width:620px){.topbar-right{gap:4px}.topbar-right>a{margin-right:4px!important;font-size:11px!important}.is-workspace .topbar{height:auto;min-height:62px;padding-block:8px;gap:6px;flex-wrap:wrap}.advanced-preview-controls{padding:7px}.preview-stage{justify-content:flex-start}}

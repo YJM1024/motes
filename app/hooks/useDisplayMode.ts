@@ -15,6 +15,7 @@ export function useDisplayMode(workspaceId: string | null, enabled: boolean) {
   useLayoutEffect(() => {
     const scope = { workspaceId, enabled };
     active.current = scope;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset identity-scoped external storage before painting the new workspace.
     setReady(false);
     if (!workspaceId) {
       setModeState('summary');

@@ -20,7 +20,9 @@ export type PreviewControlsProps = {
 
 export default function PreviewControls({ device, onDeviceChange, width, onWidthChange, scale, onScaleChange, fullscreenAvailable, onFullscreen, onRefresh, confirmRefresh = true }: PreviewControlsProps) {
   const [confirming, setConfirming] = useState(false);
-  const [widthDraft, setWidthDraft] = useState(String(width));
+  const [widthEdit, setWidthEdit] = useState({base:width,text:String(width)});
+  const widthDraft=widthEdit.base===width?widthEdit.text:String(width);
+  const setWidthDraft=(text:string)=>setWidthEdit({base:width,text});
   const commitWidth = () => {
     const parsed = Number(widthDraft);
     if (Number.isFinite(parsed)) {
@@ -34,7 +36,7 @@ export default function PreviewControls({ device, onDeviceChange, width, onWidth
   return (
     <div className={styles.root} aria-label="预览控件">
       <div className={styles.devices} role="group" aria-label="预览尺寸">
-        <button type="button" aria-pressed={device === 'desktop'} onClick={() => onDeviceChange('desktop')}>桌面</button>
+        <button type="button" aria-pressed={device === 'desktop'} onClick={() => {onDeviceChange('desktop');onWidthChange(1100);setWidthDraft('1100');}}>桌面</button>
         <button type="button" aria-pressed={device === 'mobile'} onClick={() => { onDeviceChange('mobile'); onWidthChange(390); setWidthDraft('390'); }}>手机</button>
         <button type="button" onClick={() => document.getElementById('preview-custom-width')?.focus()}>自定义</button>
       </div>
