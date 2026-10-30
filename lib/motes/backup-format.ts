@@ -25,7 +25,7 @@ function preferences(value: unknown): Preferences {
   return { creationMode: p.creationMode as Preferences['creationMode'], previewDevice: p.previewDevice as Preferences['previewDevice'], autoFollow: bool(p.autoFollow), showWaitTimer: bool(p.showWaitTimer), language: p.language as Preferences['language'], visualStyle: p.visualStyle as Preferences['visualStyle'],...(typeof p.model==='string'?{model:p.model}:{}) };
 }
 /** Shared browser/server preflight. No HTML is executed, injected or fetched. */
-export function validateBackup(value: unknown): BackupDocument {
+export function validateBackup(value: unknown, options: {allowEmptyApps?:boolean} = {}): BackupDocument {
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > BACKUP_LIMITS.bytes) invalid('备份超过 2 MiB，请分批导出。');
   const root = object(value, ['format', 'version', 'exportedAt', 'project', 'tags', 'apps']);
   if (root.format !== 'motes-backup' || root.version !== 1) invalid('不支持的备份格式或版本。');
@@ -46,6 +46,8 @@ export function validateBackup(value: unknown): BackupDocument {
     if (!versions.length || new Set(versions.map(v => v.number)).size !== versions.length || !versions.some(v => v.number === currentVersion)) invalid('版本历史或当前指针无效。');
     return { name: text(a.name, 80), description: text(a.description, 1000, true), starred: bool(a.starred), archived: bool(a.archived), tagKeys, settings: preferences(a.settings), currentVersion, versions };
   });
-  if (!apps.length || apps.reduce((n, a) => n + a.versions.length, 0) > BACKUP_LIMITS.versions) invalid('备份须含 1–10 个应用，合计最多 200 个版本。');
+  if ((!apps.length&&!options.allowEmptyApps) || apps.reduce((n, a) => n + a.versions.length, 0) > BACKUP_LIMITS.versions) invalid('备份须含 1–10 个应用，合计最多 200 个版本。');
   return { format: 'motes-backup', version: 1, exportedAt: date(root.exportedAt), project: { name: text(project.name, 80), description: text(project.description, 1000, true), settings: preferences(project.settings) }, tags, apps };
 }
+
+export function validateBackupPreferences(value:unknown):Preferences{return preferences(value);}

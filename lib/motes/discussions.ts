@@ -32,8 +32,8 @@ export async function discussionSnapshot(who: string, selected: DiscussionContex
   if (thread && (thread.app_id !== (selected.appId || null) || (!selected.appId && thread.managed_project_id !== (selected.managedProjectId || null)))) throw new HttpError(400, '讨论不属于当前页面上下文。');
   let turns: DiscussionTurn[] = [];
   if (thread) {
-    const result = await db.prepare("SELECT t.*,r.status,u.requested_model,EXISTS(SELECT 1 FROM forma_locks l WHERE l.project_id=r.project_id AND l.request_id=r.id AND l.expires_at>?) AS live FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id LEFT JOIN motes_model_usage u ON u.request_id=r.id AND u.owner=r.owner WHERE t.thread_id=? AND r.owner=? AND r.mode='model' AND r.project_id=? ORDER BY t.created_at,t.request_id").bind(Date.now(),thread.id,who,lockId(thread.id)).all<{request_id:string;prompt:string;reply:string|null;error:string|null;created_at:string;completed_at:string|null;context_version_id:string|null;status:'running'|'done'|'failed';requested_model:string|null;live:number}>();
-    turns = result.results.map(r => ({ requestId:r.request_id,prompt:r.prompt,reply:r.reply,error:r.error,status:r.status === 'running' && !r.live ? 'expired' : r.status,createdAt:r.created_at,completedAt:r.completed_at,contextVersionId:r.context_version_id,model:r.requested_model }));
+    const result = await db.prepare("SELECT t.*,r.status,r.mode AS request_mode,u.requested_model,EXISTS(SELECT 1 FROM forma_locks l WHERE l.project_id=r.project_id AND l.request_id=r.id AND l.expires_at>?) AS live FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id LEFT JOIN motes_model_usage u ON u.request_id=r.id AND u.owner=r.owner WHERE t.thread_id=? AND r.owner=? AND r.mode IN ('model','discussion-import') AND r.project_id=? ORDER BY t.created_at,t.request_id").bind(Date.now(),thread.id,who,lockId(thread.id)).all<{request_id:string;prompt:string;reply:string|null;error:string|null;created_at:string;completed_at:string|null;context_version_id:string|null;status:'running'|'done'|'failed';request_mode:string;requested_model:string|null;live:number}>();
+    turns = result.results.map(r => ({ requestId:r.request_id,prompt:r.prompt,reply:r.reply,error:r.error,status:r.status === 'running' && !r.live ? 'expired' : r.status,createdAt:r.created_at,completedAt:r.completed_at,contextVersionId:r.context_version_id,model:r.request_mode==='discussion-import'?'备份导入':r.requested_model }));
   }
   return { workspaceId:wid,thread:thread ? threadDto(thread) : null,threads:rows.results.map(threadDto),turns,limits:DISCUSSION_LIMITS };
 }
@@ -70,7 +70,7 @@ export async function attachDiscussion(request: Request, threadId: string) {
 }
 export async function discussionRequestStatus(request: Request, requestId: string) {
   const who = await owner(request); if (!uuid.test(requestId)) throw new HttpError(400, '请求编号无效。');
-  const row = await database().prepare("SELECT t.thread_id FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id WHERE r.id=? AND r.owner=? AND r.mode='model' AND r.project_id='discussion:'||t.thread_id").bind(requestId,who).first<{thread_id:string}>();
+  const row = await database().prepare("SELECT t.thread_id FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id WHERE r.id=? AND r.owner=? AND r.mode IN ('model','discussion-import') AND r.project_id='discussion:'||t.thread_id").bind(requestId,who).first<{thread_id:string}>();
   if (!row) throw new HttpError(404, '讨论请求不存在或不属于当前访客。');
   const thread = await threadFor(who,row.thread_id), snapshot = await discussionSnapshot(who,{threadId:thread.id,...thread.app_id?{appId:thread.app_id}:thread.managed_project_id?{managedProjectId:thread.managed_project_id}:{}}), turn = snapshot.turns.find(t => t.requestId === requestId)!;
   return json({ requestId,threadId:thread.id,status:turn.status,...['failed','expired'].includes(turn.status)?{retry:'new'}:{},snapshot });
