@@ -15,9 +15,11 @@ async function harness(config={}){
   async function call(action,body,visitor='a',origin='https://motes.test'){const req=new Request('https://motes.test/api/candidates',{method:body?'POST':'GET',headers:{cookie:'forma_session='+visitor.repeat(64),...body?{origin,'content-type':'application/json'}:{}},...body?{body:JSON.stringify(body)}:{}});const response=await server.route(()=>action(req));return{status:response.status,data:await response.json()}}
   const create=(body,visitor='a',origin)=>call(req=>tools.createCandidates(req),body,visitor,origin),read=(id,visitor='a')=>call(req=>tools.getCandidates(req,id),null,visitor),adopt=(groupId,candidateId,asNew=false,visitor='a')=>call(req=>tools.adoptCandidate(req,groupId),{candidateId,asNew},visitor);
   const success=(title='候选')=>Response.json({status:'completed',model:'gpt-6-luna',usage:{input_tokens:10,output_tokens:20,total_tokens:30},output:[{content:[{type:'output_text',text:demo.generateDemo('番茄钟').html.replace(/<title>.*?<\/title>/,'<title>'+title+'</title>')}]}]});
-  return{sqlite,control,env,who,tools,server,seed,create,read,adopt,success,close:()=>sqlite.close()};
+  const generate=body=>call(req=>server.generate(req),body);
+  return{sqlite,control,env,who,tools,server,seed,create,read,adopt,generate,success,close:()=>sqlite.close()};
 }
 const body=(extra={})=>({requestId:crypto.randomUUID(),prompt:'生成计时工具',mode:'model',confirmTwoCalls:true,...extra});
+async function fillApps(h,count){const who=await h.who('a'),now=new Date().toISOString();while(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects WHERE owner=?').get(who).n<count){const id=crypto.randomUUID(),version=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,who,'已有作品',now,now,version);h.sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'原需求','原摘要','<!doctype html><html><body>existing</body></html>',now,'manual',null);}}
 function oldRequests(h,n,who,mode='model'){const now=new Date().toISOString();for(let i=0;i<n;i++)h.sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) VALUES(?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),who,'old','old',now.slice(0,10),mode,'failed',now)}
 
 test('two model candidates reserve two real usage records and never overwrite the source before adoption',async t=>{
@@ -90,4 +92,47 @@ test('no-key demo has two honest preset outputs, no paid usage and rejects unsaf
   const result=await h.create(body({mode:'demo',prompt:'番茄钟'}));assert.equal(result.status,201);const group=result.data.group;assert.equal(group.mode,'demo');assert.equal(group.reservedModelCalls,0);assert.notEqual(group.candidates[0].html,group.candidates[1].html);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_model_usage').get().n,0);assert.equal(h.sqlite.prepare("SELECT count(*) AS n FROM forma_requests WHERE mode='demo'").get().n,2);
   const page=await readFile(new URL('../app/compare/page.tsx',import.meta.url),'utf8');assert.match(page,/sandbox="allow-scripts allow-forms"/);assert.doesNotMatch(page,/sandbox="[^"]*(?:allow-same-origin|allow-top-navigation|allow-popups)/);assert.match(page,/safeDocument\(candidate\.html,PREVIEW_POLICY\)/);const policy=await readFile(new URL('../lib/motes/preview-document.ts',import.meta.url),'utf8');assert.match(policy,/form-action 'none'/);
   const migration=await readFile(new URL('../drizzle/0007_generation_candidates.sql',import.meta.url),'utf8');assert.ok(migration.replace(/--[^\r\n]*/g,'').split(';').map(s=>s.trim()).filter(Boolean).every(s=>/^CREATE (?:TABLE|(?:UNIQUE )?INDEX)/.test(s)));
+});
+
+test('candidate adoption can fill the last slot during generation without a 101st app or dangling generation rows',async t=>{
+  const h=await harness();t.after(h.close);
+  const group=(await h.create(body({mode:'demo',prompt:'番茄钟'}))).data.group;
+  await fillApps(h,99);let calls=0,finish;
+  t.mock.method(globalThis,'fetch',()=>{calls++;return new Promise(resolve=>{finish=()=>resolve(h.success())})});
+  const input={requestId:crypto.randomUUID(),mode:'model',prompt:'番茄钟',managedProjectId:group.managedProjectId},pending=h.generate(input);
+  for(let n=0;!finish&&n<500;n++)await new Promise(r=>setImmediate(r));assert.ok(finish);
+  const adopted=await h.adopt(group.id,group.candidates[0].id);assert.equal(adopted.status,201);finish();
+  const result=await pending;assert.equal(result.status,409);assert.equal(result.data.retry,'new');
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,100);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,100);
+  const rejected=h.sqlite.prepare('SELECT * FROM forma_requests WHERE id=?').get(input.requestId);assert.equal(rejected.status,'failed');
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects WHERE id=?').get(rejected.project_id).n,0);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_apps WHERE app_id=?').get(rejected.project_id).n,0);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_locks').get().n,0);
+  assert.equal((await h.generate(input)).status,409);assert.equal(calls,1);
+  assert.equal(h.sqlite.prepare('SELECT status FROM motes_model_usage WHERE request_id=?').get(input.requestId).status,'failed');
+  const saved=await h.server.readProject(await h.who('a'),adopted.data.appId);assert.equal(saved.currentVersionId,adopted.data.versionId);assert.equal(saved.versions.length,1);
+  assert.equal(h.sqlite.prepare('PRAGMA foreign_key_check').all().length,0);
+});
+
+test('generation rejects changed pointer or newly full capacity before model calls and budget reservation',async t=>{
+  for(const changed of ['pointer','capacity']){const h=await harness();try{
+    const app=await h.seed();if(changed==='capacity')await fillApps(h,99);
+    const input={requestId:crypto.randomUUID(),mode:'model',prompt:'番茄钟',...changed==='pointer'?{projectId:app.id}:{}};
+    let expected=app.version;
+    h.control.beforeBatch=()=>{if(changed==='pointer'){expected=crypto.randomUUID();const now=new Date().toISOString();h.sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(expected,app.id,2,'手工更新','手工更新','<!doctype html><html><body>new</body></html>',now,'manual',null);h.sqlite.prepare('UPDATE forma_projects SET current_version_id=? WHERE id=?').run(expected,app.id);}else {const id=crypto.randomUUID(),version=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,app.owner,'并发副本','now','now',version);h.sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'并发','并发','<!doctype html><html><body>copy</body></html>','now','manual',null);}};
+    let calls=0;const mocked=t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
+    const result=await h.generate(input);assert.equal(result.status,409);assert.equal(result.data.retry,'new');assert.equal(calls,0);mocked.mock.restore();
+    assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,0);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_model_usage').get().n,0);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_locks').get().n,0);
+    assert.equal(h.sqlite.prepare('SELECT current_version_id FROM forma_projects WHERE id=?').get(app.id).current_version_id,expected);
+  }finally{h.close()}}
+});
+
+test('generation admits the final available slot with complete version, metadata and idempotent receipt',async t=>{
+  const h=await harness();t.after(h.close);const app=await h.seed();await fillApps(h,99);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
+  const input={requestId:crypto.randomUUID(),mode:'model',prompt:'番茄钟',managedProjectId:app.target},result=await h.generate(input);assert.equal(result.status,200);
+  const saved=result.data.project;assert.equal(saved.versions.length,1);assert.equal(saved.currentVersionId,saved.versions[0].id);
+  assert.equal(h.sqlite.prepare('SELECT project_id FROM motes_apps WHERE app_id=?').get(saved.id).project_id,app.target);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,100);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,100);
+  assert.equal((await h.generate(input)).status,200);assert.equal(calls,1);assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(input.requestId).status,'done');
 });

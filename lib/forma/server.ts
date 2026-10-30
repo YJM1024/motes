@@ -64,14 +64,16 @@ export async function generate(request:Request){
   if(mode==='demo'){try{demo=generateDemo(prompt,base?.html)}catch(error){throw new HttpError(422,(error as Error).message)}}
   if(!project&&(await listProjects(who)).length>=100)throw new HttpError(429,'当前浏览器最多创建 100 个项目。');
   const id=project?.id??crypto.randomUUID(),now=new Date().toISOString();
+  const stateSql=(project?"EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?) AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60":"(SELECT count(*) FROM forma_projects WHERE owner=?)<100")+(managedProjectId?" AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=? AND g.archived=0)":"");
+  const stateBindings=[...project?[id,who,project.currentVersionId,id]:[who],...managedProjectId?[managedProjectId,who]:[]];
   await db.prepare('DELETE FROM forma_locks WHERE expires_at<?').bind(Date.now()).run();
   try{
     const reserved=await db.batch([
       db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) VALUES(?,?,?)').bind(id,requestId,Date.now()+210000),
-      budgetReservation(db,{id:requestId,owner:who,projectId:id,fingerprint,mode,createdAt:now}),
+      budgetReservation(db,{id:requestId,owner:who,projectId:id,fingerprint,mode,createdAt:now,fence:{sql:stateSql,bindings:stateBindings}}),
       ...mode==='model'?[usageReservation(db,requestId,who,selectedModel!,base?'modify':'generate',now)]:[],
     ]);
-    if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();throw new HttpError(429,'今日生成额度已用完，请明天再试。')}
+    if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();const state=await db.prepare(`SELECT CASE WHEN ${stateSql} THEN 1 ELSE 0 END AS allowed`).bind(...stateBindings).first<{allowed:number}>();if(!state?.allowed)throw new HttpError(409,'应用、创建目标或容量已变化，请刷新核对后重试。','new');throw new HttpError(429,'今日生成额度已用完，请明天再试。')}
   }catch(error){if(error instanceof HttpError)throw error;throw new HttpError(409,'项目正在处理其他请求，请稍后重试。')}
   let observation:ModelObservation|null=null;
   try{
@@ -79,17 +81,22 @@ export async function generate(request:Request){
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
     // Every write is fenced by the live lease in this atomic batch. An expired
     // worker must never overwrite a newer request or a restored version.
-    const guard="EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.status='running')"+(managedProjectId?" AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=? AND g.archived=0)":"");
-    const lease=[id,requestId,Date.now(),...managedProjectId?[managedProjectId,who]:[]];
+    const leaseGuard="EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.status='running')"+(managedProjectId?" AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=? AND g.archived=0)":"");
+    const leaseBindings=[id,requestId,Date.now(),...managedProjectId?[managedProjectId,who]:[]];
+    // Only publish dependent rows after the first write admitted this exact version.
+    // Repeating the capacity predicate after inserting the final slot would reject
+    // its version and leave a dangling current pointer.
+    const guard=leaseGuard+' AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?)';
+    const lease=[...leaseBindings,id,who,version.id];
     const committed=await db.batch([
-      project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,version.createdAt,id,who,...lease):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${guard}`).bind(id,who,demo?.title??initialAppTitle(html,prompt),now,version.createdAt,version.id,...lease),
+      project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${leaseGuard}`).bind(version.id,version.createdAt,id,who,...leaseBindings):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${leaseGuard} AND (SELECT count(*) FROM forma_projects WHERE owner=?)<100`).bind(id,who,demo?.title??initialAppTitle(html,prompt),now,version.createdAt,version.id,...leaseBindings,who),
       db.prepare(`INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,?,?,?,?,?,?,? WHERE ${guard}`).bind(version.id,id,version.number,prompt,version.summary,html,version.createdAt,mode,version.model??null,...lease),
       ...managedProjectId?[db.prepare(`INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,g.workspace_id,g.id,? FROM motes_projects g WHERE g.id=? AND ${guard}`).bind(id,version.createdAt,managedProjectId,...lease)]:[],
       ...mode==='model'?[usageCompletion(db,requestId,who,'succeeded',observation,null,{sql:guard,bindings:lease})]:[],
       db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,requestId,who,...lease),
       db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),
     ]);
-    if(!committed[0].meta.changes)throw new HttpError(409,managedProjectId?'创建目标已变化或请求已超时，请检查目标项目后重新发起生成。':'本次请求已超时，请重新发起生成。','new');
+    if(!committed[0].meta.changes)throw new HttpError(409,'应用容量、创建目标或请求状态已变化，请检查后重新发起生成。','new');
   }catch(error){
     const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);
     if(mode==='model')await usageCompletion(db,requestId,who,'failed',observation,error instanceof HttpError?'state_changed':(observation as ModelObservation|null)?.errorCode??'storage').run();
