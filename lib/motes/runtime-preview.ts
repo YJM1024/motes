@@ -1,4 +1,5 @@
 import { safeDocument, PREVIEW_POLICY } from './preview-document';
+import { elementBridgeScript } from './element-preview';
 import { RUNTIME_PROTOCOL } from './runtime-diagnostics';
 
 export function runtimeBridgeScript(channel: string, targetOrigin: string): string {
@@ -24,7 +25,7 @@ export function runtimeBridgeScript(channel: string, targetOrigin: string): stri
 }
 export function runtimePreview(html: string, channel: string, targetOrigin: string): string {
   const doc = new DOMParser().parseFromString(safeDocument(html, PREVIEW_POLICY), 'text/html');
-  const bridge = doc.createElement('script'); bridge.textContent = runtimeBridgeScript(channel, targetOrigin);
+  const bridge = doc.createElement('script'); bridge.textContent = runtimeBridgeScript(channel, targetOrigin)+elementBridgeScript(channel,targetOrigin);
   // The policy remains first, followed by our listener before application scripts.
   doc.head.insertBefore(bridge, doc.head.firstChild?.nextSibling || null);
   return '<!DOCTYPE html>' + doc.documentElement.outerHTML;

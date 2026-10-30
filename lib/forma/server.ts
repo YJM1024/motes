@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { validElementContext,elementGenerationInstructions } from '../motes/element-selection';
 import { stageResult, stagedResult, commitGenerationResult } from '../motes/results';
 import { generateDemo } from './demo';
 import { initialAppTitle } from './app-title';
@@ -31,11 +32,14 @@ export async function generate(request:Request){
   if(body.baseVersionId!==undefined&&typeof body.baseVersionId!=='string')throw new HttpError(400,'基础版本无效。');
   if(body.managedProjectId!==undefined&&(typeof body.managedProjectId!=='string'||!body.managedProjectId||body.managedProjectId.length>128||body.projectId!==undefined))throw new HttpError(400,'创建目标项目无效，只能为新应用指定项目。');
   if(body.model!==undefined&&(typeof body.model!=='string'||!body.model||body.model.length>128||body.mode!=='model'))throw new HttpError(400,'模型参数无效。');
+  if(body.elementContext!==undefined&&(!validElementContext(body.elementContext)||body.mode!=='model'||body.elementContext.baseVersionId!==body.baseVersionId||!body.projectId))throw new HttpError(400,'选中元素上下文无效，请重新选择当前版本中的元素。');
+  const elementContext=body.elementContext as import('../motes/element-selection').ElementContext|undefined;
   const prompt=body.prompt.trim(),mode=body.mode,requestId=body.requestId,db=database();
   // Preserve the exact legacy hash when the new optional target is absent.
   const identity:unknown[]=[prompt,mode,body.projectId??null,body.baseVersionId??null];
   if(body.managedProjectId!==undefined)identity.push(body.managedProjectId);
   if(body.model!==undefined)identity.push({model:body.model});
+  if(elementContext)identity.push({elementContext});
   const fingerprint=await digest(JSON.stringify(identity));
   const prior=await db.prepare('SELECT owner,project_id,status,fingerprint FROM forma_requests WHERE id=?').bind(requestId).first<{owner:string;project_id:string;status:string;fingerprint:string}>();
   if(prior){
@@ -58,6 +62,7 @@ export async function generate(request:Request){
   }
   if(!project&&body.baseVersionId)throw new HttpError(400,'新项目不能指定历史版本。');
   const base=project?.versions.find(v=>v.id===(body.baseVersionId??project.currentVersionId));if(project&&!base)throw new HttpError(404,'基础版本不存在。');
+  if(elementContext&&project?.currentVersionId!==elementContext.baseVersionId)throw new HttpError(409,'选中元素所属版本已变化，请刷新预览后重新选择。','new');
   if(project&&project.versions.length>=60)throw new HttpError(429,'单个项目最多保留 60 个版本，请创建新项目。');
   const settings=mode==='model'?await readSettings(db,who,selectedModel,project?{appId:project.id}:managedProjectId?{projectId:managedProjectId}:{},modelNames()):null;
   if(mode==='model'){if(body.model!==undefined&&!modelNames().includes(body.model as string))throw new HttpError(400,'该模型未在服务端可用白名单中。');selectedModel=typeof body.model==='string'?body.model:settings!.effective.model??selectedModel;}
@@ -79,7 +84,7 @@ export async function generate(request:Request){
   }catch(error){if(error instanceof HttpError)throw error;throw new HttpError(409,'项目正在处理其他请求，请稍后重试。')}
   let observation:ModelObservation|null=null;
   try{
-    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base),value=>{observation=value});
+    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base)+(elementContext?elementGenerationInstructions(elementContext):''),value=>{observation=value});
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
     await stageResult(db,who,requestId,'generation',{projectId:id,isNew:!project,title:demo?.title??initialAppTitle(html,prompt),version,expectedCurrentVersionId:project?.currentVersionId??null,managedProjectId:managedProjectId??null,observation});
     await commitGenerationResult(db,who,requestId,true);

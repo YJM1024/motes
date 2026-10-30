@@ -20,7 +20,7 @@ export function useAttemptRecovery({attempts,context,enabled,generation,onRecove
   const scope=contextKey(context);
   // Serialize only operation identity/input, excluding UI error/recovery state.
   // Callback state updates therefore cannot restart or accelerate the poll.
-  const candidates=JSON.stringify(attempts.filter(a=>a.recovered&&matchesContext(a,context)).slice(-20).map(a=>({id:a.id,requestId:a.requestId,text:a.text,mode:a.mode,state:'failed',startedAt:a.startedAt,projectId:a.projectId,managedProjectId:a.managedProjectId,baseVersionId:a.baseVersionId,contextId:a.contextId,recovered:true})));
+  const candidates=JSON.stringify(attempts.filter(a=>a.recovered&&matchesContext(a,context)).slice(-20).map(a=>({id:a.id,requestId:a.requestId,text:a.text,mode:a.mode,state:'failed',startedAt:a.startedAt,projectId:a.projectId,managedProjectId:a.managedProjectId,baseVersionId:a.baseVersionId,elementContext:a.elementContext,contextId:a.contextId,recovered:true})));
   useEffect(()=>{
     if(!enabled)return;
     const list=JSON.parse(candidates) as RecoveryAttempt[];

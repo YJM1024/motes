@@ -1,9 +1,10 @@
+import { validElementContext } from './element-selection';
 import type {RequestStatus} from './request-types';
 import type {Project} from '../forma/types';
 
 export type RecoveryAttempt = {
   id:string;requestId:string;text:string;projectId?:string;managedProjectId?:string;contextId?:string;
-  baseVersionId?:string;mode:'demo'|'model';state:'sending'|'failed';error?:string;startedAt:number;recovered?:boolean;retryConfirmed?:boolean;
+  baseVersionId?:string;elementContext?:import('./element-selection').ElementContext;mode:'demo'|'model';state:'sending'|'failed';error?:string;startedAt:number;recovered?:boolean;retryConfirmed?:boolean;
 };
 export type RecoveryContext = {projectId?:string;managedProjectId?:string;contextId?:string};
 export type RecoveryIdentity = {attemptId:string;requestId:string;contextKey:string;epoch:number};
@@ -65,7 +66,7 @@ export function restoredAttempts(raw:string|null,now=Date.now()):RecoveryAttempt
     if(['projectId','managedProjectId','baseVersionId','contextId'].some(k=>a[k]!==undefined&&(typeof a[k]!=='string'||!a[k]||String(a[k]).length>128)))continue;
     if(a.projectId&&a.managedProjectId)continue;
     seen.add(a.requestId);seenIds.add(a.id);
-    attempts.push({id:a.id,requestId:a.requestId,text:a.text,mode:a.mode,state:'failed',startedAt:typeof a.startedAt==='number'&&Number.isFinite(a.startedAt)&&a.startedAt>0?a.startedAt:now,recovered:true,error:'正在核对刷新前的原请求，请勿重复发送。',...typeof a.projectId==='string'?{projectId:a.projectId}:{},...typeof a.managedProjectId==='string'?{managedProjectId:a.managedProjectId}:{},...typeof a.baseVersionId==='string'?{baseVersionId:a.baseVersionId}:{},...typeof a.contextId==='string'?{contextId:a.contextId}:{}});
+    attempts.push({id:a.id,requestId:a.requestId,text:a.text,mode:a.mode,state:'failed',startedAt:typeof a.startedAt==='number'&&Number.isFinite(a.startedAt)&&a.startedAt>0?a.startedAt:now,recovered:true,error:'正在核对刷新前的原请求，请勿重复发送。',...typeof a.projectId==='string'?{projectId:a.projectId}:{},...typeof a.managedProjectId==='string'?{managedProjectId:a.managedProjectId}:{},...typeof a.baseVersionId==='string'?{baseVersionId:a.baseVersionId}:{},...typeof a.contextId==='string'?{contextId:a.contextId}:{},...validElementContext(a.elementContext)?{elementContext:a.elementContext}:{}});
   }
   return attempts.reverse();
 }
