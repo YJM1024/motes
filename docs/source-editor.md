@@ -35,7 +35,7 @@
 
 ## 隔离与验证
 
-草稿预览复用工作台的 CSP 包装与 `sandbox="allow-scripts"`，不授予同源、表单提交、弹窗或顶层导航权限；原始 HTML 不作为工作台 DOM 执行。安全策略不写回源文件或导出内容；导出后独立运行不具有工作台的 iframe 隔离边界。
+草稿预览复用工作台的 CSP 包装与 `sandbox="allow-scripts allow-forms"`，允许 JavaScript 处理表单事件，但由 CSP form-action none 阻止真正提交，不授予同源、弹窗或顶层导航权限；原始 HTML 不作为工作台 DOM 执行。安全策略不写回源文件或导出内容；导出后独立运行不具有工作台的 iframe 隔离边界。
 
 追加 schema-only `0004_version_annotations.sql` 与对应 Drizzle 元数据，接在分享功能的 0003 后。旧迁移不变，不回填或重写任何历史代码。
 

@@ -124,7 +124,7 @@ test('public HTML escapes hostile source/title and uses a policy-bound opaque if
   const h=await harness();t.after(h.close);
   const html='<!doctype html><html><head><meta http-equiv="refresh" content="0;url=https://evil.test"></head><body><script>parent.document.body.innerHTML="hijack"</script></body></html>';
   const response=h.page.sharedPageResponse({title:'</title><script>titleAttack()</script>',versionNumber:7,html});
-  const text=await response.text();assert.equal(response.status,200);assert.match(text,/sandbox="allow-scripts"/);assert.doesNotMatch(text,/allow-same-origin|allow-top-navigation|allow-popups/);
+  const text=await response.text();assert.equal(response.status,200);assert.match(text,/sandbox="allow-scripts allow-forms"/);assert.doesNotMatch(text,/allow-same-origin|allow-top-navigation|allow-popups/);
   assert.match(text,/&lt;script&gt;parent\.document/);assert.doesNotMatch(text,/<script>parent\.document/);assert.doesNotMatch(text,/<script>titleAttack/);
   assert.match(text,/doc\.querySelectorAll\('meta\[http-equiv\]'\)/);assert.match(text,/connect-src 'none'/);assert.match(text,/frame-src 'none'/);
   assert.match(response.headers.get('Content-Security-Policy'),/frame-src 'self'/);assert.match(response.headers.get('Content-Security-Policy'),/frame-ancestors 'none'/);assert.match(response.headers.get('Cache-Control'),/no-store/);assert.equal(response.headers.get('Referrer-Policy'),'no-referrer');
@@ -147,7 +147,7 @@ test('share HTTP route returns 200 without server DOMParser and uniform 404 afte
   };
   const response=await get(share.path),html=await response.text();
   assert.equal(response.status,200);assert.match(response.headers.get('Content-Type'),/text\/html/);assert.match(response.headers.get('Cache-Control'),/no-store/);
-  assert.match(html,/sandbox="allow-scripts"/);assert.match(html,/公开的第一版/);assert.doesNotMatch(html,/PRIVATE PROMPT|PRIVATE SUMMARY|PRIVATE OTHER VERSION|PRIVATE MODEL/);
+  assert.match(html,/sandbox="allow-scripts allow-forms"/);assert.match(html,/公开的第一版/);assert.doesNotMatch(html,/PRIVATE PROMPT|PRIVATE SUMMARY|PRIVATE OTHER VERSION|PRIVATE MODEL/);
   for(const internal of [a.id,a.owner,a.versionId,a.current])assert.equal(html.includes(internal),false,'Public page must not reveal internal identifiers');
   await h.request('revoke',a.id,{},'a','https://motes.test',share.id);
   const revoked=await get(share.path),missing=await get('/share/'+'0'.repeat(64));assert.equal(revoked.status,404);assert.equal(missing.status,404);assert.equal(await revoked.text(),await missing.text());

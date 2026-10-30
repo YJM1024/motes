@@ -24,7 +24,7 @@
 
 `0003_fixed_version_shares` 仅新建 `motes_shares` 表及索引，不改旧应用、版本、所有权或当前版本指针。必须先执行现有 `0000`、`0001`、`0002`；保留旧迁移和 snapshot 链。
 
-生成的 HTML 始终先作为转义文本放入源码区，再由可信引导代码规范化为 iframe `srcdoc`，不作为分享主页执行。iframe 只授予 `allow-scripts`，不授予同源、弹窗、表单或顶层导航能力，使用 no-referrer。预览 CSP 拒绝外部脚本、样式、请求、嵌套框架和自动刷新元标签；分享主页的 `frame-src 'self'` 另外约束 iframe 发起的外部页面导航。分享页面和接口都禁用缓存及搜索索引，撤销不依赖缓存过期。
+生成的 HTML 始终先作为转义文本放入源码区，再由可信引导代码规范化为 iframe `srcdoc`，不作为分享主页执行。iframe 授予 `allow-scripts allow-forms`，允许 JavaScript 处理表单事件；CSP `form-action 'none'` 阻止真正提交，不授予同源、弹窗或顶层导航能力，使用 no-referrer。预览 CSP 拒绝外部脚本、样式、请求、嵌套框架和自动刷新元标签；分享主页的 `frame-src 'self'` 另外约束 iframe 发起的外部页面导航。分享页面和接口都禁用缓存及搜索索引，撤销不依赖缓存过期。
 
 工作台 `/`（包含源码编辑预览）及 `/manage` 页面同时由 `next.config.ts` 的 HTTP 响应头设置最小 `Content-Security-Policy: frame-src 'self'`，补足仅在 `srcdoc` 内设置 `connect-src 'none'` 无法限制子框架自身导航的边界。此配置经已安装 Vinext 的实际 header matcher/finalizer 验证；不限制主页面脚本、样式和请求，不修改平台认证、API 路径或分享页的独立策略。
 

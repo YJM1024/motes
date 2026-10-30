@@ -45,7 +45,7 @@ try {
   assert.deepEqual(Object.keys(publicVersion).sort(),['html','title','versionNumber']);assert.equal(publicVersion.html,selected.html);assert.equal(publicVersion.versionNumber,1);
   assert.equal(publicResponse.response.headers.get('Set-Cookie'),null);assert.match(publicResponse.response.headers.get('Cache-Control'),/no-store/);
   const sharedPage=await page(share.path),markup=await sharedPage.text();assert.equal(sharedPage.status,200);assert.equal(sharedPage.headers.get('Set-Cookie'),null);
-  assert.match(markup,/sandbox="allow-scripts"/);assert.doesNotMatch(markup,/allow-same-origin|allow-top-navigation|allow-popups/);assert.match(sharedPage.headers.get('Content-Security-Policy'),/frame-src 'self'/);
+  assert.match(markup,/sandbox="allow-scripts allow-forms"/);assert.doesNotMatch(markup,/allow-same-origin|allow-top-navigation|allow-popups/);assert.match(sharedPage.headers.get('Content-Security-Policy'),/frame-src 'self'/);
   assert.match(sharedPage.headers.get('Cache-Control'),/no-store/);assert.equal(sharedPage.headers.get('Referrer-Policy'),'no-referrer');
   for(const privateValue of [marker,appId,selected.id,second.currentVersionId,ownerCookie])assert.equal(markup.includes(privateValue),false,'Anonymous page must not include private conversation, internal IDs or cookies');
   assert.equal(JSON.stringify(publicVersion).includes(marker),false);assert.equal(JSON.stringify(publicVersion).includes('owner'),false);
