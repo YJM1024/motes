@@ -16,6 +16,8 @@ function snapshot() { return state; }
 const serverState = { locale: 'zh-CN' as HostLocale, ready: false, unavailable: false };
 function serverSnapshot() { return serverState; }
 
+export function hostText(key: HostMessageKey, params?: HostMessageParams): string { return translateHostMessage(state.locale, key, params); }
+
 export function useHostLocale() {
   const context = useContext(LocaleContext);
   if (!context) throw new Error('useHostLocale must be used inside HostLocaleProvider');
@@ -30,7 +32,8 @@ export default function HostLocaleProvider({ children }: { children: React.React
     catch { state = { ...state, ready: true, unavailable: true }; }
     notify();
     const onStorage = (event: StorageEvent) => {
-      if (event.storageArea !== localStorage || (event.key !== HOST_LOCALE_KEY && event.key !== null)) return;
+      if (event.key !== HOST_LOCALE_KEY && event.key !== null) return;
+      try { if (event.storageArea !== localStorage) return; } catch { return; }
       state = { locale: parseHostLocale(event.newValue), ready: true, unavailable: false };
       notify();
     };
