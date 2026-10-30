@@ -1,0 +1,17 @@
+.root { border: 1px solid #e5e9f0; border-radius: 9px; background: #fff; color: #61738b; font: 12px/1.55 var(--font-sans, "Segoe UI", sans-serif); }
+.root summary { padding: 10px 13px; color: #647892; font-size: 11px; font-weight: 600; cursor: pointer; }
+.root summary:focus-visible { outline: 2px solid #9ab0d0; outline-offset: 2px; border-radius: 6px; }
+.body { display: grid; gap: 8px; border-top: 1px solid #eef0f4; padding: 11px 13px 13px; }
+.body p { margin: 0; }
+.body ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; }
+.note { color: #8796a9; font-size: 10px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 2px 0; }
+.stats div { min-width: 0; border-radius: 6px; padding: 7px 8px; background: #f7f9fc; }
+.stats dt { color: #8796a9; font-size: 9px; }
+.stats dd { margin: 2px 0 0; color: #536782; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.excerpts { display: grid; gap: 7px; max-height: 230px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.excerpts li { min-width: 0; border-left: 2px solid #dce5f0; padding: 6px 9px; background: #fafbfd; }
+.excerpts li span { color: #8999ae; font-size: 9px; }
+.excerpts pre { max-height: 110px; overflow: auto; margin: 4px 0 0; color: #65768c; font: 10px/1.5 var(--font-sans, "Segoe UI", sans-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .root summary { min-height: 40px; padding: 12px; } }
+@media (prefers-reduced-motion: reduce) { .root { scroll-behavior: auto; } }
