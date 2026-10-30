@@ -70,3 +70,4 @@ html[data-motes-theme="dark"] :is(dialog,[role="dialog"]) :is(h2,h3,h4,strong){c
 html[data-motes-theme="dark"] :is(dialog,[role="dialog"]) :is(p,small,label,dt,dd):not([role="alert"]):not([role="status"]){color:var(--motes-muted)}
 html[data-motes-theme="dark"] :is(dialog,[role="dialog"]) :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text);color-scheme:dark}
 html[data-motes-theme="dark"] :is(dialog,[role="dialog"]) :is(input,select,textarea)::placeholder{color:var(--motes-muted)}
+html[data-motes-theme="dark"] :is(.theme-preferences,.motion-preferences) fieldset label{color:var(--motes-text)}
