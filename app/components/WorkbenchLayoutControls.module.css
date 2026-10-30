@@ -1,0 +1,11 @@
+.controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font:11px/1.4 var(--font-sans,"Segoe UI",sans-serif);color:#7d8ea6}
+.modes{display:inline-flex;gap:2px;padding:3px;border:1px solid #e4e9f0;border-radius:8px;background:#f6f8fb}
+.controls button{min-height:34px;padding:0 10px;border:1px solid transparent;border-radius:5px;background:transparent;color:#8192a8;font:inherit;cursor:pointer;white-space:nowrap}
+.modes button[aria-pressed=true]{background:#fff;color:#526d91;box-shadow:0 1px 3px #20355014}
+.width{display:flex;align-items:center;gap:7px;white-space:nowrap}.width input{width:110px;accent-color:#7392bb}.width span{min-width:38px;color:#9aa8ba;font-size:10px}
+.controls button.sidebar{border-color:#e4e9f0;background:#fff}
+.controls button:disabled{opacity:.45;cursor:not-allowed}
+.controls :focus-visible,.resizeHandle:focus-visible{outline:2px solid #8ea9cc;outline-offset:2px}
+.resizeHandle{width:8px;min-width:8px;align-self:stretch;position:relative;cursor:col-resize;touch-action:none;outline:none}.resizeHandle::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:2px;border-radius:2px;background:#e4e9f0}.resizeHandle:hover::after,.resizeHandle:focus-visible::after{background:#91a9c7}
+@media(max-width:620px){.controls{gap:6px}.modes button,.controls button.sidebar{min-height:40px;padding-inline:9px}.width input{width:88px}}
+@media(prefers-reduced-motion:reduce){.controls *{scroll-behavior:auto}}
