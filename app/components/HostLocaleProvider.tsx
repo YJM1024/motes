@@ -50,8 +50,10 @@ export default function HostLocaleProvider({ children }: { children: React.React
   useEffect(() => {
     // Public documents retain their own language and never inherit workbench preferences.
     if (!isWorkbenchPath(pathname)) return;
+    const previousTitle = document.title;
     document.documentElement.lang = current.locale;
-    return () => { document.documentElement.lang = 'zh-CN'; };
+    document.title = translateHostMessage(current.locale, "Motes · 微粒 — AI 应用工作台");
+    return () => { document.documentElement.lang = 'zh-CN'; document.title = previousTitle; };
   }, [pathname, current.locale]);
   const t = useCallback<Translate>((key, params) => translateHostMessage(current.locale, key, params), [current.locale]);
   const value = useMemo<LocaleContextValue>(() => ({ locale: current.locale, setLocale, t, tText: t, ready: current.ready, storageStatus: !current.ready ? 'loading' : current.unavailable ? 'memory' : 'local' }), [current, setLocale, t]);
