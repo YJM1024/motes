@@ -30,10 +30,10 @@ export function filterTasks(items: TaskCenterItem[], query: string, kind: TaskKi
     && (!needle || `${item.prompt} ${item.requestId}`.toLocaleLowerCase().includes(needle)));
 }
 
-export function formatTaskDate(value: string): string {
+export function formatTaskDate(value: string, locale: 'zh-CN'|'en' = 'zh-CN'): string {
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '时间记录无效';
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  if (!Number.isFinite(date.getTime())) return locale === 'en' ? 'Invalid time record' : '时间记录无效';
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
-export function formatTaskDuration(value:number|null|undefined):string{if(typeof value!=='number'||!Number.isFinite(value)||value<0)return '未记录';return value<1000?Math.round(value)+' 毫秒':(value/1000).toFixed(1)+' 秒';}
+export function formatTaskDuration(value:number|null|undefined,locale:'zh-CN'|'en'='zh-CN'):string{if(typeof value!=='number'||!Number.isFinite(value)||value<0)return locale==='en'?'Not recorded':'未记录';return value<1000?Math.round(value)+(locale==='en'?' ms':' 毫秒'):(value/1000).toFixed(1)+(locale==='en'?' s':' 秒');}
