@@ -13,7 +13,7 @@ npm run build
 
 ## 全新本地库
 
-按顺序执行以下八份迁移。已有库不要照抄整组命令，先看下一节。
+按顺序执行以下九份迁移。已有库不要照抄整组命令，先看下一节。
 
 ```sh
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_great_roland_deschain.sql
@@ -24,11 +24,12 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_personal_prompt_templates.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_model_usage.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0007_generation_candidates.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0008_text_discussions.sql
 ```
 
 ## 已有本地库
 
-先保留 `.wrangler/state` 的本地备份，确认此前执行到哪一份，**只依次执行尚未应用的迁移**。例如已执行 0000–0006，就只执行上述最后一条 0007。不要删除状态目录来“修复”缺表，也不要修改已应用的迁移。
+先保留 `.wrangler/state` 的本地备份，确认此前执行到哪一份，**只依次执行尚未应用的迁移**。例如已执行 0000–0006，就只依次执行 0007 和 0008；已执行到 0007，则只执行 0008。不要删除状态目录来“修复”缺表，也不要修改已应用的迁移。
 
 手动 `d1 execute --file` 不会替你建立迁移编号清单，请记录已执行的文件。若不确定，可只读检查表清单并结合迁移文件与已有执行记录核对，不能从某个页面能打开推断所有表已齐全：
 

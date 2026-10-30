@@ -66,6 +66,17 @@ export const promptTemplates = sqliteTable("motes_prompt_templates", {
   createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
 }, t => [index("motes_template_workspace").on(t.workspaceId)]);
 
+export const discussionThreads = sqliteTable("motes_discussion_threads", {
+  id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  appId: text("app_id").references(() => projects.id), managedProjectId: text("managed_project_id").references(() => managedProjects.id),
+  title: text("title").notNull(), createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
+}, t => [uniqueIndex("motes_discussion_app").on(t.workspaceId,t.appId),index("motes_discussion_workspace").on(t.workspaceId)]);
+export const discussionTurns = sqliteTable("motes_discussion_turns", {
+  requestId: text("request_id").primaryKey().references(() => requests.id), threadId: text("thread_id").notNull().references(() => discussionThreads.id),
+  prompt: text("prompt").notNull(), reply: text("reply"), error: text("error"), contextVersionId: text("context_version_id").references(() => versions.id),
+  createdAt: text("created_at").notNull(), completedAt: text("completed_at"),
+}, t => [index("motes_discussion_turn_thread").on(t.threadId)]);
+
 /** Capability links expose one immutable version only, never a visitor profile. */
 export const shares = sqliteTable("motes_shares", {
   id: text("id").primaryKey(), appId: text("app_id").notNull().references(() => projects.id),

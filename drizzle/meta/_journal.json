@@ -57,6 +57,13 @@
       "when": 1793372577464,
       "tag": "0007_generation_candidates",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793373712035,
+      "tag": "0008_text_discussions",
+      "breakpoints": true
     }
   ]
 }

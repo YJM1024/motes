@@ -4,7 +4,7 @@ import type { UsageSnapshot } from '@/lib/motes/usage';
 import './usage-panel.css';
 const count=(value:number|null)=>value===null?'未知':value.toLocaleString('zh-CN');
 const statusNames={running:'进行中',succeeded:'成功保存',failed:'失败',unresolved:'结果待核对'};
-const operationNames:Record<string,string>={generate:'新建',modify:'修改',repair:'修复',candidate:'候选'};
+const operationNames:Record<string,string>={generate:'新建',modify:'修改',repair:'修复',candidate:'候选',discuss:'讨论'};
 const errorNames:Record<string,string>={timeout:'等待超时',quota:'账户额度不足',rate_limit:'服务限流',authentication:'模型权限不可用',upstream:'服务异常',output:'输出未通过校验',connection:'连接中断',storage:'保存未完成',state_changed:'应用或目标状态变化'};
 export default function UsagePanel(){
   const [data,setData]=useState<UsageSnapshot|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('');

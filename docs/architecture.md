@@ -11,7 +11,9 @@ React 工作台
 
 `app/page.tsx` 管理工作台交互与预览；`app/api` 暴露会话、项目、生成和还原接口；`lib/forma` 包含示例引擎、模型适配、归属校验与持久化逻辑；`db/schema.ts` 和 `drizzle` 定义数据结构及迁移。历史命名 `forma` 保留以兼容已有数据。
 
-管理页位于 `app/manage`，通过 `/api/workspace` 和 `lib/motes/management.ts` 访问组织层。精确契约在 `lib/motes/types.ts`，接口与过滤语义见[工作空间管理基础](workspace-api.md)。此增量已部署于 v6，本地联合验收和线上管理 API Smoke 均通过；具体边界见验收说明。
+管理页位于 `app/manage`，通过 `/api/workspace` 和 `lib/motes/management.ts` 访问组织层。精确契约在 `lib/motes/types.ts`，接口与过滤语义见[工作空间管理基础](workspace-api.md)。管理基础首次部署于 v6，本地联合验收和线上管理 API Smoke 均通过；具体边界见验收说明。
+
+后续源码由 `lib/motes` 组织设置、分享、备份、模板、候选、讨论、诊断和用量，客户端恢复位于 `app/hooks`。讨论使用独立文字线程；生成、候选和讨论共享模型预算，手工编辑不调用模型。增量的实际上线状态见[验收状态](acceptance.md#当前验收状态)。
 
 ## 为什么以完整 HTML 为版本单位
 

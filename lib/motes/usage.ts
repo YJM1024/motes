@@ -1,14 +1,14 @@
 import type { ModelObservation } from '../forma/model';
 export const GENERATION_LIMITS = { model: { visitor: 10, global: 50 }, demo: { visitor: 100, global: 2000 } };
-export type ModelOperation = 'generate' | 'modify' | 'repair' | 'candidate';
-export function budgetReservation(db: D1Database, value: { id:string; owner:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string; units?: 1 | 2; fence?: { sql: string; bindings: (string | number)[] } }) {
+export type ModelOperation = 'generate' | 'modify' | 'repair' | 'candidate' | 'discuss';
+export function budgetReservation(db: D1Database, value: { id:string; owner:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string; units?: 1 | 2; fence?: { sql: string; bindings: (string | number | null)[] } }) {
   const day=value.createdAt.slice(0,10),limits=GENERATION_LIMITS[value.mode];
   return db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) SELECT ?,?,?,?,?,?,'running',? WHERE (SELECT count(*) FROM forma_requests WHERE owner=? AND day=? AND mode=?)+?<=? AND (SELECT count(*) FROM forma_requests WHERE day=? AND mode=?)+?<=?"+(value.fence?' AND '+value.fence.sql:'')).bind(value.id,value.owner,value.projectId,value.fingerprint,day,value.mode,value.createdAt,value.owner,day,value.mode,value.units??1,limits.visitor,day,value.mode,value.units??1,limits.global,...value.fence?.bindings??[]);
 }
 export function usageReservation(db: D1Database, requestId: string, who: string, model: string, operation: ModelOperation, startedAt: string) {
   return db.prepare("INSERT INTO motes_model_usage(request_id,owner,operation,requested_model,status,started_at) SELECT ?,?,?,?,'running',? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=? AND mode='model' AND status='running')").bind(requestId,who,operation,model,startedAt,requestId,who);
 }
-export function usageCompletion(db: D1Database, requestId: string, who: string, status: 'succeeded' | 'failed', observation: ModelObservation | null, errorCode: string | null = null, fence?: { sql: string; bindings: (string | number)[] }) {
+export function usageCompletion(db: D1Database, requestId: string, who: string, status: 'succeeded' | 'failed', observation: ModelObservation | null, errorCode: string | null = null, fence?: { sql: string; bindings: (string | number | null)[] }) {
   return db.prepare("UPDATE motes_model_usage SET status=?,response_model=?,finished_at=?,elapsed_ms=?,http_status=?,input_tokens=?,output_tokens=?,total_tokens=?,error_code=? WHERE request_id=? AND owner=? AND status='running'"+(fence?' AND '+fence.sql:'')).bind(status,observation?.responseModel??null,new Date().toISOString(),observation?.elapsedMs??null,observation?.httpStatus??null,observation?.inputTokens??null,observation?.outputTokens??null,observation?.totalTokens??null,errorCode??observation?.errorCode??null,requestId,who,...fence?.bindings??[]);
 }
 export type UsageItem = { requestId: string; operation: string; requestedModel: string; responseModel: string | null; status: 'running' | 'succeeded' | 'failed' | 'unresolved'; startedAt: string; finishedAt: string | null; elapsedMs: number | null; httpStatus: number | null; inputTokens: number | null; outputTokens: number | null; totalTokens: number | null; errorCode: string | null };
