@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Project } from '@/lib/forma/types';
 import { compareLines } from '@/lib/motes/line-diff';
 import styles from './VersionTools.module.css';
+import SharePanel from './SharePanel';
 
 export type VersionToolsProps = {
   project: Project;
@@ -11,6 +12,7 @@ export type VersionToolsProps = {
   targetProjectId?: string;
   onClose: () => void;
   onSaved: (project: Project) => void;
+  onEdit?: (versionId: string) => void;
 };
 
 /** Standalone source-only dialog. HTML is rendered as text, never executed. */
@@ -18,11 +20,14 @@ export default function VersionTools(props:VersionToolsProps) {
   return <VersionToolsDialog key={`${props.project.id}:${props.project.currentVersionId}:${props.selectedVersionId??''}`} {...props}/>;
 }
 
-function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,onSaved}:VersionToolsProps) {
+function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,onSaved,onEdit}:VersionToolsProps) {
   const labelId=useId(), leftId=useId(), rightId=useId();
-  const [left,setLeft]=useState(project.currentVersionId);
+  const initialRight=selectedVersionId??project.versions.find(v=>v.id!==project.currentVersionId)?.id??project.currentVersionId;
+  const initialLeft=initialRight===project.currentVersionId?(project.versions.find(v=>v.id!==initialRight)?.id??initialRight):project.currentVersionId;
+  const [left,setLeft]=useState(initialLeft);
   const [right,setRight]=useState(selectedVersionId??project.versions.find(v=>v.id!==project.currentVersionId)?.id??project.currentVersionId);
   const [changesOnly,setChangesOnly]=useState(false),[busy,setBusy]=useState(false);
+  const [wrapLines,setWrapLines]=useState(false);
   const [error,setError]=useState(''),[feedback,setFeedback]=useState('');
   const request=useRef<{key:string;id:string}|null>(null), inFlight=useRef(false);
   const panel=useRef<HTMLElement>(null),closeButton=useRef<HTMLButtonElement>(null);
@@ -38,7 +43,7 @@ function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,o
     const key=(event:KeyboardEvent)=>{
       if(event.key==='Escape'){event.preventDefault();onClose();}
       if(event.key==='Tab'){
-        const elements=Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex="0"]')??[]);
+        const elements=Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),input:not(:disabled),summary,[tabindex="0"]')??[]).filter(element=>element.getClientRects().length>0);
         const first=elements[0],last=elements.at(-1);
         if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
         else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
@@ -75,16 +80,19 @@ function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,o
         <span className={styles.arrow} aria-hidden="true">→</span>
         <label htmlFor={rightId}>所选版本<select id={rightId} value={right} onChange={e=>{setRight(e.target.value);setFeedback('');setError('');}} disabled={busy}>{project.versions.map(v=><option key={v.id} value={v.id}>v{v.number}{v.id===project.currentVersionId?' · 当前':''}</option>)}</select></label>
         <label className={styles.check}><input type="checkbox" checked={changesOnly} onChange={e=>setChangesOnly(e.target.checked)}/>只看更改</label>
+        <label className={styles.check}><input type="checkbox" checked={wrapLines} onChange={e=>setWrapLines(e.target.checked)}/>折行查看（保留源码行号）</label>
       </div>
       <div className={styles.caption}><span>+ 新增 {diff.added} 行 · − 删除 {diff.removed} 行</span><span>左侧行号为基准，右侧行号为所选版本</span></div>
       {(diff.limited||diff.coarse)&&<p className={styles.notice}>{diff.limited?'内容较长，仅比较每份前 10 万字符、1400 行。':'变更较多，已改用整段增删比较。'} 复制和创建副本仍使用所选版本的完整源码。</p>}
-      {before&&after?<div className={styles.code} tabIndex={0} role="region" aria-label="源码差异">
+      {before&&after&&diff.added===0&&diff.removed===0&&<p className={styles.notice}>{left===right?'所选为同一个版本，没有源码差异。':'这两个版本的源码一致。'}{diff.limited?'此结果仅指已展示的比较范围。':''}</p>}
+      {before&&after?<div className={`${styles.code} ${wrapLines?styles.wrap:''}`} tabIndex={0} role="region" aria-label="源码差异">
         {rows.length?rows.map((line,index)=><div key={index} className={`${styles.line} ${styles[line.kind]}`}><span className={styles.number}>{line.left??''}</span><span className={styles.number}>{line.right??''}</span><span className={styles.sign}>{line.kind==='added'?'+':line.kind==='removed'?'−':' '}</span><code>{line.text||' '}</code></div>):<p className={styles.empty}>这两个版本没有源码差异。</p>}
       </div>:<p className={styles.empty}>没有可比较的版本，请刷新应用后重试。</p>}
       <footer className={styles.footer}>
         <p>从所选版本建立独立应用，不改变原应用或历史记录。保留来源模式，未调用模型。</p>
-        <div className={styles.actions}><button type="button" disabled={!after||busy} onClick={copy}>复制所选源码</button><button type="button" className={styles.primary} disabled={!after||busy} onClick={fork}>{busy?'正在保存副本…':'从所选版本创建副本'}</button></div>
+        <div className={styles.actions}>{onEdit&&<button type="button" disabled={!after||busy} onClick={()=>{if(after)onEdit(after.id);}}>编辑所选源码</button>}<button type="button" disabled={!after||busy} onClick={copy}>复制所选源码</button><button type="button" className={styles.primary} disabled={!after||busy} onClick={fork}>{busy?'正在保存副本…':'从所选版本创建副本'}</button></div>
         <div aria-live="polite" role="status">{feedback}</div>{error&&<p className={styles.error} role="alert">{error}</p>}
+        {after&&<details className={styles.sharing}><summary>分享所选 v{after.number} · 创建和管理公开链接</summary><SharePanel key={`${project.id}:${after.id}`} appId={project.id} versionId={after.id} versionNumber={after.number}/></details>}
       </footer>
     </section>
   </div>;

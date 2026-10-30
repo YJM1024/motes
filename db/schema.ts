@@ -53,3 +53,11 @@ export const settings = sqliteTable("motes_settings", {
   scopeType: text("scope_type").notNull(), scopeId: text("scope_id").notNull(),
   settingKey: text("setting_key").notNull(), valueJson: text("value_json").notNull(), updatedAt: text("updated_at").notNull(),
 }, t => [uniqueIndex("motes_setting_scope_key").on(t.workspaceId, t.scopeType, t.scopeId, t.settingKey)]);
+
+/** Capability links expose one immutable version only, never a visitor profile. */
+export const shares = sqliteTable("motes_shares", {
+  id: text("id").primaryKey(), appId: text("app_id").notNull().references(() => projects.id),
+  versionId: text("version_id").notNull().references(() => versions.id),
+  title: text("title").notNull(), token: text("token").notNull(), requestId: text("request_id").notNull(),
+  createdAt: text("created_at").notNull(), revokedAt: text("revoked_at"),
+}, t => [uniqueIndex("motes_share_token").on(t.token), uniqueIndex("motes_share_request").on(t.requestId), index("motes_share_app").on(t.appId, t.revokedAt)]);
