@@ -1,1 +1,5 @@
 .root{min-width:0}.text{white-space:pre-wrap;overflow-wrap:anywhere}.actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:10px}.actions button{border:1px solid #dfe7f2;border-radius:5px;background:#fff;color:#7188a6;padding:4px 8px;font:inherit;cursor:pointer}.actions button:focus-visible{outline:3px solid #c4d8f3;outline-offset:2px}.actions span{color:#6e8a78}
+
+:global(html[data-motes-theme="dark"]) .text{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .actions button{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .actions span{color:var(--motes-muted)}

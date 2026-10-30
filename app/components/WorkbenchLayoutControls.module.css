@@ -9,3 +9,9 @@
 .resizeHandle{width:8px;min-width:8px;align-self:stretch;position:relative;cursor:col-resize;touch-action:none;outline:none}.resizeHandle::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:2px;border-radius:2px;background:#e4e9f0}.resizeHandle:hover::after,.resizeHandle:focus-visible::after{background:#91a9c7}
 @media(max-width:620px){.controls{gap:6px}.modes button,.controls button.sidebar{min-height:40px;padding-inline:9px}.width input{width:88px}}
 @media(prefers-reduced-motion:reduce){.controls *{scroll-behavior:auto}}
+
+:global(html[data-motes-theme="dark"]) .controls,:global(html[data-motes-theme="dark"]) .modes{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .controls button,:global(html[data-motes-theme="dark"]) .width input{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .modes button[aria-pressed="true"]{background:#28364d;border-color:#49658d;color:var(--motes-accent)}
+:global(html[data-motes-theme="dark"]) .width span{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .resizeHandle::after{background:var(--motes-border)}

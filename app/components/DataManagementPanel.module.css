@@ -21,3 +21,6 @@
 .notice { color: #067647; background: #ecfdf3; }
 .footer { border-top: 1px solid #edf0f4; padding-top: 11px; }
 @media (max-width: 500px) { .dialog { width: calc(100vw - 16px); max-height: 96dvh; border-radius: 11px; } .header { padding: 15px 16px; } .content { max-height: calc(96dvh - 62px); padding: 13px 15px 17px; } .card { padding: 12px; } .actions button { flex: 1; } }
+
+:global(html[data-motes-theme="dark"]) .content,:global(html[data-motes-theme="dark"]) .card{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .card p,:global(html[data-motes-theme="dark"]) .footer{color:var(--motes-muted)}

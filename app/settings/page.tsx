@@ -7,6 +7,7 @@ import type { WorkspaceSnapshot } from '@/lib/motes/types';
 import './settings.css';
 import UsagePanel from '../components/UsagePanel';
 import MotionPreferences from '../components/MotionPreferences';
+import ThemePreferences from '../components/ThemePreferences';
 
 const fields: { key: SettingKey; title: string; description: string; group: string; options: [string, string][] }[] = [
   { key: 'creationMode', title: '默认创作模式', description: '打开工作台时使用，可在发送前临时切换。AI 模式需要服务端已连接模型。', group: '创作', options: [['demo', '示例模式'], ['model', 'AI 模式']] },
@@ -82,6 +83,7 @@ export default function SettingsPage() {
           return <div className="settings-row" key={field.key}><div><span className="settings-field-group">{field.group}</span><h4>{field.title}</h4><p>{field.description}</p><small>当前生效：{currentLabel} <span>· 来源：{sourceNames[settings.sources[field.key]]}</span></small></div><select aria-label={field.title} value={selected} disabled={busy} onChange={e => { const value = e.target.value === 'inherit' ? null : e.target.value === 'true' ? true : e.target.value === 'false' ? false : e.target.value; setDraft(prev => ({ ...prev, [field.key]: value } as SettingsPatch)); }}><option value="inherit">{scope === 'workspace' ? '使用系统默认' : '继承上级设置'}</option>{field.key === 'model' && selected !== 'inherit' && !options.some(o=>o[0]===selected) && <option value={selected} disabled>原模型不可用，请改用继承</option>}{options.map(([value, label]) => <option value={value} key={value} disabled={field.key === 'creationMode' && value === 'model' && !settings.modelAvailable}>{label}</option>)}</select></div>;
         }) : <p className="settings-loading">没有匹配的设置，试试其他关键词。</p>}<div className="settings-actions"><button disabled={busy} onClick={() => setDraft({})}>{scope === 'workspace' ? '恢复系统默认' : '全部恢复继承'}</button><span>{dirty ? '有未保存的修改' : '已与服务端同步'}</span><button disabled={busy || !dirty} onClick={() => { setDraft(settings.overrides[scope]); setError(''); }}>取消</button><button className="settings-primary" disabled={busy || !dirty} onClick={() => void save()}>{busy ? '保存中…' : '保存设置'}</button></div></>}
       </section>
+      <ThemePreferences />
       <MotionPreferences />
       {workspace && <UsagePanel/>}
       <section className="settings-section settings-info" id="settings-identity"><h3>个人资料</h3><div><span className="settings-profile-avatar">{workspace?.profile.displayName.slice(0, 1) || 'M'}</span><p><strong>{workspace?.profile.displayName || '测试用户'}</strong><small>测试资料 · 显示名称不用于登录认证</small></p><a href="/manage" onClick={linkGuard}>编辑资料<ChevronRight size={14}/></a></div></section>

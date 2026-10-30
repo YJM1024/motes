@@ -13,3 +13,7 @@
 .confirm button:last-child{background:#f0e8dc}
 @media(max-width:620px){.root{gap:6px}.confirm{width:100%;font-size:11px}.width input{width:68px}}
 @media(prefers-reduced-motion:reduce){.root *{scroll-behavior:auto}}
+
+:global(html[data-motes-theme="dark"]) .root{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .devices button,:global(html[data-motes-theme="dark"]) .icon,:global(html[data-motes-theme="dark"]) .scale select,:global(html[data-motes-theme="dark"]) .confirm{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .devices button[aria-pressed="true"],:global(html[data-motes-theme="dark"]) .confirm button:last-child{background:#28364d;border-color:#49658d;color:var(--motes-accent)}

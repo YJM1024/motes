@@ -18,3 +18,7 @@
 .result{display:grid;gap:7px;margin-top:12px;padding-top:12px;border-top:1px solid #eef0f4}.result>label{color:#7486a0;font-size:10px}.result textarea{resize:vertical;min-height:150px;white-space:pre-wrap}.applyActions>span{margin-right:auto;color:#9a8668;font-size:10px}.footnote{margin:10px 0 0;color:#a7b1bf;font-size:9px}
 @media(max-width:560px){.fieldGrid{grid-template-columns:1fr;gap:10px}.field input{min-height:40px}.field textarea{min-height:75px}.actions{justify-content:flex-start}.actions span{width:100%;order:-1}.applyActions{justify-content:flex-start}.applyActions>span{width:100%}}
 @media(prefers-reduced-motion:reduce){.root *{scroll-behavior:auto}}
+
+:global(html[data-motes-theme="dark"]) .root,:global(html[data-motes-theme="dark"]) .panel{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .field,:global(html[data-motes-theme="dark"]) .preview{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .hint,:global(html[data-motes-theme="dark"]) .field p{color:var(--motes-muted)}
