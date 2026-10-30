@@ -4,7 +4,7 @@ import type { ModelObservation } from '../forma/model';
 import { usageCompletion } from './usage';
 
 export const RESULT_TTL_MS=7*24*60*60*1000;
-export type GenerationResult={projectId:string;isNew:boolean;title:string;version:Version;expectedCurrentVersionId:string|null;managedProjectId:string|null;observation:ModelObservation|null};
+export type GenerationResult={projectId:string;isNew:boolean;title:string;version:Version;expectedCurrentVersionId:string|null;managedProjectId:string|null;observation:ModelObservation|null;config?:{operation:import('./version-config').VersionOperation;baseVersionId:string|null;settings:import('./settings').Preferences|null}};
 export async function stageResult(db:D1Database,who:string,requestId:string,kind:'generation'|'candidate',value:unknown){
  const serialized=JSON.stringify(value);if(serialized.length>400000)throw new HttpError(413,'生成结果超出暂存容量。');
  const now=new Date().toISOString(),expires=new Date(Date.now()+RESULT_TTL_MS).toISOString();
@@ -44,6 +44,7 @@ export async function commitGenerationResult(db:D1Database,who:string,requestId:
  const saved=await db.batch([
   value.isNew?db.prepare('INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE '+admitted).bind(projectId,who,value.title,version.createdAt,version.createdAt,version.id,...admittedBindings):db.prepare('UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND '+admitted).bind(version.id,version.createdAt,projectId,who,...admittedBindings),
   db.prepare('INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,coalesce((SELECT max(number) FROM forma_versions WHERE project_id=?),0)+1,?,?,?,?,?,? WHERE '+gate).bind(version.id,projectId,projectId,version.prompt,version.summary,version.html,version.createdAt,version.mode,version.model??null,...gateBindings),
+  ...value.config?[db.prepare('INSERT INTO motes_version_config(version_id,operation,base_version_id,settings_json,created_at) SELECT ?,?,?,?,? WHERE '+gate).bind(version.id,value.config.operation,value.config.baseVersionId,value.config.settings?JSON.stringify(value.config.settings):null,version.createdAt,...gateBindings)]:[],
   ...value.isNew&&value.managedProjectId?[db.prepare('INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,g.workspace_id,g.id,? FROM motes_projects g WHERE g.id=? AND '+gate).bind(projectId,version.createdAt,value.managedProjectId,...gateBindings)]:[],
   ...version.mode==='model'?[usageCompletion(db,requestId,who,'succeeded',value.observation,null,{sql:gate,bindings:gateBindings})]:[],
   db.prepare("UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND "+gate).bind(version.id,requestId,who,...gateBindings),

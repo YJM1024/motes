@@ -55,6 +55,7 @@ export async function forkVersion(request: Request, sourceId: string) {
         AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.id=? AND w.owner=? AND g.archived=0)
         AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?`).bind(id,who,title,now,now,copyVersion,sourceId,who,versionId,sourceId,Date.now(),target,wid,who,who,LIMITS.apps),
       db.prepare('INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,1,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?)').bind(copyVersion,id,description,description,source.html,now,source.mode,source.model,id,who),
+      db.prepare("INSERT INTO motes_version_config(version_id,operation,base_version_id,settings_json,created_at) SELECT ?,'fork',?,NULL,? WHERE EXISTS(SELECT 1 FROM forma_versions WHERE id=? AND project_id=?)").bind(copyVersion,versionId,now,copyVersion,id),
       db.prepare('INSERT INTO motes_apps(app_id,workspace_id,project_id,description,updated_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?)').bind(id,wid,target,description,now,id,who),
       db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) SELECT ?,?,?,?,?,'fork','done',?,? WHERE EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?)").bind(requestId,who,id,fingerprint,now.slice(0,10),now,copyVersion,id,who),
     ]);

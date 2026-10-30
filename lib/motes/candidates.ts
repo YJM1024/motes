@@ -6,6 +6,7 @@ import { generateModel, ModelError } from '../forma/model';
 import type { ModelObservation } from '../forma/model';
 import { initialAppTitle } from '../forma/app-title';
 import { initializeWorkspace, LIMITS } from './management';
+import { snapshotPreferences } from './version-config';
 import { stageResult, stagedResult } from './results';
 import { generationPreferences, readSettings } from './settings';
 import { budgetReservation, GENERATION_LIMITS, usageCompletion, usageReservation } from './usage';
@@ -16,7 +17,7 @@ const strategies=['简洁清晰 · 操作优先','丰富层次 · 信息优先',
 const directions=['a restrained, action-focused layout with clear primary controls','an information-focused layout with stronger visual hierarchy','a compact, efficient workflow-focused layout','a bold, visually expressive layout with clear navigation'];
 function id(value:unknown){if(typeof value!=='string'||!value||value.length>128)throw new HttpError(400,'方案或应用编号无效。');return value;}
 function uuid(value:unknown){const result=id(value);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(result))throw new HttpError(400,'方案请求编号无效。');return result;}
-type GroupRow={id:string;owner:string;fingerprint:string;prompt:string;mode:'demo'|'model';model:string|null;app_id:string|null;base_version_id:string|null;managed_project_id:string;created_at:string;candidate_count:2|3|4;generation_context:string|null};
+type GroupRow={id:string;owner:string;fingerprint:string;prompt:string;mode:'demo'|'model';model:string|null;app_id:string|null;base_version_id:string|null;managed_project_id:string;created_at:string;candidate_count:2|3|4;generation_context:string|null;generation_settings:string|null};
 const summary=(r:GroupRow):CandidateSummary=>({id:r.id,prompt:r.prompt,mode:r.mode,model:r.model,appId:r.app_id,baseVersionId:r.base_version_id,managedProjectId:r.managed_project_id,createdAt:r.created_at,count:r.candidate_count??2,reservedModelCalls:r.mode==='model'?(r.candidate_count??2):0});
 async function groupFor(who:string,groupId:string){const group=await database().prepare('SELECT * FROM motes_candidate_groups WHERE id=? AND owner=?').bind(groupId,who).first<GroupRow>();if(!group)throw new HttpError(404,'方案组不存在或不属于当前访客。');return group;}
 export async function readCandidateGroup(who:string,groupId:string):Promise<CandidateGroup>{
@@ -60,7 +61,7 @@ export async function createCandidates(request:Request){
   const statements=[first];
   for(let slot=1;slot<(count as number);slot++)statements.push(budgetReservation(db,{id:requests[slot],owner:who,projectId:lockIds[slot],fingerprint:await digest(fingerprint+':'+slot),mode,createdAt:now,units:((count as number)-slot) as 1|2|3,fence:{sql:'EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)',bindings:[requests[0],who]}}));
   const context=generationPreferences(prefs.effective,!!source);
-  statements.push(db.prepare('INSERT INTO motes_candidate_groups(id,owner,fingerprint,prompt,mode,model,app_id,base_version_id,managed_project_id,created_at,candidate_count,generation_context) SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(groupId,who,fingerprint,prompt,mode,model,appId,baseVersionId,target,now,count,context,requests[(count as number)-1],who));
+  statements.push(db.prepare('INSERT INTO motes_candidate_groups(id,owner,fingerprint,prompt,mode,model,app_id,base_version_id,managed_project_id,created_at,candidate_count,generation_context,generation_settings) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(groupId,who,fingerprint,prompt,mode,model,appId,baseVersionId,target,now,count,context,JSON.stringify(snapshotPreferences(prefs.effective,mode,model)),requests[(count as number)-1],who));
   for(let slot=0;slot<(count as number);slot++){
     statements.push(db.prepare("INSERT INTO motes_candidates(id,group_id,slot,request_id,strategy,status,created_at,updated_at) SELECT ?,?,?,?,?,'running',?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_groups WHERE id=? AND owner=?)").bind(ids[slot],groupId,slot,requests[slot],mode==='demo'?['蓝色示例','绿色示例','深色示例','浅色示例'][slot]:strategies[slot],now,now,groupId,who));
     statements.push(db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_groups WHERE id=? AND owner=?)').bind(lockIds[slot],requests[slot],Date.now()+210000,groupId,who));
@@ -179,6 +180,7 @@ export async function adoptCandidate(request:Request,groupId:string){
   const gate=asNew?'EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?)':guard;
   const gateBindings=asNew?[appId,who]:bindings;
   statements.push(db.prepare(`INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,coalesce((SELECT max(number) FROM forma_versions WHERE project_id=?),0)+1,?,?,?,?,?,? WHERE ${gate}`).bind(versionId,appId,appId,group.prompt,annotation,candidate.html,now,group.mode,group.model,...gateBindings));
+  statements.push(db.prepare('INSERT INTO motes_version_config(version_id,operation,base_version_id,settings_json,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_versions WHERE id=? AND project_id=?)').bind(versionId,'candidate',group.base_version_id,group.generation_settings,now,versionId,appId));
   const versionGate='EXISTS(SELECT 1 FROM forma_versions WHERE id=? AND project_id=?)';
   if(asNew)statements.push(db.prepare(`INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,?,?,? WHERE ${versionGate}`).bind(appId,wid,group.managed_project_id,now,versionId,appId));
   statements.push(db.prepare(`UPDATE forma_projects SET current_version_id=? WHERE id=? AND owner=? AND ${versionGate}`).bind(versionId,appId,who,versionId,appId),db.prepare(`UPDATE motes_candidates SET adopted_app_id=?,adopted_version_id=?,adopt_kind=?,updated_at=? WHERE id=? AND group_id=? AND adopted_app_id IS NULL AND ${versionGate}`).bind(appId,versionId,kind,now,candidateId,groupId,versionId,appId));

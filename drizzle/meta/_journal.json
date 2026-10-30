@@ -99,6 +99,13 @@
       "when": 1793383065597,
       "tag": "0013_publication_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793383298123,
+      "tag": "0014_version_config",
+      "breakpoints": true
     }
   ]
 }

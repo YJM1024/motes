@@ -36,6 +36,7 @@ export async function copyAppTemplate(request:Request,tid:string){
  let results:D1Result[];try{results=await db.batch([
   db.prepare('INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE '+guard).bind(appId,who,template.name,now,now,versionId,...bindings),
   db.prepare("INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,1,?,?,?,?, 'manual',NULL WHERE "+gate).bind(versionId,appId,'从个人应用模板创建：'+template.name,'复制独立私有应用，未调用模型；不复制原应用运行时、讨论或权限。',template.html!,now,...gateBindings),
+  db.prepare("INSERT INTO motes_version_config(version_id,operation,base_version_id,settings_json,created_at) SELECT ?,'template-copy',?,NULL,? WHERE "+gate).bind(versionId,template.source_version_id,now,...gateBindings),
   db.prepare('INSERT INTO motes_apps(app_id,workspace_id,project_id,description,updated_at) SELECT ?,?,?,?,? WHERE '+gate).bind(appId,wid,target,template.description,now,...gateBindings),
   db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) SELECT ?,?,?,?,?,'app-template-copy','done',?,? WHERE "+gate).bind(rid,who,appId,fingerprint,now.slice(0,10),now,versionId,...gateBindings),
  ]);}catch(error){const retry=await prior();if(retry)return retry;throw error;}

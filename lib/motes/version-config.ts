@@ -1,0 +1,10 @@
+import type { Preferences } from './settings';
+export type VersionOperation='generate'|'modify'|'element'|'manual'|'candidate'|'template-copy'|'fork';
+export type VersionConfig={versionId:string;recorded:boolean;operation?:VersionOperation;baseVersionId?:string|null;settings?:Preferences|null;recordedAt?:string;changes:{key:string;before:string|boolean|null;after:string|boolean|null}[]|null;limits:{apps:100;versions:60};note:string};
+export const CONFIG_KEYS=['creationMode','previewDevice','autoFollow','showWaitTimer','language','visualStyle','model'] as const;
+export function snapshotPreferences(value:Preferences,mode:'demo'|'model',model:string|null):Preferences{
+ const result:Preferences={creationMode:mode,previewDevice:value.previewDevice,autoFollow:value.autoFollow,showWaitTimer:value.showWaitTimer,language:value.language,visualStyle:value.visualStyle};if(mode==='model'&&model)result.model=model;return result;
+}
+export function configChanges(before:Preferences|null,after:Preferences|null):VersionConfig['changes']{if(!before||!after)return null;return CONFIG_KEYS.flatMap(key=>before[key]===after[key]?[]:[{key,before:before[key]??null,after:after[key]??null}]);}
+
+export function parseVersionSettings(raw:string|null):Preferences|null{if(raw===null)return null;let value:unknown;try{value=JSON.parse(raw);}catch{return null;}if(!value||typeof value!=='object'||Array.isArray(value))return null;const v=value as Record<string,unknown>;if(!['demo','model'].includes(v.creationMode as string)||!['desktop','mobile'].includes(v.previewDevice as string)||typeof v.autoFollow!=='boolean'||typeof v.showWaitTimer!=='boolean'||!['zh-CN','en'].includes(v.language as string)||!['minimal','soft','bold'].includes(v.visualStyle as string))return null;if(v.model!==undefined&&(typeof v.model!=='string'||! /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(v.model)||v.model.startsWith('sk-')))return null;return snapshotPreferences(v as Preferences,v.creationMode as 'demo'|'model',typeof v.model==='string'?v.model:null);}

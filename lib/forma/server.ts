@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { snapshotPreferences } from '../motes/version-config';
 import { validElementContext,elementGenerationInstructions } from '../motes/element-selection';
 import { stageResult, stagedResult, commitGenerationResult } from '../motes/results';
 import { generateDemo } from './demo';
@@ -64,7 +65,7 @@ export async function generate(request:Request){
   const base=project?.versions.find(v=>v.id===(body.baseVersionId??project.currentVersionId));if(project&&!base)throw new HttpError(404,'基础版本不存在。');
   if(elementContext&&project?.currentVersionId!==elementContext.baseVersionId)throw new HttpError(409,'选中元素所属版本已变化，请刷新预览后重新选择。','new');
   if(project&&project.versions.length>=60)throw new HttpError(429,'单个项目最多保留 60 个版本，请创建新项目。');
-  const settings=mode==='model'?await readSettings(db,who,selectedModel,project?{appId:project.id}:managedProjectId?{projectId:managedProjectId}:{},modelNames()):null;
+  const settings=await readSettings(db,who,selectedModel,project?{appId:project.id}:managedProjectId?{projectId:managedProjectId}:{},modelNames());
   if(mode==='model'){if(body.model!==undefined&&!modelNames().includes(body.model as string))throw new HttpError(400,'该模型未在服务端可用白名单中。');selectedModel=typeof body.model==='string'?body.model:settings!.effective.model??selectedModel;}
   // Validate demo support before reserving capacity. Demo never silently invokes a model.
   let demo:ReturnType<typeof generateDemo>|undefined;
@@ -86,7 +87,7 @@ export async function generate(request:Request){
   try{
     const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base)+(elementContext?elementGenerationInstructions(elementContext):''),value=>{observation=value});
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
-    await stageResult(db,who,requestId,'generation',{projectId:id,isNew:!project,title:demo?.title??initialAppTitle(html,prompt),version,expectedCurrentVersionId:project?.currentVersionId??null,managedProjectId:managedProjectId??null,observation});
+    await stageResult(db,who,requestId,'generation',{projectId:id,isNew:!project,title:demo?.title??initialAppTitle(html,prompt),version,expectedCurrentVersionId:project?.currentVersionId??null,managedProjectId:managedProjectId??null,observation,config:{operation:elementContext?'element':base?'modify':'generate',baseVersionId:base?.id??null,settings:snapshotPreferences(settings.effective,mode,selectedModel)}});
     await commitGenerationResult(db,who,requestId,true);
   }catch(error){
     if(await stagedResult(db,who,requestId,'generation')){if(error instanceof HttpError)throw error;throw new HttpError(503,'生成结果已暂存，请仅重试保存。');}

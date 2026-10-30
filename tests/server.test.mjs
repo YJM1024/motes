@@ -53,6 +53,8 @@ async function serverHarness() {
   sqlite.exec(await readFile(new URL('../drizzle/0004_version_annotations.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0006_model_usage.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0011_generation_results.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0007_generation_candidates.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0014_version_config.sql',import.meta.url),'utf8'));
   const harness={sqlite,failRead:false};
   function prepare(sql,args=[]) {
     return {
@@ -84,6 +86,7 @@ async function serverHarness() {
   const usageJs=ts.transpileModule(usageSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   source=source.replaceAll("'../motes/usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));
   const elementSource=await readFile(new URL('../lib/motes/element-selection.ts',import.meta.url),'utf8');const elementJs=ts.transpileModule(elementSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/element-selection'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(elementJs).toString('base64')));
+  const configSource=await readFile(new URL('../lib/motes/version-config.ts',import.meta.url),'utf8');const configJs=ts.transpileModule(configSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/version-config'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(configJs).toString('base64')));
   let resultSource=await readFile(new URL('../lib/motes/results.ts',import.meta.url),'utf8');resultSource=resultSource.replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64'))).replaceAll("'./usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));const resultJs=ts.transpileModule(resultSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/results'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(resultJs).toString('base64')));
   const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   const server=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
