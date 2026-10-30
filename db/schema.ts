@@ -60,6 +60,12 @@ export const versionAnnotations = sqliteTable("motes_version_annotations", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const promptTemplates = sqliteTable("motes_prompt_templates", {
+  id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspaces.id),
+  name: text("name").notNull(), prompt: text("prompt").notNull(),
+  createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
+}, t => [index("motes_template_workspace").on(t.workspaceId)]);
+
 /** Capability links expose one immutable version only, never a visitor profile. */
 export const shares = sqliteTable("motes_shares", {
   id: text("id").primaryKey(), appId: text("app_id").notNull().references(() => projects.id),

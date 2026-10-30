@@ -36,6 +36,13 @@
       "when": 1793370394567,
       "tag": "0004_version_annotations",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793370718626,
+      "tag": "0005_personal_prompt_templates",
+      "breakpoints": true
     }
   ]
 }
