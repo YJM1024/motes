@@ -116,3 +116,8 @@ export const generationResults = sqliteTable("motes_generation_results", {
  requestId: text("request_id").primaryKey().references(() => requests.id), owner: text("owner").notNull(), kind: text("kind").notNull(), resultJson: text("result_json").notNull(),
  createdAt: text("created_at").notNull(), expiresAt: text("expires_at").notNull(), committedAt: text("committed_at"),
 }, t => [index("motes_result_owner_expiry").on(t.owner,t.expiresAt)]);
+
+export const appTemplates = sqliteTable("motes_app_templates", {
+ id:text("id").primaryKey(),workspaceId:text("workspace_id").notNull().references(()=>workspaces.id),name:text("name").notNull(),description:text("description").notNull().default(''),html:text("html").notNull(),
+ sourceAppId:text("source_app_id").notNull(),sourceVersionId:text("source_version_id").notNull(),createdAt:text("created_at").notNull(),updatedAt:text("updated_at").notNull(),
+}, t=>[index("motes_app_template_workspace").on(t.workspaceId,t.updatedAt)]);

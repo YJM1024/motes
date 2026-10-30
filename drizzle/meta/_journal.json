@@ -85,6 +85,13 @@
       "when": 1793381818246,
       "tag": "0011_generation_results",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793382890526,
+      "tag": "0012_app_templates",
+      "breakpoints": true
     }
   ]
 }
