@@ -19,7 +19,7 @@ const fields = [
   { key: 'language', title: '生成应用的默认语言', description: '用于新 AI 应用。修改时保留现有语言，明确提出翻译需求后再调整；不更改工作台语言。', group: '创作', options: [['zh-CN', '简体中文'], ['en', 'English']] },
   { key: 'visualStyle', title: '生成应用的默认风格', description: '用于新 AI 应用的基础视觉。当前明确需求优先，修改时不自动重设计。示例模式不使用此项。', group: '创作', options: [['minimal', '简洁 · 中性色与清晰排版'], ['soft', '柔和 · 轻配色与圆角'], ['bold', '鲜明 · 强层级与强调色']] },
   { key: 'previewDevice', title: '默认预览设备', description: '打开应用时的预览宽度，可在工作台临时切换，不改写代码。', group: '工作台', options: [['desktop', '桌面 · 自适应'], ['mobile', '手机 · 390px']] },
-  { key: 'autoFollow', title: '对话自动跟随', description: '有新消息时跟随到底部；主动浏览上文时保持当前位置。', group: '工作台', options: [['true', '开启'], ['false', '关闭']] },
+  { key: 'autoFollow', title: '对话自动跟随', description: '有新消息时跟随到底部；主动浏览上文时保持当前位置。', group: '工作台', options: [['true', '开启'], ['false', '停用']] },
   { key: 'showWaitTimer', title: '显示等待计时', description: '生成时显示真实等待时长。关闭后仍显示进行中状态，不改变超时上限。', group: '工作台', options: [['true', '显示'], ['false', '隐藏']] },
  ] as const satisfies readonly { key: SettingKey; title: string; description: string; group: string; options: readonly (readonly [string, string])[] }[];
 const sourceNames = { system: '系统默认', workspace: '工作空间', project: '项目', app: '应用', server: '服务端安全回退' } as const;

@@ -339,5 +339,6 @@ export const homeMessages = {
   "界面": "Interface",
   "功能": "Features",
   "内容": "Content",
-  "配置记录读取失败（{status}）。": "Could not read the configuration record ({status})."
+  "配置记录读取失败（{status}）。": "Could not read the configuration record ({status}).",
+  "停用": "Off"
 } as const;
