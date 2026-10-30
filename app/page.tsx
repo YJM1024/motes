@@ -98,7 +98,7 @@ export default function Home() {
   const [refresh, setRefresh] = useState(0);
   const [sidebar, setSidebar] = useState(false);
   const operationLock = useRef(false);
-  const operationEpoch = useRef(0), activeOperation = useRef<string | null>(null), mounted = useRef(true), activeFetch = useRef<AbortController | null>(null);
+  const operationEpoch = useRef(0), activeOperation = useRef<string | null>(null), mounted = useRef(true), activeFetch = useRef<AbortController | null>(null), activeAttempt = useRef<Attempt|null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [notice, setNotice] = useState("");
   const [elapsed, setElapsed] = useState(0);
@@ -243,6 +243,11 @@ export default function Home() {
     catch(e){if(mounted.current&&epoch===operationEpoch.current)setError(e instanceof Error?e.message:'保存暂未完成，原结果仍保留。');}
     finally{operationLock.current=false;if(mounted.current)setBusy(false);}
   }
+  function stopBuildWaiting(attempt:Attempt){
+    if(activeAttempt.current?.requestId!==attempt.requestId||!activeOperation.current)return;
+    interruptRecovery();setRecoveryPaused(true);const controller=activeFetch.current;activeFetch.current=null;activeAttempt.current=null;activeOperation.current=null;operationLock.current=false;controller?.abort();
+    setAttempts(previous=>failOriginalAttempt(previous,attempt,'已停止本页等待；服务端执行及费用是否停止尚未确认，请仅核对原请求。'));setBusy(false);setNotice('已停止本页等待，原请求和草稿已保留。服务端可能继续执行并收费；核对原结果前不会重复生成。');
+  }
   async function generate(value = prompt, retry?: Attempt, confirmedQuestion = false) {
     if (value.length > 4000) { setError("构建需求最多 4000 字，请先精简草稿。"); return; }
     if (!session || !workspaceId || sessionLoading || discussionBusy || preferencesLoading || operationLock.current || opening || !value.trim()) return;
@@ -263,7 +268,7 @@ export default function Home() {
       attempt={id:crypto.randomUUID(),requestId:crypto.randomUUID(),text:value.trim(),projectId:project?.id,managedProjectId:project?undefined:creationTarget?.id,contextId:draftContext,baseVersionId:project?.currentVersionId,...mode==="model"&&selectedElement&&displayed?.id===project?.currentVersionId&&selectedElement.baseVersionId===project?.currentVersionId?{elementContext:selectedElement}:{},mode,state:"sending",startedAt:Date.now()};
     }
     const epoch=interruptRecovery(),operation=crypto.randomUUID(),controller=new AbortController();
-    activeOperation.current=operation;activeFetch.current=controller;setRecoveryPaused(false);
+    activeOperation.current=operation;activeFetch.current=controller;activeAttempt.current=attempt;setRecoveryPaused(false);
     operationLock.current = true; setBusy(true); setElapsed(0); setPrompt(current=>draftAfterSend(current,attempt.text,!!retry)); setError(""); setNotice(""); setPane("chat"); followChat.current = true;
     const nextAttempts=retry?attempts.map(a=>a.id===attempt.id?attempt:a):[...attempts,attempt];setAttempts(nextAttempts);
     // Record the original ID before sending, even if the tab refreshes before
@@ -278,10 +283,10 @@ export default function Home() {
     } catch (e) {
       const message = e instanceof Error ? e.message : "连接中断，请重试。";
       const confirmed=e instanceof ApiError && (e.retry==="new" || (e.status>=400 && e.status<500 && e.status!==409));
-      if(mounted.current)setAttempts(previous=>failOriginalAttempt(previous,attempt,message,confirmed));
+      if(mounted.current&&epoch===operationEpoch.current&&activeOperation.current===operation)setAttempts(previous=>failOriginalAttempt(previous,attempt,message,confirmed));
     } finally {
       if(activeFetch.current===controller)activeFetch.current=null;
-      if(mounted.current && activeOperation.current===operation){activeOperation.current=null;operationLock.current=false;setBusy(false);if(epoch===operationEpoch.current)textarea.current?.focus({preventScroll:true});}
+      if(mounted.current && activeOperation.current===operation){activeOperation.current=null;activeAttempt.current=null;operationLock.current=false;setBusy(false);if(epoch===operationEpoch.current)textarea.current?.focus({preventScroll:true});}
     }
   }
   async function restore(versionId: string) {
@@ -294,7 +299,7 @@ export default function Home() {
     finally { if(mounted.current && activeOperation.current===operation){activeOperation.current=null;operationLock.current=false;setBusy(false);} }
   }
   function adoptSavedProject(next:Project) {
-    interruptRecovery();activeFetch.current?.abort();activeOperation.current=null;operationLock.current=false;setBusy(false);setRecoveryPaused(false);
+    interruptRecovery();activeFetch.current?.abort();activeAttempt.current=null;activeOperation.current=null;operationLock.current=false;setBusy(false);setRecoveryPaused(false);
     setAttempts(previous=>previous.map(a=>a.state==="sending"?{...a,state:"failed",recovered:true,error:"页面已切换，正在核对原请求保存结果。"}:a));remember(next);
   }
   function changeIntent(next: "build" | "discuss") {
@@ -341,7 +346,7 @@ export default function Home() {
     const checking=!!a.recovered && !recoveryPaused && (!status || ["checking","running","unavailable"].includes(status.phase));
     const checkOnly=!!a.recovered && !terminal;
     return <div className="conversation-pair" key={a.id}><div className="user-message">{a.text}</div><div className={`message-delivery ${a.state==="sending"||checking?"sending":"failed"}`} role={a.state==="sending"||checking||checkOnly?"status":"alert"}>
-      {a.state==="sending"?<><LoaderCircle size={17} className="spin"/><div><strong>{a.mode==="demo"?"正在准备示例…":elapsed>=30?"仍在等待请求结果，请稍候…":"正在构建你的应用…"}</strong><small>{preferences.showWaitTimer?`已等待 ${elapsed} 秒 · `:""}完成后自动保存{displayed?"，当前预览仍可使用":""}</small></div></>:checking?<><LoaderCircle size={17} className="spin"/><div><strong>{status?.phase==="running"?"正在核对原请求进度…":"正在取回原请求结果…"}</strong><small>{status?.message??"先核对保存结果，不会重复发起生成。"}</small><button className="edit-failed" disabled={busy||discussionBusy||opening} onClick={pauseRecovery}>暂停核对</button></div></>:<><button className="retry-message" aria-label={saveOnly?"仅重试保存，不调用模型":checkOnly?"再次检查原请求状态":status?.retry==="same"?"重试原请求（沿用编号）":"重试这条消息"} title={checkOnly?"再次检查原请求状态":"重试这条消息"} disabled={busy||opening} onClick={()=>saveOnly?void saveAttempt(a):checkOnly?checkRecovery():void generate(a.text,a)}><RotateCcw size={16}/></button><div><strong>{saveOnly?"生成结果已暂存 · 仅重试保存":checkOnly?"结果尚未确认":status?.phase==="expired"?"原请求已超期":status?.phase==="failed"?"原请求已确认失败":"发送未完成"}</strong><small>{checkOnly&&recoveryPaused?"核对已暂停，可再次检查。停止等待不保证取消服务端调用或费用。":status?.message??a.error}</small>{status?.phase==="not-found"&&a.error&&<small>{a.error}</small>}<button className="edit-failed" disabled={busy||opening} onClick={()=>{changeIntent("build");if(prompt.trim()&&prompt!==a.text){setTemplateChoice({name:"未完成的需求",prompt:a.text});setTemplatesOpen(true);}else{setPrompt(a.text);textarea.current?.focus();}}}>编辑需求</button></div></>}
+      {a.state==="sending"?<><LoaderCircle size={17} className="spin"/><div><strong>{a.mode==="demo"?"正在准备示例…":elapsed>=30?"仍在等待请求结果，请稍候…":"正在构建你的应用…"}</strong><small>{preferences.showWaitTimer?`已等待 ${elapsed} 秒 · `:""}完成后自动保存{displayed?"，当前预览仍可使用":""}</small><button className="edit-failed" onClick={()=>stopBuildWaiting(a)}>停止等待此请求</button><small>仅停止本页等待，服务端可能继续执行并产生费用。</small></div></>:checking?<><LoaderCircle size={17} className="spin"/><div><strong>{status?.phase==="running"?"正在核对原请求进度…":"正在取回原请求结果…"}</strong><small>{status?.message??"先核对保存结果，不会重复发起生成。"}</small><button className="edit-failed" disabled={busy||discussionBusy||opening} onClick={pauseRecovery}>暂停核对</button></div></>:<><button className="retry-message" aria-label={saveOnly?"仅重试保存，不调用模型":checkOnly?"再次检查原请求状态":status?.retry==="same"?"重试原请求（沿用编号）":"重试这条消息"} title={checkOnly?"再次检查原请求状态":"重试这条消息"} disabled={busy||opening} onClick={()=>saveOnly?void saveAttempt(a):checkOnly?checkRecovery():void generate(a.text,a)}><RotateCcw size={16}/></button><div><strong>{saveOnly?"生成结果已暂存 · 仅重试保存":checkOnly?"结果尚未确认":status?.phase==="expired"?"原请求已超期":status?.phase==="failed"?"原请求已确认失败":"发送未完成"}</strong><small>{checkOnly&&recoveryPaused?"核对已暂停，可再次检查。停止等待不保证取消服务端调用或费用。":status?.message??a.error}</small>{status?.phase==="not-found"&&a.error&&<small>{a.error}</small>}<button className="edit-failed" disabled={busy||opening} onClick={()=>{changeIntent("build");if(prompt.trim()&&prompt!==a.text){setTemplateChoice({name:"未完成的需求",prompt:a.text});setTemplatesOpen(true);}else{setPrompt(a.text);textarea.current?.focus();}}}>编辑需求</button></div></>}
     </div></div>;
   };
   const composer = (home: boolean) => <div className={`composer ${home ? "home-composer" : "chat-composer"}`}>
