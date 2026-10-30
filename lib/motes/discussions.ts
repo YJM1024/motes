@@ -6,6 +6,7 @@ import { ModelError, type ModelObservation } from '../forma/model';
 import { initializeWorkspace } from './management';
 import { readSettings } from './settings';
 import { budgetReservation, usageReservation, usageCompletion } from './usage';
+import {selectDiscussionContext} from './discussion-context';
 import { DISCUSSION_LIMITS, type DiscussionContext, type DiscussionSnapshot, type DiscussionThread, type DiscussionTurn } from './discussion-types';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -97,7 +98,7 @@ export async function sendDiscussion(request: Request) {
   const app = thread.app_id ? await readProject(who,thread.app_id) : null;
   if (!app && body.baseVersionId !== undefined) throw new HttpError(400, '构建前讨论没有应用基础版本。');
   const base = app?.versions.find(v => v.id === (body.baseVersionId || app.currentVersionId)); if (app && !base) throw new HttpError(404, '讨论上下文版本不存在。');
-  const history = snapshot.turns.filter(t => t.status === 'done' && t.reply).slice(-6).map(t => `User: ${t.prompt}\nAssistant: ${t.reply}`).join('\n').slice(-12000), now = new Date().toISOString();
+  const history = selectDiscussionContext(snapshot.turns).text, now = new Date().toISOString();
   await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND expires_at<=?').bind(namespace,Date.now()).run();
   const reservationFence = "EXISTS(SELECT 1 FROM motes_discussion_threads t JOIN motes_workspaces w ON w.id=t.workspace_id WHERE t.id=? AND w.owner=? AND t.app_id IS ? AND t.managed_project_id IS ? AND (t.app_id IS NULL OR EXISTS(SELECT 1 FROM forma_projects p WHERE p.id=t.app_id AND p.owner=?))) AND (SELECT count(*) FROM motes_discussion_turns WHERE thread_id=?)<100";
   const scopeBindings = [threadId,who,thread.app_id,thread.managed_project_id,who,threadId] as (string|null)[];
