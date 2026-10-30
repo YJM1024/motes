@@ -6,6 +6,7 @@ import { ModelError, type ModelObservation } from '../forma/model';
 import { initializeWorkspace } from './management';
 import { readSettings } from './settings';
 import { budgetReservation, usageReservation, usageCompletion } from './usage';
+import {stageDiscussionResult,readDiscussionResult,commitDiscussionResult} from './discussion-results';
 import {selectDiscussionContext} from './discussion-context';
 import { DISCUSSION_LIMITS, type DiscussionContext, type DiscussionSnapshot, type DiscussionThread, type DiscussionTurn } from './discussion-types';
 
@@ -33,8 +34,8 @@ export async function discussionSnapshot(who: string, selected: DiscussionContex
   if (thread && (thread.app_id !== (selected.appId || null) || (!selected.appId && thread.managed_project_id !== (selected.managedProjectId || null)))) throw new HttpError(400, '讨论不属于当前页面上下文。');
   let turns: DiscussionTurn[] = [];
   if (thread) {
-    const result = await db.prepare("SELECT t.*,r.status,r.mode AS request_mode,u.requested_model,EXISTS(SELECT 1 FROM forma_locks l WHERE l.project_id=r.project_id AND l.request_id=r.id AND l.expires_at>?) AS live FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id LEFT JOIN motes_model_usage u ON u.request_id=r.id AND u.owner=r.owner WHERE t.thread_id=? AND r.owner=? AND r.mode IN ('model','discussion-import') AND r.project_id=? ORDER BY t.created_at,t.request_id").bind(Date.now(),thread.id,who,lockId(thread.id)).all<{request_id:string;prompt:string;reply:string|null;error:string|null;created_at:string;completed_at:string|null;context_version_id:string|null;status:'running'|'done'|'failed';request_mode:string;requested_model:string|null;live:number}>();
-    turns = result.results.map(r => ({ requestId:r.request_id,prompt:r.prompt,reply:r.reply,error:r.error,status:r.status === 'running' && !r.live ? 'expired' : r.status,createdAt:r.created_at,completedAt:r.completed_at,contextVersionId:r.context_version_id,model:r.request_mode==='discussion-import'?'备份导入':r.requested_model }));
+    const result = await db.prepare("SELECT t.*,r.status,r.mode AS request_mode,u.requested_model,s.reply AS pending_reply,s.expires_at AS result_expires_at,s.committed_at AS result_committed_at,EXISTS(SELECT 1 FROM forma_locks l WHERE l.project_id=r.project_id AND l.request_id=r.id AND l.expires_at>?) AS live FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id LEFT JOIN motes_model_usage u ON u.request_id=r.id AND u.owner=r.owner LEFT JOIN motes_discussion_results s ON s.request_id=r.id AND s.owner=r.owner WHERE t.thread_id=? AND r.owner=? AND r.mode IN ('model','discussion-import') AND r.project_id=? ORDER BY t.created_at,t.request_id").bind(Date.now(),thread.id,who,lockId(thread.id)).all<{request_id:string;prompt:string;reply:string|null;error:string|null;created_at:string;completed_at:string|null;context_version_id:string|null;status:'running'|'done'|'failed';request_mode:string;requested_model:string|null;pending_reply:string|null;result_expires_at:string|null;result_committed_at:string|null;live:number}>();
+    turns = result.results.map(r => ({ requestId:r.request_id,prompt:r.prompt,reply:r.reply,error:r.error,status:r.pending_reply&&!r.result_committed_at&&r.result_expires_at!>new Date().toISOString()?'save_pending':r.status === 'running' && !r.live ? 'expired' : r.status,createdAt:r.created_at,completedAt:r.completed_at,contextVersionId:r.context_version_id,model:r.requested_model,imported:r.request_mode==='discussion-import',pendingReply:r.pending_reply&&!r.result_committed_at&&r.result_expires_at!>new Date().toISOString()?r.pending_reply:null,resultExpiresAt:r.result_expires_at }));
   }
   return { workspaceId:wid,thread:thread ? threadDto(thread) : null,threads:rows.results.map(threadDto),turns,limits:DISCUSSION_LIMITS };
 }
@@ -74,7 +75,7 @@ export async function discussionRequestStatus(request: Request, requestId: strin
   const row = await database().prepare("SELECT t.thread_id FROM motes_discussion_turns t JOIN forma_requests r ON r.id=t.request_id WHERE r.id=? AND r.owner=? AND r.mode IN ('model','discussion-import') AND r.project_id='discussion:'||t.thread_id").bind(requestId,who).first<{thread_id:string}>();
   if (!row) throw new HttpError(404, '讨论请求不存在或不属于当前访客。');
   const thread = await threadFor(who,row.thread_id), snapshot = await discussionSnapshot(who,{threadId:thread.id,...thread.app_id?{appId:thread.app_id}:thread.managed_project_id?{managedProjectId:thread.managed_project_id}:{}}), turn = snapshot.turns.find(t => t.requestId === requestId)!;
-  return json({ requestId,threadId:thread.id,status:turn.status,...['failed','expired'].includes(turn.status)?{retry:'new'}:{},snapshot });
+  return json({ requestId,threadId:thread.id,status:turn.status,...turn.status==='save_pending'?{retry:'save'}:['failed','expired'].includes(turn.status)?{retry:'new'}:{},snapshot });
 }
 export async function sendDiscussion(request: Request) {
   const who = await owner(request), body = await payload(request); fields(body,['threadId','requestId','prompt','baseVersionId','model']);
@@ -88,9 +89,11 @@ export async function sendDiscussion(request: Request) {
   if (prior) {
     if (prior.owner !== who || prior.project_id !== namespace || prior.fingerprint !== fingerprint) throw new HttpError(409, '该请求编号已被使用。');
     if (prior.status === 'done') return json(await discussionSnapshot(who,selected));
+    if(await readDiscussionResult(db,who,requestId)){await commitDiscussionResult(db,who,requestId);return json(await discussionSnapshot(who,selected));}
     const live = await db.prepare('SELECT request_id FROM forma_locks WHERE project_id=? AND request_id=? AND expires_at>?').bind(namespace,requestId,Date.now()).first();
     throw new HttpError(409,prior.status === 'running' && live ? '讨论仍在处理中，请先核对状态。' : '本次讨论未完成，可重新发送。',prior.status === 'failed' || !live ? 'new' : undefined);
   }
+  if(await db.prepare('SELECT request_id FROM motes_discussion_results WHERE thread_id=? AND owner=? AND committed_at IS NULL AND expires_at>?').bind(threadId,who,new Date().toISOString()).first())throw new HttpError(409,'此讨论已有回复暂存，请先仅重试保存，不会重新调用模型。');
   const available = modelNames(), fallback = modelName(); if (!fallback) throw new HttpError(503, '尚未连接模型，讨论无法生成回答；可以使用示例构建或保存草稿。');
   if (body.model !== undefined && !available.includes(body.model as string)) throw new HttpError(400, '该模型未在服务端白名单中。');
   const settings = await readSettings(db,who,fallback,thread.app_id?{appId:thread.app_id}:thread.managed_project_id?{projectId:thread.managed_project_id}:{},available), model = typeof body.model === 'string' ? body.model : settings.effective.model || fallback;
@@ -100,8 +103,8 @@ export async function sendDiscussion(request: Request) {
   const base = app?.versions.find(v => v.id === (body.baseVersionId || app.currentVersionId)); if (app && !base) throw new HttpError(404, '讨论上下文版本不存在。');
   const history = selectDiscussionContext(snapshot.turns).text, now = new Date().toISOString();
   await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND expires_at<=?').bind(namespace,Date.now()).run();
-  const reservationFence = "EXISTS(SELECT 1 FROM motes_discussion_threads t JOIN motes_workspaces w ON w.id=t.workspace_id WHERE t.id=? AND w.owner=? AND t.app_id IS ? AND t.managed_project_id IS ? AND (t.app_id IS NULL OR EXISTS(SELECT 1 FROM forma_projects p WHERE p.id=t.app_id AND p.owner=?))) AND (SELECT count(*) FROM motes_discussion_turns WHERE thread_id=?)<100";
-  const scopeBindings = [threadId,who,thread.app_id,thread.managed_project_id,who,threadId] as (string|null)[];
+  const reservationFence = "EXISTS(SELECT 1 FROM motes_discussion_threads t JOIN motes_workspaces w ON w.id=t.workspace_id WHERE t.id=? AND w.owner=? AND t.app_id IS ? AND t.managed_project_id IS ? AND (t.app_id IS NULL OR EXISTS(SELECT 1 FROM forma_projects p WHERE p.id=t.app_id AND p.owner=?))) AND (SELECT count(*) FROM motes_discussion_turns WHERE thread_id=?)<100 AND NOT EXISTS(SELECT 1 FROM motes_discussion_results s WHERE s.thread_id=? AND s.owner=? AND s.committed_at IS NULL AND s.expires_at>?)";
+  const scopeBindings = [threadId,who,thread.app_id,thread.managed_project_id,who,threadId,threadId,who,new Date().toISOString()] as (string|null)[];
   let reserved: D1Result[];
   try {
     reserved = await db.batch([
@@ -113,20 +116,12 @@ export async function sendDiscussion(request: Request) {
     if (!reserved[1].meta.changes || !reserved[3].meta.changes) { await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(namespace,requestId).run(); throw new HttpError(429,'讨论与构建共用的今日额度已用完，或讨论状态已变化。'); }
   } catch(error) { if (error instanceof HttpError) throw error; throw new HttpError(409,'此讨论正在处理其他问题，请稍后核对。'); }
   let observation: ModelObservation | null = null;
-  const fence = "EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id JOIN motes_discussion_threads t ON t.id=? JOIN motes_workspaces w ON w.id=t.workspace_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.owner=? AND r.status='running' AND w.owner=? AND t.app_id IS ? AND t.managed_project_id IS ? AND (t.app_id IS NULL OR EXISTS(SELECT 1 FROM forma_projects p WHERE p.id=t.app_id AND p.owner=?)))";
-  const lease = () => [threadId,namespace,requestId,Date.now(),who,who,thread.app_id,thread.managed_project_id,who];
   try {
     const reply = await discussModel(prompt,history,base?.html,env.OPENAI_API_KEY!,model,value => { observation = value; });
-    const bindings = lease(), completedAt = new Date().toISOString();
-    const committed = await db.batch([
-      db.prepare(`UPDATE motes_discussion_turns SET reply=?,error=NULL,completed_at=? WHERE request_id=? AND thread_id=? AND ${fence}`).bind(reply,completedAt,requestId,threadId,...bindings),
-      db.prepare(`UPDATE motes_discussion_threads SET title=CASE WHEN title='新的讨论' THEN ? ELSE title END,updated_at=? WHERE id=? AND ${fence}`).bind(prompt.slice(0,40),completedAt,threadId,...bindings),
-      usageCompletion(db,requestId,who,'succeeded',observation,null,{sql:fence,bindings}),
-      db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${fence}`).bind(requestId,requestId,who,...bindings),
-      db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(namespace,requestId),
-    ]);
-    if (!committed[0].meta.changes) throw new HttpError(409,'讨论状态已变化或等待超时，原问题已保留。','new');
+    await stageDiscussionResult(db,who,requestId,thread,reply,observation);
+    await commitDiscussionResult(db,who,requestId,true);
   } catch(error) {
+    if(await readDiscussionResult(db,who,requestId)){if(error instanceof HttpError)throw error;throw new HttpError(503,'讨论回复已暂存，请仅重试保存。');}
     const message = error instanceof ModelError || error instanceof HttpError ? error.message : '讨论未完成，原问题已保留，请核对后重试。';
     const cleaned = await db.batch([
       db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),
@@ -138,3 +133,5 @@ export async function sendDiscussion(request: Request) {
   }
   return json(await discussionSnapshot(who,selected));
 }
+
+export async function saveDiscussionResult(request:Request,requestId:string){const who=await owner(request),body=await payload(request);if(Object.keys(body).length||!uuid.test(requestId))throw new HttpError(400,'讨论保存请求无效。');const threadId=await commitDiscussionResult(database(),who,requestId),thread=await threadFor(who,threadId);return json(await discussionSnapshot(who,{threadId,...thread.app_id?{appId:thread.app_id}:thread.managed_project_id?{managedProjectId:thread.managed_project_id}:{}}));}

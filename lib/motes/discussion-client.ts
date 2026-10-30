@@ -9,6 +9,7 @@ export function mergeDiscussion(current: DiscussionSnapshot | null, incoming: Di
 }
 export function discussionRecoveryDecision(status: DiscussionTurn['status'] | 'missing', checks: number) {
   if (status === 'done') return 'completed';
+  if(status==='save_pending')return 'save-only';
   if (status === 'failed' || status === 'expired') return 'new-id';
   if (status === 'missing') return 'same-id';
   return checks < DISCUSSION_RECOVERY.checks ? 'poll' : 'pause';
