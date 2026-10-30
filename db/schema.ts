@@ -129,3 +129,7 @@ export const publications = sqliteTable("motes_publications", {
 export const versionConfig = sqliteTable("motes_version_config", {
  versionId:text("version_id").primaryKey().references(()=>versions.id),operation:text("operation").notNull(),baseVersionId:text("base_version_id"),settingsJson:text("settings_json"),createdAt:text("created_at").notNull(),
 });
+
+export const discussionResults = sqliteTable("motes_discussion_results", {
+ requestId:text("request_id").primaryKey().references(()=>requests.id),owner:text("owner").notNull(),threadId:text("thread_id").notNull().references(()=>discussionThreads.id),contextAppId:text("context_app_id"),contextProjectId:text("context_project_id"),reply:text("reply").notNull(),observationJson:text("observation_json").notNull(),createdAt:text("created_at").notNull(),expiresAt:text("expires_at").notNull(),committedAt:text("committed_at"),
+},t=>[index("motes_discussion_result_owner_expiry").on(t.owner,t.expiresAt)]);
