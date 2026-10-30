@@ -66,7 +66,7 @@ async function serverHarness() {
   const key=crypto.randomUUID();globalThis[key]=harness.env;
   let source=await readFile(new URL('../lib/forma/server.ts',import.meta.url),'utf8');
   source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);
-  for(const file of ['demo','model','security']){
+  for(const file of ['demo','model','security','app-title']){
     const raw=await readFile(new URL(`../lib/forma/${file}.ts`,import.meta.url),'utf8');
     const js=ts.transpileModule(raw,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
     source=source.replaceAll(`'./${file}'`,JSON.stringify('data:text/javascript;base64,'+Buffer.from(js).toString('base64')));
@@ -98,6 +98,95 @@ test('committed generation survives read failure and same request retries withou
   assert.equal((await retry.json()).project.versions.length,1);
   assert.equal(calls,1);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
+});
+
+async function targetProject(h, who, projectId=crypto.randomUUID()) {
+  const now=new Date().toISOString(),wid=`workspace:${who}`;
+  h.sqlite.prepare('INSERT OR IGNORE INTO motes_profiles(owner,display_name,created_at,updated_at) VALUES(?,?,?,?)').run(who,'测试用户',now,now);
+  h.sqlite.prepare('INSERT OR IGNORE INTO motes_workspaces(id,owner,name,created_at,updated_at) VALUES(?,?,?,?,?)').run(wid,who,'测试空间',now,now);
+  h.sqlite.prepare('INSERT INTO motes_projects(id,workspace_id,name,created_at,updated_at) VALUES(?,?,?,?,?)').run(projectId,wid,'目标项目',now,now);
+  return projectId;
+}
+
+test('new applications are committed directly to the selected owned project and legacy hashes stay identical',async(t)=>{
+  const h=await serverHarness();t.after(h.close);
+  const who=await owner(h.request({})),target=await targetProject(h,who);
+  const body={prompt:'番茄钟',mode:'demo',managedProjectId:target,requestId:crypto.randomUUID()};
+  const first=await (await h.server.generate(h.request(body))).json();
+  const metadata=h.sqlite.prepare('SELECT * FROM motes_apps WHERE app_id=?').get(first.project.id);
+  assert.equal(metadata.project_id,target);assert.equal(metadata.workspace_id,`workspace:${who}`);
+  await h.server.generate(h.request(body));assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
+  h.sqlite.prepare('UPDATE motes_projects SET archived=1 WHERE id=?').run(target);
+  assert.equal((await (await h.server.generate(h.request(body))).json()).project.id,first.project.id,'Completed retries stay valid after the destination is archived');
+  const legacy={prompt:'任务看板',mode:'demo',requestId:crypto.randomUUID()};
+  const created=await (await h.server.generate(h.request(legacy))).json();
+  const {digest}=await moduleAt('../lib/forma/security.ts');
+  assert.equal(h.sqlite.prepare('SELECT fingerprint FROM forma_requests WHERE id=?').get(legacy.requestId).fingerprint,await digest(JSON.stringify([legacy.prompt,legacy.mode,null,null])));
+  const retry=await (await h.server.generate(h.request(legacy))).json();assert.equal(retry.project.id,created.project.id);
+  await assert.rejects(h.server.generate(h.request({...body,managedProjectId:'different'})),e=>e.status===409);
+  await assert.rejects(h.server.generate(h.request({...body,projectId:first.project.id,requestId:crypto.randomUUID()})),e=>e.status===400);
+});
+
+test('creation rejects foreign or archived targets before reserving a request',async(t)=>{
+  const h=await serverHarness();t.after(h.close);
+  const who=await owner(h.request({})),own=await targetProject(h,who),foreign=await targetProject(h,'b'.repeat(64));
+  h.sqlite.prepare('UPDATE motes_projects SET archived=1 WHERE id=?').run(own);
+  for(const [managedProjectId,status] of [[foreign,404],[own,409],['missing',404]]){
+    await assert.rejects(h.server.generate(h.request({prompt:'番茄钟',mode:'demo',managedProjectId,requestId:crypto.randomUUID()})),e=>e.status===status);
+  }
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,0);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,0);
+});
+
+test('metadata insert failure rolls back the new app and version together',async(t)=>{
+  const h=await serverHarness();t.after(h.close);const target=await targetProject(h,await owner(h.request({})));
+  h.sqlite.exec("CREATE TRIGGER fail_metadata BEFORE INSERT ON motes_apps BEGIN SELECT RAISE(ABORT,'simulated metadata failure'); END");
+  const requestId=crypto.randomUUID();
+  await assert.rejects(h.server.generate(h.request({prompt:'番茄钟',mode:'demo',managedProjectId:target,requestId})),e=>e.status===502&&e.retry==='new');
+  for(const table of ['forma_projects','forma_versions','motes_apps','forma_locks'])assert.equal(h.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get().n,0,table);
+  assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(requestId).status,'failed');
+});
+
+test('target changes during model generation reject the entire application/version/metadata commit',async(t)=>{
+  for(const change of ['archive','transfer']){
+    const h=await serverHarness();const who=await owner(h.request({})),target=await targetProject(h,who);
+    const foreign=await targetProject(h,'b'.repeat(64));
+    let release,entered;const waiting=new Promise(resolve=>{release=resolve}),started=new Promise(resolve=>{entered=resolve});
+    const mocked=t.mock.method(globalThis,'fetch',async()=>{entered();await waiting;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})});
+    try{
+      const body={prompt:'生成计时器',mode:'model',managedProjectId:target,requestId:crypto.randomUUID()};
+      const pending=h.server.generate(h.request(body));await started;
+      if(change==='archive')h.sqlite.prepare('UPDATE motes_projects SET archived=1 WHERE id=?').run(target);
+      else h.sqlite.prepare('UPDATE motes_projects SET workspace_id=(SELECT workspace_id FROM motes_projects WHERE id=?) WHERE id=?').run(foreign,target);
+      release();await assert.rejects(pending,e=>e.status===409&&e.retry==='new');
+      for(const table of ['forma_projects','forma_versions','motes_apps','forma_locks'])assert.equal(h.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get().n,0,table);
+      assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(body.requestId).status,'failed');
+    }finally{mocked.mock.restore();h.close()}
+  }
+});
+
+test('AI title naming uses safe text, inherits selected project defaults and preserves a manual name on edits',async(t)=>{
+  const h=await serverHarness();t.after(h.close);const who=await owner(h.request({})),target=await targetProject(h,who);
+  h.sqlite.prepare('INSERT INTO motes_settings VALUES(?,?,?,?,?,?)').run(`workspace:${who}`,'project',target,'language','"en"',new Date().toISOString());
+  const inputs=[];let calls=0;
+  t.mock.method(globalThis,'fetch',async(_url,options)=>{inputs.push(JSON.parse(options.body));calls++;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html.replace(/<title>[\s\S]*?<\/title>/i,`<title>${calls===1?'专注 &amp; 计时':'不应覆盖手动名称'}</title>`)}]}]})});
+  const first=await (await h.server.generate(h.request({prompt:'请以中文做一个好用的计时工具',mode:'model',managedProjectId:target,requestId:crypto.randomUUID()}))).json();
+  assert.equal(first.project.title,'专注 & 计时');
+  assert.match(inputs[0].instructions,/UI language English/);assert.match(inputs[0].instructions,/Explicit requirements.*take priority/);
+  h.sqlite.prepare('UPDATE forma_projects SET title=? WHERE id=?').run('我的手动名称',first.project.id);
+  const edited=await (await h.server.generate(h.request({prompt:'加一个暂停按钮',mode:'model',projectId:first.project.id,requestId:crypto.randomUUID()}))).json();
+  assert.equal(edited.project.title,'我的手动名称');assert.equal(edited.project.versions.length,2);
+});
+
+test('title extraction rejects boilerplate and controls and bounds plain text',async()=>{
+  const {initialAppTitle}=await moduleAt('../lib/forma/app-title.ts');
+  assert.equal(initialAppTitle('<title>Document</title>','旅行助手'),'旅行助手');
+  assert.equal(initialAppTitle('<title>  </title>','旅行助手'),'旅行助手');
+  assert.equal(initialAppTitle('<title>Untitled Document</title>','旅行助手'),'旅行助手');
+  assert.equal(initialAppTitle('<title>&lt;script&gt;alert(1)&lt;/script&gt;安全&#x20;标题\u202e</title>','fallback'),'安全 标题');
+  assert.equal(initialAppTitle('<title>'+'😀'.repeat(80)+'</title>','fallback').length,80);
+  assert.equal(initialAppTitle('<title>Document</title>','长'.repeat(100)).length,24);
+  assert.equal(initialAppTitle('<title>旅行 &amp; 预算</title>','fallback'),'旅行 & 预算');
 });
 
 test('confirmed model failure explicitly permits one-click retry with a new ID',async(t)=>{

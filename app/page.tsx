@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Preferences, SettingsSnapshot } from "@/lib/motes/settings";
+import type { WorkspaceSnapshot } from "@/lib/motes/types";
 import VersionTools from "./components/VersionTools";
 import { ArrowUp, ArrowUpRight, Check, ChevronDown, Code2, Download, Eye, Globe2, History, Layers3, LoaderCircle, MessageSquare, Monitor, Plus, RotateCcw, Smartphone, Sparkles, WandSparkles, X } from "lucide-react";
 
@@ -9,7 +10,7 @@ type Version = { id: string; number: number; prompt: string; summary: string; ht
 type Project = { id: string; title: string; createdAt: string; updatedAt: string; currentVersionId: string; versions: Version[] };
 type Summary = Omit<Project, "versions">;
 type Session = { mode: "demo" | "model"; model: string | null; persistence: "cloud"; projects: Summary[] };
-type Attempt = { id: string; requestId: string; text: string; projectId?: string; baseVersionId?: string; mode: "demo" | "model"; state: "sending" | "failed"; error?: string; startedAt: number };
+type Attempt = { id: string; requestId: string; text: string; projectId?: string; managedProjectId?: string; baseVersionId?: string; mode: "demo" | "model"; state: "sending" | "failed"; error?: string; startedAt: number };
 const examples = [
   { icon: "✈", title: "旅行预算规划", tag: "让每一程都心中有数", prompt: "帮我做一个旅行预算规划工具，可以添加交通、住宿和餐饮支出，设置预算上限。", color: "peach" },
   { icon: "▦", title: "轻量任务看板", tag: "把想法变成下一步行动", prompt: "帮我做一个任务看板，可以添加任务，在待办、进行中和已完成之间移动。", color: "lavender" },
@@ -39,6 +40,7 @@ export default function Home() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [projects, setProjects] = useState<Summary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
+  const [creationTarget, setCreationTarget] = useState<{ id: string; name: string } | null>(null);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -60,7 +62,7 @@ export default function Home() {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const followChat = useRef(true);
   const outboxReady = useRef(false);
-  const visibleAttempts = attempts.filter(a => a.projectId === project?.id);
+  const visibleAttempts = attempts.filter(a => a.projectId === project?.id && (project || a.managedProjectId === creationTarget?.id));
   const workspace = !!project || visibleAttempts.length > 0;
   const current = project?.versions.find(v => v.id === project.currentVersionId) || project?.versions.at(-1);
   const displayed = project?.versions.find(v => v.id === viewVersion) || current;
@@ -71,28 +73,38 @@ export default function Home() {
     setSessionLoading(true); setError("");
     try {
       const data = await api<Session>("/api/session");
-      setSession(data); setProjects(data.projects); setMode(data.mode);
+      setProjects(data.projects); setMode(data.mode);
+      const context = new URLSearchParams(window.location.search), targetId = context.get("managedProjectId");
+      if (targetId !== null) {
+        const snapshot = await api<WorkspaceSnapshot>("/api/workspace?listOnly=true");
+        const target = snapshot.projects.find(p => p.id === targetId && !p.archived);
+        if (!target) throw new Error("目标项目不存在或已归档，请返回应用管理重新选择。");
+        setCreationTarget({ id: target.id, name: target.name });
+      }
+      setSession(data);
+      if (context.get("new") === "1" || targetId !== null) { setProject(null); return; }
       let saved: string | null = null; try { saved = localStorage.getItem("forma-current-project"); } catch {}
       if (saved && data.projects.some(p => p.id === saved)) {
         const result = await api<{ project: Project }>(`/api/projects/${saved}`);
         setProject(result.project); setMode(result.project.versions.find(v => v.id === result.project.currentVersionId)?.mode || data.mode);
       }
-    } catch (e) { setError(e instanceof Error ? e.message : "初始化失败，请重试。"); }
+    } catch (e) { setSession(null); setError(e instanceof Error ? e.message : "初始化失败，请重试。"); }
     finally { setSessionLoading(false); }
   }
   useEffect(() => { void initialize(); try { const saved = JSON.parse(sessionStorage.getItem("motes-outbox") || "[]") as Attempt[]; if (Array.isArray(saved)) setAttempts(saved.filter(a => typeof a.id === "string" && typeof a.requestId === "string" && typeof a.text === "string" && (a.mode === "model" || a.mode === "demo")).map(a => ({ ...a, state: "failed", error: a.state === "sending" ? "页面已刷新，结果可能已保存。点击重试将先核对原请求，请勿重复发送。" : a.error }))); } catch {} }, []);
   useEffect(() => {
     if (!session) return;
     let current = true; setPreferencesLoading(true);
-    void api<SettingsSnapshot>("/api/settings" + (project?.id ? "?appId=" + encodeURIComponent(project.id) : "")).then(data => { if (!current) return; setPreferences(data.effective); setDevice(data.effective.previewDevice); setMode(data.effective.creationMode); }).catch(e => { if (current) setError("读取设置失败：" + (e instanceof Error ? e.message : "请重试。")); }).finally(() => { if (current) setPreferencesLoading(false); });
+    void api<SettingsSnapshot>("/api/settings" + (project?.id ? "?appId=" + encodeURIComponent(project.id) : creationTarget ? "?projectId=" + encodeURIComponent(creationTarget.id) : "")).then(data => { if (!current) return; setPreferences(data.effective); setDevice(data.effective.previewDevice); setMode(data.effective.creationMode); }).catch(e => { if (current) setError("读取设置失败：" + (e instanceof Error ? e.message : "请重试。")); }).finally(() => { if (current) setPreferencesLoading(false); });
     return () => { current = false; };
-  }, [session, project?.id]);
+  }, [session, project?.id, creationTarget?.id]);
   useEffect(() => { if (!outboxReady.current) { outboxReady.current = true; return; } try { sessionStorage.setItem("motes-outbox", JSON.stringify(attempts)); } catch {} }, [attempts]);
   useEffect(() => { if (preferences.autoFollow && followChat.current) chatEnd.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" }); }, [project?.versions.length, attempts, pane, preferences.autoFollow]);
   useEffect(() => { if (!busy || !preferences.showWaitTimer) return; const timer = setInterval(() => setElapsed(n => n + 1), 1000); return () => clearInterval(timer); }, [busy, preferences.showWaitTimer]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 3500); return () => clearTimeout(timer); }, [notice]);
   useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setSource(false); setHistory(false); setSidebar(false); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, []);
   function remember(next: Project) {
+    setCreationTarget(null); const url = new URL(window.location.href); url.searchParams.delete("new"); url.searchParams.delete("managedProjectId"); window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     setProject(next); setViewVersion(null);
     try { localStorage.setItem("forma-current-project", next.id); } catch {}
     setProjects(previous => [{ id: next.id, title: next.title, createdAt: next.createdAt, updatedAt: next.updatedAt, currentVersionId: next.currentVersionId }, ...previous.filter(p => p.id !== next.id)]);
@@ -107,11 +119,11 @@ export default function Home() {
   function newProject() { if (busy || opening) return; setAttempts([]); setNotice(""); setProject(null); setPrompt(""); setError(""); setViewVersion(null); setHistory(false); setSidebar(false); try { localStorage.removeItem("forma-current-project"); } catch {} }
   async function generate(value = prompt, retry?: Attempt) {
     if (!session || sessionLoading || preferencesLoading || operationLock.current || opening || !value.trim()) return;
-    const attempt: Attempt = retry ? { ...retry, state: "sending", error: undefined, startedAt: Date.now() } : { id: crypto.randomUUID(), requestId: crypto.randomUUID(), text: value.trim(), projectId: project?.id, baseVersionId: project?.currentVersionId, mode, state: "sending", startedAt: Date.now() };
+    const attempt: Attempt = retry ? { ...retry, state: "sending", error: undefined, startedAt: Date.now() } : { id: crypto.randomUUID(), requestId: crypto.randomUUID(), text: value.trim(), projectId: project?.id, managedProjectId: project ? undefined : creationTarget?.id, baseVersionId: project?.currentVersionId, mode, state: "sending", startedAt: Date.now() };
     operationLock.current = true; setBusy(true); setElapsed(0); setPrompt(""); setError(""); setNotice(""); setPane("chat"); followChat.current = true;
     setAttempts(previous => retry ? previous.map(a => a.id === attempt.id ? attempt : a) : [...previous, attempt]);
     try {
-      const result = await api<{ project: Project }>("/api/generate", { prompt: attempt.text, projectId: attempt.projectId, baseVersionId: attempt.baseVersionId, mode: attempt.mode, requestId: attempt.requestId });
+      const result = await api<{ project: Project }>("/api/generate", { prompt: attempt.text, projectId: attempt.projectId, managedProjectId: attempt.managedProjectId, baseVersionId: attempt.baseVersionId, mode: attempt.mode, requestId: attempt.requestId });
       remember(result.project); setAttempts(previous => previous.filter(a => a.id !== attempt.id)); setNotice("新版本已保存，可切换到预览查看");
     } catch (e) {
       const message = e instanceof Error ? e.message : "连接中断，请重试。";
@@ -147,7 +159,7 @@ export default function Home() {
     </aside>
     {sidebar && <button className="sidebar-scrim" aria-label="关闭导航" onClick={() => setSidebar(false)}/>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu icon-button" aria-label="打开导航" onClick={() => setSidebar(true)}><Layers3 size={20}/></button><span>工作空间</span><span className="slash">/</span><strong>{project?.title || "我的应用"}</strong>{opening && <LoaderCircle size={14} className="spin"/>}</div><div className="topbar-right"><a href="/settings" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>设置</a><a href="/manage" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>应用管理</a><span className="demo-badge"><span/>{mode === "demo" ? "示例模式" : "AI 模式"}</span></div></header>
+      <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu icon-button" aria-label="打开导航" onClick={() => setSidebar(true)}><Layers3 size={20}/></button><span>工作空间</span><span className="slash">/</span><strong>{project?.title || (creationTarget ? creationTarget.name + " · 新建应用" : "我的应用")}</strong>{opening && <LoaderCircle size={14} className="spin"/>}</div><div className="topbar-right"><a href="/settings" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>设置</a><a href="/manage" style={{ fontSize: 12, color: "#6b7d99", textDecoration: "none", marginRight: 12 }}>应用管理</a><span className="demo-badge"><span/>{mode === "demo" ? "示例模式" : "AI 模式"}</span></div></header>
       <div className="mode-notice"><Sparkles size={14}/><span>{mode === "demo" ? "当前为示例模式：使用预设模板体验创建与迭代，不调用 AI。" : `已连接 ${session?.model || "AI 模型"}，可以自由描述你的应用。`}</span>{session?.mode === "model" && <button disabled={busy || opening} onClick={() => setMode(mode === "demo" ? "model" : "demo")}>{mode === "demo" ? "切换 AI 模式" : "体验示例"}<ArrowUpRight size={12}/></button>}</div>
       {error && <div className="error-banner" role="alert"><span>{error}</span>{!session && <button onClick={() => void initialize()}>重新连接</button>}<button className="icon-button" aria-label="关闭错误" onClick={() => setError("")}><X size={15}/></button></div>}
       {!workspace ? <div className="home-content"><h1>一个想法，<br className="mobile-break"/>就能开始<span>创造。</span></h1><p className="home-description">用自然语言构建属于你的应用。<br className="mobile-break"/> 无需代码，让灵感即刻成形。</p>{composer(true)}<div className="inspiration-label"><span/>或从一个灵感开始<span/></div><div className="example-grid">{examples.map(item => <button className={`example-card ${item.color}`} key={item.title} disabled={busy || !session || preferencesLoading} onClick={() => void generate(item.prompt)}><span className="example-icon">{item.icon}</span><span className="example-copy"><strong>{item.title}</strong><small>{item.tag}</small></span><ArrowUpRight size={17}/></button>)}</div><div className="home-footnote"><Check size={13}/>即时预览<span>·</span>历史版本<span>·</span>导出 HTML，带走你的作品</div>{sessionLoading && <p className="connecting"><LoaderCircle size={14} className="spin"/>正在连接你的工作空间…</p>}</div> : <div className="workspace-body">

@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { generateDemo } from './demo';
+import { initialAppTitle } from './app-title';
 import { readSettings, generationPreferences } from '../motes/settings';
 import { generateModel, ModelError } from './model';
 import type { Project, Summary, Version } from './types';
@@ -23,8 +24,12 @@ export async function generate(request:Request){
   if(typeof body.requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId))throw new HttpError(400,'请求编号无效，请重试。');
   if(body.projectId!==undefined&&(typeof body.projectId!=='string'||body.projectId.length>100))throw new HttpError(400,'项目编号无效。');
   if(body.baseVersionId!==undefined&&typeof body.baseVersionId!=='string')throw new HttpError(400,'基础版本无效。');
+  if(body.managedProjectId!==undefined&&(typeof body.managedProjectId!=='string'||!body.managedProjectId||body.managedProjectId.length>128||body.projectId!==undefined))throw new HttpError(400,'创建目标项目无效，只能为新应用指定项目。');
   const prompt=body.prompt.trim(),mode=body.mode,requestId=body.requestId,db=database();
-  const fingerprint=await digest(JSON.stringify([prompt,mode,body.projectId??null,body.baseVersionId??null]));
+  // Preserve the exact legacy hash when the new optional target is absent.
+  const identity:unknown[]=[prompt,mode,body.projectId??null,body.baseVersionId??null];
+  if(body.managedProjectId!==undefined)identity.push(body.managedProjectId);
+  const fingerprint=await digest(JSON.stringify(identity));
   const prior=await db.prepare('SELECT owner,project_id,status,fingerprint FROM forma_requests WHERE id=?').bind(requestId).first<{owner:string;project_id:string;status:string;fingerprint:string}>();
   if(prior){
     if(prior.owner!==who||prior.fingerprint!==fingerprint)throw new HttpError(409,'该请求编号已被使用。');
@@ -37,6 +42,12 @@ export async function generate(request:Request){
   }
   const selectedModel=modelName();if(mode==='model'&&!selectedModel)throw new HttpError(503,'尚未连接模型。请先使用示例模式；管理员配置模型 Key 和模型名称后可启用。');
   const project=typeof body.projectId==='string'?await readProject(who,body.projectId):undefined;
+  const managedProjectId=typeof body.managedProjectId==='string'?body.managedProjectId:undefined;
+  if(managedProjectId){
+    const target=await db.prepare('SELECT g.archived FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=?').bind(managedProjectId,who).first<{archived:number}>();
+    if(!target)throw new HttpError(404,'目标项目不存在或不属于当前访客。');
+    if(target.archived)throw new HttpError(409,'目标项目已归档，请恢复后再创建应用。');
+  }
   if(!project&&body.baseVersionId)throw new HttpError(400,'新项目不能指定历史版本。');
   const base=project?.versions.find(v=>v.id===(body.baseVersionId??project.currentVersionId));if(project&&!base)throw new HttpError(404,'基础版本不存在。');
   if(project&&project.versions.length>=60)throw new HttpError(429,'单个项目最多保留 60 个版本，请创建新项目。');
@@ -54,19 +65,20 @@ export async function generate(request:Request){
     if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();throw new HttpError(429,'今日生成额度已用完，请明天再试。')}
   }catch(error){if(error instanceof HttpError)throw error;throw new HttpError(409,'项目正在处理其他请求，请稍后重试。')}
   try{
-    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences((await readSettings(db,who,selectedModel,project?{appId:project.id}:{})).effective,!!base));
+    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences((await readSettings(db,who,selectedModel,project?{appId:project.id}:managedProjectId?{projectId:managedProjectId}:{})).effective,!!base));
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
     // Every write is fenced by the live lease in this atomic batch. An expired
     // worker must never overwrite a newer request or a restored version.
-    const guard="EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.status='running')";
-    const lease=[id,requestId,Date.now()];
+    const guard="EXISTS(SELECT 1 FROM forma_locks l JOIN forma_requests r ON r.id=l.request_id WHERE l.project_id=? AND l.request_id=? AND l.expires_at>? AND r.status='running')"+(managedProjectId?" AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=? AND g.archived=0)":"");
+    const lease=[id,requestId,Date.now(),...managedProjectId?[managedProjectId,who]:[]];
     const committed=await db.batch([
-      project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,version.createdAt,id,who,...lease):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${guard}`).bind(id,who,demo?.title??prompt.slice(0,40),now,version.createdAt,version.id,...lease),
+      project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,version.createdAt,id,who,...lease):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${guard}`).bind(id,who,demo?.title??initialAppTitle(html,prompt),now,version.createdAt,version.id,...lease),
       db.prepare(`INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,?,?,?,?,?,?,? WHERE ${guard}`).bind(version.id,id,version.number,prompt,version.summary,html,version.createdAt,mode,version.model??null,...lease),
+      ...managedProjectId?[db.prepare(`INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,g.workspace_id,g.id,? FROM motes_projects g WHERE g.id=? AND ${guard}`).bind(id,version.createdAt,managedProjectId,...lease)]:[],
       db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,requestId,who,...lease),
       db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),
     ]);
-    if(!committed[0].meta.changes)throw new HttpError(409,'本次请求已超时，请重新发起生成。','new');
+    if(!committed[0].meta.changes)throw new HttpError(409,managedProjectId?'创建目标已变化或请求已超时，请检查目标项目后重新发起生成。':'本次请求已超时，请重新发起生成。','new');
   }catch(error){
     const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);
     // Only a confirmed failed reservation can be retried with a new ID. An
