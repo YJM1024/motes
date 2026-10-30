@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 async function harness() {
   const sqlite = new DatabaseSync(':memory:'); sqlite.exec('PRAGMA foreign_keys=ON');
-  for (const file of ['0000_great_roland_deschain', '0001_first_wind_dancer', '0002_workspace_settings', '0004_version_annotations']) sqlite.exec(await readFile(new URL(`../drizzle/${file}.sql`, import.meta.url), 'utf8'));
+  for (const file of ['0000_great_roland_deschain', '0001_first_wind_dancer', '0002_workspace_settings', '0004_version_annotations', '0006_model_usage']) sqlite.exec(await readFile(new URL(`../drizzle/${file}.sql`, import.meta.url), 'utf8'));
   const control = { beforeBatch: null };
   function prepare(sql, args = []) { return { bind(...values) { return prepare(sql, values); }, async first() { return sqlite.prepare(sql).get(...args) ?? null; }, async all() { return { results: sqlite.prepare(sql).all(...args) }; }, run() { return { meta: { changes: Number(sqlite.prepare(sql).run(...args).changes) } }; } }; }
   const key = crypto.randomUUID(); globalThis[key] = { OPENAI_API_KEY: 'fake-test-key', OPENAI_MODEL: 'fake-model', DB: { prepare, async batch(statements) { if (control.beforeBatch) { const run = control.beforeBatch; control.beforeBatch = null; run(); } sqlite.exec('BEGIN'); try { const result = statements.map(s => s.run()); sqlite.exec('COMMIT'); return result; } catch (e) { sqlite.exec('ROLLBACK'); throw e; } } } };

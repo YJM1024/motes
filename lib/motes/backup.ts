@@ -1,4 +1,4 @@
-import { database, json, modelName } from '../forma/server';
+import { database, json, modelName, modelNames } from '../forma/server';
 import { assertOrigin, digest, HttpError, owner } from '../forma/security';
 import { initializeWorkspace, LIMITS } from './management';
 import { readSettings } from './settings';
@@ -44,11 +44,11 @@ export async function exportBackup(request: Request) {
   const tagRows = await db.prepare(`SELECT DISTINCT t.id,t.name,t.color FROM motes_tags t JOIN motes_app_tags link ON link.tag_id=t.id JOIN motes_apps a ON a.app_id=link.app_id JOIN forma_projects p ON p.id=a.app_id WHERE t.workspace_id=? AND ${condition} ORDER BY t.name,t.id`).bind(wid, ...args).all<{id:string;name:string;color:string}>();
   const tags = tagRows.results.map((t, i) => ({ key: `tag-${i}`, name: t.name, color: t.color }));
   const links = await db.prepare(`SELECT link.app_id,link.tag_id FROM motes_app_tags link JOIN motes_apps a ON a.app_id=link.app_id JOIN forma_projects p ON p.id=a.app_id WHERE ${condition}`).bind(...args).all<{app_id:string;tag_id:string}>();
-  const document: BackupDocument = { format: 'motes-backup', version: 1, exportedAt: new Date().toISOString(), project: { ...group, settings: (await readSettings(db, who, modelName(), { projectId })).effective }, tags, apps: [] };
+  const document: BackupDocument = { format: 'motes-backup', version: 1, exportedAt: new Date().toISOString(), project: { ...group, settings: (await readSettings(db, who, modelName(), { projectId }, modelNames())).effective }, tags, apps: [] };
   for (const app of apps.results) {
     const versions = await db.prepare('SELECT v.id,v.number,v.prompt,v.summary,v.html,v.created_at,v.mode,v.model,coalesce(n.name,\'\') AS name,coalesce(n.important,0) AS important FROM forma_versions v LEFT JOIN motes_version_annotations n ON n.version_id=v.id WHERE v.project_id=? ORDER BY v.number LIMIT 61').bind(app.id).all<{id:string;number:number;prompt:string;summary:string;html:string;created_at:string;mode:BackupVersion['mode'];model:string|null;name:string;important:number}>();
     const current = versions.results.find(v => v.id === app.current_version_id); if (!current) throw new HttpError(409, '应用状态已变化，请刷新后重新导出。');
-    document.apps.push({ name: app.title, description: app.description, starred: !!app.starred, archived: !!app.archived, tagKeys: links.results.filter(l => l.app_id === app.id).map(l => tags[tagRows.results.findIndex(t => t.id === l.tag_id)]?.key).filter((key):key is string => !!key), settings: (await readSettings(db, who, modelName(), { appId: app.id })).effective, currentVersion: current.number, versions: versions.results.map(v => ({ number:v.number,prompt:v.prompt,summary:v.summary,html:v.html,createdAt:v.created_at,mode:v.mode,model:v.model,name:v.name,important:!!v.important })) });
+    document.apps.push({ name: app.title, description: app.description, starred: !!app.starred, archived: !!app.archived, tagKeys: links.results.filter(l => l.app_id === app.id).map(l => tags[tagRows.results.findIndex(t => t.id === l.tag_id)]?.key).filter((key):key is string => !!key), settings: (await readSettings(db, who, modelName(), { appId: app.id }, modelNames())).effective, currentVersion: current.number, versions: versions.results.map(v => ({ number:v.number,prompt:v.prompt,summary:v.summary,html:v.html,createdAt:v.created_at,mode:v.mode,model:v.model,name:v.name,important:!!v.important })) });
     if (bytes(document) > BACKUP_LIMITS.bytes - 2048) throw new HttpError(413, '备份超过 2 MiB，请分批导出。');
   }
   return json(validated(document), 200, { 'Content-Disposition': 'attachment; filename="motes-backup.json"', 'X-Content-Type-Options': 'nosniff' });

@@ -4,6 +4,7 @@ export type Preferences = {
   creationMode: 'demo' | 'model'; previewDevice: 'desktop' | 'mobile';
   autoFollow: boolean; showWaitTimer: boolean;
   language: 'zh-CN' | 'en'; visualStyle: 'minimal' | 'soft' | 'bold';
+  model?: string;
 };
 export type SettingKey = keyof Preferences;
 export type SettingScope = 'workspace' | 'project' | 'app';
@@ -16,16 +17,17 @@ export type SettingsSnapshot = {
   overrides: Record<SettingScope, Partial<Preferences>>;
   models: string[]; modelAvailable: boolean;
 };
-const keys: SettingKey[] = ['creationMode', 'previewDevice', 'autoFollow', 'showWaitTimer', 'language', 'visualStyle'];
+const keys: SettingKey[] = ['creationMode', 'previewDevice', 'autoFollow', 'showWaitTimer', 'language', 'visualStyle', 'model'];
 const enums = { creationMode: ['demo', 'model'], previewDevice: ['desktop', 'mobile'], language: ['zh-CN', 'en'], visualStyle: ['minimal', 'soft', 'bold'] };
 export function defaultPreferences(model: string | null): Preferences {
-  return { creationMode: model ? 'model' : 'demo', previewDevice: 'desktop', autoFollow: true, showWaitTimer: true, language: 'zh-CN', visualStyle: 'minimal' };
+  return { creationMode: model ? 'model' : 'demo', previewDevice: 'desktop', autoFollow: true, showWaitTimer: true, language: 'zh-CN', visualStyle: 'minimal', ...(model?{model}:{}) };
 }
 function identifier(value: unknown): string {
   if (typeof value !== 'string' || !value || value.length > 128) throw new HttpError(400, '设置作用范围无效。');
   return value;
 }
-function validateValue(key: SettingKey, value: unknown, model: string | null) {
+function validateValue(key: SettingKey, value: unknown, model: string | null, models?: string[]) {
+  if(key==='model'){if(typeof value!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value)||/^sk-/i.test(value))throw new HttpError(400,'模型选项无效。');if(models&&!models.includes(value))throw new HttpError(400,'该模型未在服务端可用白名单中。');return;}
   if (key === 'autoFollow' || key === 'showWaitTimer') { if (typeof value !== 'boolean') throw new HttpError(400, '显示偏好须为布尔值。'); }
   else if (typeof value !== 'string' || !(enums[key] as readonly string[]).includes(value)) throw new HttpError(400, '设置选项无效。');
   if (key === 'creationMode' && value === 'model' && !model) throw new HttpError(409, '服务端尚未配置可用模型，不能默认使用 AI 模式。');
@@ -47,7 +49,7 @@ async function selectionFor(db: D1Database, who: string, selection: SettingsSele
   }
   return { wid, selection: { ...(projectId ? { projectId } : {}), ...(appId ? { appId } : {}) } };
 }
-export async function readSettings(db: D1Database, who: string, model: string | null, requested: SettingsSelection = {}): Promise<SettingsSnapshot> {
+export async function readSettings(db: D1Database, who: string, model: string | null, requested: SettingsSelection = {}, allowedModels: string[] = model?[model]:[]): Promise<SettingsSnapshot> {
   const { wid, selection } = await selectionFor(db, who, requested);
   const rows = await db.prepare('SELECT scope_type,scope_id,setting_key,value_json FROM motes_settings WHERE workspace_id=?').bind(wid).all<{ scope_type: SettingScope; scope_id: string; setting_key: SettingKey; value_json: string }>();
   const effective = defaultPreferences(model), sources = Object.fromEntries(keys.map(k => [k, 'system'])) as Record<SettingKey, SettingSource>;
@@ -63,9 +65,10 @@ export async function readSettings(db: D1Database, who: string, model: string | 
     }
   }
   if (!model && effective.creationMode === 'model') { effective.creationMode = 'demo'; sources.creationMode = 'server'; }
-  return { workspaceId: wid, selection, effective, sources, overrides, models: model ? [model] : [], modelAvailable: !!model };
+  if(effective.model&&!allowedModels.includes(effective.model)){if(model)effective.model=model;else delete effective.model;sources.model='server';}
+  return { workspaceId: wid, selection, effective, sources, overrides, models: allowedModels, modelAvailable: !!model };
 }
-export async function saveSettings(db: D1Database, who: string, model: string | null, body: Record<string, unknown>): Promise<SettingsSnapshot> {
+export async function saveSettings(db: D1Database, who: string, model: string | null, body: Record<string, unknown>, allowedModels: string[] = model?[model]:[]): Promise<SettingsSnapshot> {
   if (Object.keys(body).some(k => !['scope', 'projectId', 'appId', 'patch'].includes(k))) throw new HttpError(400, '包含不支持的设置字段。');
   if (typeof body.scope !== 'string' || !['workspace', 'project', 'app'].includes(body.scope)) throw new HttpError(400, '设置作用范围无效。');
   const scope = body.scope as SettingScope;
@@ -73,18 +76,18 @@ export async function saveSettings(db: D1Database, who: string, model: string | 
   const patch = body.patch;
   if (!patch || typeof patch !== 'object' || Array.isArray(patch) || !Object.keys(patch).length || Object.keys(patch).some(k => !keys.includes(k as SettingKey))) throw new HttpError(400, '请提供支持的设置选项。');
   const selection: SettingsSelection = { ...(body.projectId !== undefined ? { projectId: identifier(body.projectId) } : {}), ...(body.appId !== undefined ? { appId: identifier(body.appId) } : {}) };
-  const current = await readSettings(db, who, model, selection), id = scope === 'workspace' ? current.workspaceId : scope === 'project' ? current.selection.projectId! : current.selection.appId!;
+  const current = await readSettings(db, who, model, selection,allowedModels), id = scope === 'workspace' ? current.workspaceId : scope === 'project' ? current.selection.projectId! : current.selection.appId!;
   const statements: D1PreparedStatement[] = [];
   for (const [field, value] of Object.entries(patch)) {
     const key = field as SettingKey;
     if (value === null) statements.push(db.prepare('DELETE FROM motes_settings WHERE workspace_id=? AND scope_type=? AND scope_id=? AND setting_key=?').bind(current.workspaceId, scope, id, key));
     else {
-      validateValue(key, value, model);
+      validateValue(key, value, model,allowedModels);
       statements.push(db.prepare('INSERT INTO motes_settings(workspace_id,scope_type,scope_id,setting_key,value_json,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,scope_type,scope_id,setting_key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at').bind(current.workspaceId, scope, id, key, JSON.stringify(value), new Date().toISOString()));
     }
   }
   await db.batch(statements);
-  return readSettings(db, who, model, selection);
+  return readSettings(db, who, model, selection,allowedModels);
 }
 /** Defaults guide new apps; explicit requests and existing app design take priority. */
 export function generationPreferences(settings: Preferences, editing: boolean): string {

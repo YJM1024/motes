@@ -73,3 +73,11 @@ export const shares = sqliteTable("motes_shares", {
   title: text("title").notNull(), token: text("token").notNull(), requestId: text("request_id").notNull(),
   createdAt: text("created_at").notNull(), revokedAt: text("revoked_at"),
 }, t => [uniqueIndex("motes_share_token").on(t.token), uniqueIndex("motes_share_request").on(t.requestId), index("motes_share_app").on(t.appId, t.revokedAt)]);
+
+/** Model calls only; no prompts, HTML, keys or account billing data. */
+export const modelUsage = sqliteTable("motes_model_usage", {
+  requestId: text("request_id").primaryKey().references(() => requests.id), owner: text("owner").notNull(),
+  operation: text("operation").notNull(), requestedModel: text("requested_model").notNull(), responseModel: text("response_model"),
+  status: text("status").notNull().default("running"), startedAt: text("started_at").notNull(), finishedAt: text("finished_at"),
+  elapsedMs: integer("elapsed_ms"), httpStatus: integer("http_status"), inputTokens: integer("input_tokens"), outputTokens: integer("output_tokens"), totalTokens: integer("total_tokens"), errorCode: text("error_code"),
+}, t => [index("motes_usage_owner_started").on(t.owner, t.startedAt)]);

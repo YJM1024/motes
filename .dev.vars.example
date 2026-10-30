@@ -1,3 +1,5 @@
 # Copy to .dev.vars; never commit real values.
 OPENAI_API_KEY=
 OPENAI_MODEL=
+# Optional comma-separated server-approved models (default: OPENAI_MODEL)
+OPENAI_MODELS=

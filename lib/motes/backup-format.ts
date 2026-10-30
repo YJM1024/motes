@@ -18,10 +18,11 @@ function number(value: unknown): number { if (!Number.isSafeInteger(value) || Nu
 function date(value: unknown): string { const raw = text(value, 40); if (!Number.isFinite(Date.parse(raw))) invalid('备份日期无效。'); return raw; }
 function list(value: unknown, max: number): unknown[] { if (!Array.isArray(value) || value.length > max) invalid('备份数量超限，请分批导出。'); return value as unknown[]; }
 function preferences(value: unknown): Preferences {
-  const keys = ['creationMode', 'previewDevice', 'autoFollow', 'showWaitTimer', 'language', 'visualStyle'];
+  const keys = ['creationMode', 'previewDevice', 'autoFollow', 'showWaitTimer', 'language', 'visualStyle', 'model'];
   const p = object(value, keys);
   for (const [key, values] of Object.entries({ creationMode: ['demo', 'model'], previewDevice: ['desktop', 'mobile'], language: ['zh-CN', 'en'], visualStyle: ['minimal', 'soft', 'bold'] })) if (typeof p[key] !== 'string' || !values.includes(p[key] as string)) invalid('备份设置选项无效。');
-  return { creationMode: p.creationMode as Preferences['creationMode'], previewDevice: p.previewDevice as Preferences['previewDevice'], autoFollow: bool(p.autoFollow), showWaitTimer: bool(p.showWaitTimer), language: p.language as Preferences['language'], visualStyle: p.visualStyle as Preferences['visualStyle'] };
+  if(p.model!==undefined&&(typeof p.model!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(p.model)||/^sk-/i.test(p.model)))invalid('备份模型偏好无效。');
+  return { creationMode: p.creationMode as Preferences['creationMode'], previewDevice: p.previewDevice as Preferences['previewDevice'], autoFollow: bool(p.autoFollow), showWaitTimer: bool(p.showWaitTimer), language: p.language as Preferences['language'], visualStyle: p.visualStyle as Preferences['visualStyle'],...(typeof p.model==='string'?{model:p.model}:{}) };
 }
 /** Shared browser/server preflight. No HTML is executed, injected or fetched. */
 export function validateBackup(value: unknown): BackupDocument {

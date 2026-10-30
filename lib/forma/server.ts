@@ -1,6 +1,9 @@
 import { env } from 'cloudflare:workers';
 import { generateDemo } from './demo';
 import { initialAppTitle } from './app-title';
+import { configuredModels, defaultModel } from './model-config';
+import { budgetReservation, usageReservation, usageCompletion } from '../motes/usage';
+import type { ModelObservation } from './model';
 import { readSettings, generationPreferences } from '../motes/settings';
 import { generateModel, ModelError } from './model';
 import type { Project, Summary, Version } from './types';
@@ -8,7 +11,8 @@ import { HttpError, digest, owner, assertOrigin } from './security';
 export { COOKIE, digest, owner } from './security';
 
 export function database(){if(!env.DB)throw new HttpError(503,'云端存储暂时不可用，请稍后重试。');return env.DB}
-export function modelName(){return env.OPENAI_API_KEY && env.OPENAI_MODEL ? env.OPENAI_MODEL : null}
+export function modelNames(){return configuredModels(env)}
+export function modelName(){return defaultModel(env)}
 export async function payload(request:Request){assertOrigin(request);const declared=Number(request.headers.get('content-length')??0);if(declared>16000)throw new HttpError(413,'请求过长。');const text=await request.text();if(text.length>16000)throw new HttpError(413,'请求过长。');try {const value=JSON.parse(text);if(!value || typeof value!=='object'||Array.isArray(value))throw 0;return value as Record<string,unknown>}catch{throw new HttpError(400,'请求格式无效。')}}
 export function json(value:unknown,status=200,headers:Record<string,string>={}){return Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}})}
 export async function route(run:()=>Promise<Response>){try{return await run()}catch(error){if(error instanceof HttpError)return json({error:error.message,...error.retry?{retry:error.retry}:{}},error.status);console.error('Motes request failed',error instanceof Error?error.message:'unknown');return json({error:'操作失败，请稍后重试。已有版本仍然保留。'},500)}}
@@ -25,10 +29,12 @@ export async function generate(request:Request){
   if(body.projectId!==undefined&&(typeof body.projectId!=='string'||body.projectId.length>100))throw new HttpError(400,'项目编号无效。');
   if(body.baseVersionId!==undefined&&typeof body.baseVersionId!=='string')throw new HttpError(400,'基础版本无效。');
   if(body.managedProjectId!==undefined&&(typeof body.managedProjectId!=='string'||!body.managedProjectId||body.managedProjectId.length>128||body.projectId!==undefined))throw new HttpError(400,'创建目标项目无效，只能为新应用指定项目。');
+  if(body.model!==undefined&&(typeof body.model!=='string'||!body.model||body.model.length>128||body.mode!=='model'))throw new HttpError(400,'模型参数无效。');
   const prompt=body.prompt.trim(),mode=body.mode,requestId=body.requestId,db=database();
   // Preserve the exact legacy hash when the new optional target is absent.
   const identity:unknown[]=[prompt,mode,body.projectId??null,body.baseVersionId??null];
   if(body.managedProjectId!==undefined)identity.push(body.managedProjectId);
+  if(body.model!==undefined)identity.push({model:body.model});
   const fingerprint=await digest(JSON.stringify(identity));
   const prior=await db.prepare('SELECT owner,project_id,status,fingerprint FROM forma_requests WHERE id=?').bind(requestId).first<{owner:string;project_id:string;status:string;fingerprint:string}>();
   if(prior){
@@ -40,7 +46,7 @@ export async function generate(request:Request){
     if(state?.status==='done')return json({project:await readProject(who,prior.project_id)});
     throw new HttpError(409,state?.status==='running'?'该请求正在处理，请稍后查看项目。':'该请求未完成，请重新发起生成。',state?.status==='failed'?'new':undefined);
   }
-  const selectedModel=modelName();if(mode==='model'&&!selectedModel)throw new HttpError(503,'尚未连接模型。请先使用示例模式；管理员配置模型 Key 和模型名称后可启用。');
+  let selectedModel=modelName();if(mode==='model'&&!selectedModel)throw new HttpError(503,'尚未连接模型。请先使用示例模式；管理员配置模型 Key 和模型名称后可启用。');
   const project=typeof body.projectId==='string'?await readProject(who,body.projectId):undefined;
   const managedProjectId=typeof body.managedProjectId==='string'?body.managedProjectId:undefined;
   if(managedProjectId){
@@ -51,21 +57,25 @@ export async function generate(request:Request){
   if(!project&&body.baseVersionId)throw new HttpError(400,'新项目不能指定历史版本。');
   const base=project?.versions.find(v=>v.id===(body.baseVersionId??project.currentVersionId));if(project&&!base)throw new HttpError(404,'基础版本不存在。');
   if(project&&project.versions.length>=60)throw new HttpError(429,'单个项目最多保留 60 个版本，请创建新项目。');
+  const settings=mode==='model'?await readSettings(db,who,selectedModel,project?{appId:project.id}:managedProjectId?{projectId:managedProjectId}:{},modelNames()):null;
+  if(mode==='model'){if(body.model!==undefined&&!modelNames().includes(body.model as string))throw new HttpError(400,'该模型未在服务端可用白名单中。');selectedModel=typeof body.model==='string'?body.model:settings!.effective.model??selectedModel;}
   // Validate demo support before reserving capacity. Demo never silently invokes a model.
   let demo:ReturnType<typeof generateDemo>|undefined;
   if(mode==='demo'){try{demo=generateDemo(prompt,base?.html)}catch(error){throw new HttpError(422,(error as Error).message)}}
   if(!project&&(await listProjects(who)).length>=100)throw new HttpError(429,'当前浏览器最多创建 100 个项目。');
-  const id=project?.id??crypto.randomUUID(),now=new Date().toISOString(),day=now.slice(0,10),max=mode==='model'?10:100,globalMax=mode==='model'?50:2000;
+  const id=project?.id??crypto.randomUUID(),now=new Date().toISOString();
   await db.prepare('DELETE FROM forma_locks WHERE expires_at<?').bind(Date.now()).run();
   try{
     const reserved=await db.batch([
       db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) VALUES(?,?,?)').bind(id,requestId,Date.now()+210000),
-      db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) SELECT ?,?,?,?,?,?,'running',? WHERE (SELECT count(*) FROM forma_requests WHERE owner=? AND day=? AND mode=?)<? AND (SELECT count(*) FROM forma_requests WHERE day=? AND mode=?)<?").bind(requestId,who,id,fingerprint,day,mode,now,who,day,mode,max,day,mode,globalMax),
+      budgetReservation(db,{id:requestId,owner:who,projectId:id,fingerprint,mode,createdAt:now}),
+      ...mode==='model'?[usageReservation(db,requestId,who,selectedModel!,base?'modify':'generate',now)]:[],
     ]);
     if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();throw new HttpError(429,'今日生成额度已用完，请明天再试。')}
   }catch(error){if(error instanceof HttpError)throw error;throw new HttpError(409,'项目正在处理其他请求，请稍后重试。')}
+  let observation:ModelObservation|null=null;
   try{
-    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences((await readSettings(db,who,selectedModel,project?{appId:project.id}:managedProjectId?{projectId:managedProjectId}:{})).effective,!!base));
+    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base),value=>{observation=value});
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
     // Every write is fenced by the live lease in this atomic batch. An expired
     // worker must never overwrite a newer request or a restored version.
@@ -75,12 +85,14 @@ export async function generate(request:Request){
       project?db.prepare(`UPDATE forma_projects SET current_version_id=?,updated_at=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,version.createdAt,id,who,...lease):db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${guard}`).bind(id,who,demo?.title??initialAppTitle(html,prompt),now,version.createdAt,version.id,...lease),
       db.prepare(`INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,?,?,?,?,?,?,? WHERE ${guard}`).bind(version.id,id,version.number,prompt,version.summary,html,version.createdAt,mode,version.model??null,...lease),
       ...managedProjectId?[db.prepare(`INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,g.workspace_id,g.id,? FROM motes_projects g WHERE g.id=? AND ${guard}`).bind(id,version.createdAt,managedProjectId,...lease)]:[],
+      ...mode==='model'?[usageCompletion(db,requestId,who,'succeeded',observation,null,{sql:guard,bindings:lease})]:[],
       db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,requestId,who,...lease),
       db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),
     ]);
     if(!committed[0].meta.changes)throw new HttpError(409,managedProjectId?'创建目标已变化或请求已超时，请检查目标项目后重新发起生成。':'本次请求已超时，请重新发起生成。','new');
   }catch(error){
     const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);
+    if(mode==='model')await usageCompletion(db,requestId,who,'failed',observation,error instanceof HttpError?'state_changed':(observation as ModelObservation|null)?.errorCode??'storage').run();
     // Only a confirmed failed reservation can be retried with a new ID. An
     // ambiguous commit/network failure must first reconcile the original ID.
     const retry=cleared[0].meta.changes?'new':undefined;
