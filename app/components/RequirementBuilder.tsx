@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { appendRequirementDraft, buildRequirementDraft, EMPTY_REQUIREMENT_FIELDS, findRequirementConflicts, REQUIREMENT_DRAFT_LIMIT, type RequirementFields } from '@/lib/motes/requirement-draft';
+import { appendRequirementDraft, buildRequirementDraft, EMPTY_REQUIREMENT_FIELDS, findRequirementConflicts, requirementGuidance, REQUIREMENT_DRAFT_LIMIT, type RequirementFields } from '@/lib/motes/requirement-draft';
 import styles from './RequirementBuilder.module.css';
 
 type Props = { draft: string; onApply: (text: string, placement: 'append' | 'replace') => void; disabled?: boolean };
@@ -23,6 +23,7 @@ export default function RequirementBuilder({ draft, onApply, disabled = false }:
   const [message, setMessage] = useState('');
   const [notice, setNotice] = useState('');
   const conflicts = useMemo(() => findRequirementConflicts(Object.values(fields).join('\n')), [fields]);
+  const guidance = useMemo(() => requirementGuidance(fields), [fields]);
   const hasFields = Object.values(fields).some(value => value.trim());
   const tooLong = structuredDraft.length > REQUIREMENT_DRAFT_LIMIT;
   const appendTooLong = draft.trim().length > 0 && draft.length + 2 + structuredDraft.length > REQUIREMENT_DRAFT_LIMIT;
@@ -61,6 +62,9 @@ export default function RequirementBuilder({ draft, onApply, disabled = false }:
     </button>
     {open && <div id="requirement-builder-panel" className={styles.panel}>
       <div className={styles.fieldGrid}>{fieldMeta.map(({ key, label, placeholder, rows }) => <label key={key} className={styles.field}>{label}{rows ? <textarea rows={rows} value={fields[key]} disabled={disabled} onChange={event => update(key, event.target.value)} placeholder={placeholder} /> : <input value={fields[key]} disabled={disabled} onChange={event => update(key, event.target.value)} placeholder={placeholder} />}</label>)}</div>
+      {!!guidance.suggestions.length && <div className={styles.guidance} role="status">{guidance.suggestions.map(item => <p key={item}>{item}</p>)}</div>}
+      {!fields.device.trim() && <div className={styles.suggestion}><span>未指定设备范围。可按需采用“手机与桌面响应式”。</span><button type="button" onClick={() => update('device', '手机与桌面响应式')} disabled={disabled}>采用此建议</button></div>}
+      {guidance.needsDataScopeClarification && <p className={styles.guidance} role="note">当前描述涉及账号、联网同步或数据保存。隔离预览中的运行数据是临时的；请先明确是否需要外部服务与持久化范围。此处不会假设这些能力已接入。</p>}
       {!!conflicts.length && <div className={styles.warning} role="alert"><strong>请核对可能冲突的内容</strong><ul>{conflicts.map(conflict => <li key={conflict}>{conflict}</li>)}</ul></div>}
       <div className={styles.actions}><button type="button" onClick={resetFields} disabled={disabled}>仅清空六项填写</button><span>{structuredDraft.length.toLocaleString()} / {REQUIREMENT_DRAFT_LIMIT} 字</span><button type="button" className={styles.primary} onClick={generate} disabled={disabled || conflicts.length > 0}>生成结构化草稿</button></div>
       {message && <p className={styles.error} role="alert">{message}</p>}
