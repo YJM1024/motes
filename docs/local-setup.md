@@ -55,7 +55,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 npm run dev
 ```
 
-通常打开 `http://127.0.0.1:5173/`，以终端实际地址为准。`/manage` 管理应用，`/settings` 设置与用量，`/compare` 为用户主动进入的候选比较，支持选择 2/3/4 组。保持同一项目目录和 `.wrangler/state`；更换目录或状态路径会使用另一份本地数据。
+通常打开 `http://127.0.0.1:5173/`，以终端实际地址为准。`/manage` 管理应用，`/settings` 设置与用量，`/compare` 为用户主动进入的候选比较，支持选择 2/3/4 组。工作台界面支持简体中文与英文，语言选择只影响静态界面；应用生成语言是独立设置，不会翻译用户内容。界面语言、主题和动效是本浏览器偏好，不随服务端备份迁移。保持同一项目目录和 `.wrangler/state`；更换目录或状态路径会使用另一份本地数据。
 
 无模型配置也可使用明确标记的示例。真实生成时，复制 `.dev.vars.example` 为 `.dev.vars`，仅在本地填写已有授权的服务端 `OPENAI_API_KEY` 与账户可用的 `OPENAI_MODEL`；`OPENAI_MODELS` 是可选逗号白名单，留空仅使用默认模型。真实值不得提交 Git、传给浏览器或写入公开文档。配置、服务端 CSP 等启动配置变更后需重启本地服务；普通源码可热更新。
 
