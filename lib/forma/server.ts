@@ -9,7 +9,7 @@ export function database(){if(!env.DB)throw new HttpError(503,'云端存储暂�
 export function modelName(){return env.OPENAI_API_KEY && env.OPENAI_MODEL ? env.OPENAI_MODEL : null}
 export async function payload(request:Request){assertOrigin(request);const declared=Number(request.headers.get('content-length')??0);if(declared>16000)throw new HttpError(413,'请求过长。');const text=await request.text();if(text.length>16000)throw new HttpError(413,'请求过长。');try {const value=JSON.parse(text);if(!value || typeof value!=='object'||Array.isArray(value))throw 0;return value as Record<string,unknown>}catch{throw new HttpError(400,'请求格式无效。')}}
 export function json(value:unknown,status=200,headers:Record<string,string>={}){return Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}})}
-export async function route(run:()=>Promise<Response>){try{return await run()}catch(error){if(error instanceof HttpError)return json({error:error.message},error.status);console.error('Motes request failed',error instanceof Error?error.message:'unknown');return json({error:'操作失败，请稍后重试。已有版本仍然保留。'},500)}}
+export async function route(run:()=>Promise<Response>){try{return await run()}catch(error){if(error instanceof HttpError)return json({error:error.message,...error.retry?{retry:error.retry}:{}},error.status);console.error('Motes request failed',error instanceof Error?error.message:'unknown');return json({error:'操作失败，请稍后重试。已有版本仍然保留。'},500)}}
 type ProjectRow={id:string;title:string;created_at:string;updated_at:string;current_version_id:string};
 const summary=(r:ProjectRow):Summary=>({id:r.id,title:r.title,createdAt:r.created_at,updatedAt:r.updated_at,currentVersionId:r.current_version_id});
 export async function listProjects(who:string){const {results}=await database().prepare('SELECT id,title,created_at,updated_at,current_version_id FROM forma_projects WHERE owner=? ORDER BY updated_at DESC LIMIT 100').bind(who).all<ProjectRow>();return results.map(summary)}
@@ -32,7 +32,7 @@ export async function generate(request:Request){
     await db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND status='running' AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE request_id=? AND expires_at>?)").bind(requestId,requestId,Date.now()).run();
     const state=await db.prepare('SELECT status FROM forma_requests WHERE id=?').bind(requestId).first<{status:string}>();
     if(state?.status==='done')return json({project:await readProject(who,prior.project_id)});
-    throw new HttpError(409,state?.status==='running'?'该请求正在处理，请稍后查看项目。':'该请求未完成，请重新发起生成。');
+    throw new HttpError(409,state?.status==='running'?'该请求正在处理，请稍后查看项目。':'该请求未完成，请重新发起生成。',state?.status==='failed'?'new':undefined);
   }
   const selectedModel=modelName();if(mode==='model'&&!selectedModel)throw new HttpError(503,'尚未连接模型。请先使用示例模式；管理员配置模型 Key 和模型名称后可启用。');
   const project=typeof body.projectId==='string'?await readProject(who,body.projectId):undefined;
@@ -65,8 +65,16 @@ export async function generate(request:Request){
       db.prepare(`UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND ${guard}`).bind(version.id,requestId,who,...lease),
       db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),
     ]);
-    if(!committed[0].meta.changes)throw new HttpError(409,'本次请求已超时，请重新发起生成。');
-  }catch(error){await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);if(error instanceof HttpError)throw error;if(error instanceof ModelError)throw new HttpError(error.status,error.message);throw new HttpError(502,error instanceof Error&&/模型/.test(error.message)?error.message:'生成未完成，请重试。已有版本仍然保留。')}
+    if(!committed[0].meta.changes)throw new HttpError(409,'本次请求已超时，请重新发起生成。','new');
+  }catch(error){
+    const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);
+    // Only a confirmed failed reservation can be retried with a new ID. An
+    // ambiguous commit/network failure must first reconcile the original ID.
+    const retry=cleared[0].meta.changes?'new':undefined;
+    if(error instanceof HttpError)throw new HttpError(error.status,error.message,retry??error.retry);
+    if(error instanceof ModelError)throw new HttpError(error.status,error.message,retry);
+    throw new HttpError(502,error instanceof Error&&/模型/.test(error.message)?error.message:'生成未完成，请重试。已有版本仍然保留。',retry);
+  }
   // A read/response failure after commit must leave the idempotency record done.
   return json({project:await readProject(who,id)});
 }

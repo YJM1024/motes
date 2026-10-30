@@ -13,11 +13,11 @@ const examples = [
   { icon: "▦", title: "轻量任务看板", tag: "把想法变成下一步行动", prompt: "帮我做一个任务看板，可以添加任务，在待办、进行中和已完成之间移动。", color: "lavender" },
   { icon: "◷", title: "专注番茄钟", tag: "给专注留一点空间", prompt: "帮我做一个番茄钟，支持专注倒计时、暂停和重新开始。", color: "mint" },
 ];
-class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
+class ApiError extends Error { constructor(message: string, public status: number, public retry?: "new") { super(message); } }
 async function api<T>(url: string, body?: object): Promise<T> {
   const response = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { cache: "no-store" });
-  const data = await response.json().catch(() => ({ error: "服务暂时没有返回有效结果，请重试。" })) as T & { error?: string };
-  if (!response.ok) throw new ApiError(data.error || "暂时无法完成，请稍后重试。", response.status);
+  const data = await response.json().catch(() => ({ error: "服务暂时没有返回有效结果，请重试。" })) as T & { error?: string; retry?: "new" };
+  if (!response.ok) throw new ApiError(data.error || "暂时无法完成，请稍后重试。", response.status, data.retry);
   return data;
 }
 function safeDocument(html: string) {
@@ -105,7 +105,7 @@ export default function Home() {
       remember(result.project); setAttempts(previous => previous.filter(a => a.id !== attempt.id)); setNotice("新版本已保存，可切换到预览查看");
     } catch (e) {
       const message = e instanceof Error ? e.message : "连接中断，请重试。";
-      setAttempts(previous => previous.map(a => a.id === attempt.id ? { ...a, state: "failed", error: message, requestId: e instanceof ApiError && e.status < 500 && (e.status !== 409 || /重新发起/.test(message)) ? crypto.randomUUID() : a.requestId } : a));
+      setAttempts(previous => previous.map(a => a.id === attempt.id ? { ...a, state: "failed", error: message, requestId: e instanceof ApiError && (e.retry === "new" || (e.status < 500 && e.status !== 409)) ? crypto.randomUUID() : a.requestId } : a));
     } finally { operationLock.current = false; setBusy(false); textarea.current?.focus({ preventScroll: true }); }
   }
   async function restore(versionId: string) {

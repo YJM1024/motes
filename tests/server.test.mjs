@@ -83,12 +83,39 @@ test('committed generation survives read failure and same request retries withou
   const body={prompt:'番茄钟',mode:'model',requestId:crypto.randomUUID()};
   const first=await h.server.route(()=>h.server.generate(h.request(body)));
   assert.equal(first.status,500);
+  assert.equal((await first.json()).retry,undefined,'Post-commit read failure must reconcile the same request ID');
   assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests').get().status,'done');
   const retry=await h.server.generate(h.request(body));
   assert.equal(retry.status,200);
   assert.equal((await retry.json()).project.versions.length,1);
   assert.equal(calls,1);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
+});
+
+test('confirmed model failure explicitly permits one-click retry with a new ID',async(t)=>{
+  for(const failure of ['timeout','unavailable']){
+    const h=await serverHarness();
+    let calls=0;
+    const mocked=t.mock.method(globalThis,'fetch',async()=>{
+      calls++;
+      if(calls===1){if(failure==='timeout')throw new DOMException('timed out','TimeoutError');return new Response('',{status:503})}
+      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]});
+    });
+    try{
+      const body={prompt:'番茄钟',mode:'model',requestId:crypto.randomUUID()};
+      const first=await h.server.route(()=>h.server.generate(h.request(body)));
+      assert.equal(first.status,failure==='timeout'?504:502);
+      const error=await first.json();
+      assert.equal(error.retry,'new');
+      assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests').get().status,'failed');
+      assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_locks').get().n,0);
+      const retryBody={...body,requestId:error.retry==='new'?crypto.randomUUID():body.requestId};
+      const retry=await h.server.generate(h.request(retryBody));
+      assert.equal(retry.status,200);
+      assert.equal((await retry.json()).project.versions.length,1);
+      assert.equal(calls,2,'One retry immediately reaches the model');
+    }finally{mocked.mock.restore();h.close()}
+  }
 });
 
 test('expired running request can be reissued and its old worker cannot commit over the new version',async(t)=>{
@@ -100,7 +127,9 @@ test('expired running request can be reissued and its old worker cannot commit o
   const old={prompt:'调整页面',mode:'model',projectId,requestId:crypto.randomUUID()};
   const pending=h.server.generate(h.request(old));await started;
   h.sqlite.prepare('UPDATE forma_locks SET expires_at=0 WHERE request_id=?').run(old.requestId);
-  await assert.rejects(h.server.generate(h.request(old)),e=>e.status===409&&/重新发起/.test(e.message));
+  const expired=await h.server.route(()=>h.server.generate(h.request(old)));
+  assert.equal(expired.status,409);
+  assert.equal((await expired.json()).retry,'new');
   assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(old.requestId).status,'failed');
   const fresh=await (await h.server.generate(h.request({prompt:'改成蓝色主题',mode:'demo',projectId,requestId:crypto.randomUUID()}))).json();
   release();await assert.rejects(pending,e=>e.status===409&&/重新发起/.test(e.message));
@@ -118,6 +147,9 @@ test('late worker cannot delete a newer worker lease or publish after losing own
   const old={prompt:'旧修改',mode:'model',projectId,requestId:crypto.randomUUID()};
   const pendingOld=h.server.generate(h.request(old));
   while(gates.length<1)await new Promise(resolve=>setImmediate(resolve));
+  const active=await h.server.route(()=>h.server.generate(h.request(old)));
+  assert.equal(active.status,409);
+  assert.equal((await active.json()).retry,undefined,'A live request must retain its ID');
   h.sqlite.prepare('UPDATE forma_locks SET expires_at=0 WHERE request_id=?').run(old.requestId);
   const fresh={prompt:'新修改',mode:'model',projectId,requestId:crypto.randomUUID()};
   const pendingFresh=h.server.generate(h.request(fresh));
