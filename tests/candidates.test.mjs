@@ -136,3 +136,10 @@ test('generation admits the final available slot with complete version, metadata
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,100);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,100);
   assert.equal((await h.generate(input)).status,200);assert.equal(calls,1);assert.equal(h.sqlite.prepare('SELECT status FROM forma_requests WHERE id=?').get(input.requestId).status,'done');
 });
+
+test('explicit 2/3/4 groups reserve the entire count before independent calls and recover without charge',async t=>{
+  for(const count of [2,3,4]){const h=await harness();try{let calls=0;const mocked=t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});const input=body({count,confirmCalls:count});const result=await h.create(input);assert.equal(result.status,201);assert.equal(result.data.group.count,count);assert.equal(result.data.group.candidates.length,count);assert.equal(result.data.group.reservedModelCalls,count);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,count);assert.equal((await h.create(input)).status,200);assert.equal(calls,count);assert.equal((await h.create({...input,count:count===4?3:4,confirmCalls:count===4?3:4})).status,409);mocked.mock.restore();}finally{h.close()}}
+});
+test('insufficient count rejects atomically and explicit count requires matching confirmation',async t=>{
+ const h=await harness();t.after(h.close);oldRequests(h,7,await h.who('a'));t.mock.method(globalThis,'fetch',()=>{throw Error('must not call')});assert.equal((await h.create(body({count:4,confirmCalls:4}))).status,429);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,7);for(const input of [{count:3},{count:4,confirmCalls:2},{count:5,confirmCalls:5}])assert.equal((await h.create(body(input))).status,400);
+});

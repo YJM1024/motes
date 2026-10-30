@@ -11,11 +11,12 @@ import { budgetReservation, GENERATION_LIMITS, usageCompletion, usageReservation
 import type { CandidateGroup, CandidateSummary } from './candidate-types';
 
 const MAX_GROUPS=20;
-const strategies=['简洁清晰 · 操作优先','丰富层次 · 信息优先'];
+const strategies=['简洁清晰 · 操作优先','丰富层次 · 信息优先','紧凑高效 · 工作流优先','醒目直观 · 视觉优先'];
+const directions=['a restrained, action-focused layout with clear primary controls','an information-focused layout with stronger visual hierarchy','a compact, efficient workflow-focused layout','a bold, visually expressive layout with clear navigation'];
 function id(value:unknown){if(typeof value!=='string'||!value||value.length>128)throw new HttpError(400,'方案或应用编号无效。');return value;}
 function uuid(value:unknown){const result=id(value);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(result))throw new HttpError(400,'方案请求编号无效。');return result;}
-type GroupRow={id:string;owner:string;fingerprint:string;prompt:string;mode:'demo'|'model';model:string|null;app_id:string|null;base_version_id:string|null;managed_project_id:string;created_at:string};
-const summary=(r:GroupRow):CandidateSummary=>({id:r.id,prompt:r.prompt,mode:r.mode,model:r.model,appId:r.app_id,baseVersionId:r.base_version_id,managedProjectId:r.managed_project_id,createdAt:r.created_at,reservedModelCalls:r.mode==='model'?2:0});
+type GroupRow={id:string;owner:string;fingerprint:string;prompt:string;mode:'demo'|'model';model:string|null;app_id:string|null;base_version_id:string|null;managed_project_id:string;created_at:string;candidate_count:2|3|4;generation_context:string|null};
+const summary=(r:GroupRow):CandidateSummary=>({id:r.id,prompt:r.prompt,mode:r.mode,model:r.model,appId:r.app_id,baseVersionId:r.base_version_id,managedProjectId:r.managed_project_id,createdAt:r.created_at,count:r.candidate_count??2,reservedModelCalls:r.mode==='model'?(r.candidate_count??2):0});
 async function groupFor(who:string,groupId:string){const group=await database().prepare('SELECT * FROM motes_candidate_groups WHERE id=? AND owner=?').bind(groupId,who).first<GroupRow>();if(!group)throw new HttpError(404,'方案组不存在或不属于当前访客。');return group;}
 export async function readCandidateGroup(who:string,groupId:string):Promise<CandidateGroup>{
   const group=await groupFor(who,groupId);
@@ -26,14 +27,16 @@ export async function getCandidates(request:Request,groupId?:string){const who=a
 
 export async function createCandidates(request:Request){
   const who=await owner(request),body=await payload(request),db=database();
-  if(Object.keys(body).some(k=>!['requestId','prompt','mode','model','appId','baseVersionId','managedProjectId','confirmTwoCalls'].includes(k)))throw new HttpError(400,'包含不支持的方案字段。');
+  if(Object.keys(body).some(k=>!['requestId','prompt','mode','model','appId','baseVersionId','managedProjectId','confirmTwoCalls','count','confirmCalls'].includes(k)))throw new HttpError(400,'包含不支持的方案字段。');
   const groupId=uuid(body.requestId);
-  if(typeof body.prompt!=='string'||!body.prompt.trim()||body.prompt.length>4000||typeof body.mode!=='string'||!['demo','model'].includes(body.mode)||body.confirmTwoCalls!==true)throw new HttpError(400,'请输入1–4000字需求，并明确确认生成两种方案。');
+  const count=body.count===undefined?2:body.count;
+  if(![2,3,4].includes(count as number)||(body.count===undefined?body.confirmTwoCalls!==true:body.confirmCalls!==count))throw new HttpError(400,'请选择2、3或4种方案并明确确认对应次数。');
+  if(typeof body.prompt!=='string'||!body.prompt.trim()||body.prompt.length>4000||typeof body.mode!=='string'||!['demo','model'].includes(body.mode))throw new HttpError(400,'请输入1–4000字需求，并确认生成方案。');
   const prompt=body.prompt.trim(),mode=body.mode as 'demo'|'model';
   if(body.model!==undefined&&(typeof body.model!=='string'||mode!=='model'))throw new HttpError(400,'方案模型参数无效。');
   const appId=body.appId===undefined?null:id(body.appId),baseVersionId=body.baseVersionId===undefined?null:id(body.baseVersionId),requestedTarget=body.managedProjectId===undefined?null:id(body.managedProjectId);
   if((appId&&!baseVersionId)||(!appId&&baseVersionId)||(appId&&requestedTarget))throw new HttpError(400,'请选择当前应用基准版本，或为新应用选择目标项目。');
-  const fingerprint=await digest(JSON.stringify(['candidates-v1',prompt,mode,appId,baseVersionId,requestedTarget,body.model??null]));
+  const fingerprint=await digest(JSON.stringify([body.count===undefined?'candidates-v1':'candidates-v2',prompt,mode,appId,baseVersionId,requestedTarget,body.model??null,...body.count===undefined?[]:[count]]));
   const prior=async()=>{const old=await db.prepare('SELECT owner,fingerprint FROM motes_candidate_groups WHERE id=?').bind(groupId).first<{owner:string;fingerprint:string}>();if(!old)return null;if(old.owner!==who||old.fingerprint!==fingerprint)throw new HttpError(409,'方案请求编号已被使用。');return json({group:await readCandidateGroup(who,groupId)});};
   const existing=await prior();if(existing)return existing;
   const wid=await initializeWorkspace(who);
@@ -47,24 +50,26 @@ export async function createCandidates(request:Request){
   const model=mode==='model'?(typeof body.model==='string'?body.model:prefs.effective.model??modelName()):null;
   if(mode==='model'&&(!model||!modelNames().includes(model)))throw new HttpError(503,'所选模型未连接或不在可用白名单中，请选择示例模式或有效模型。');
   let examples:string[]=[];
-  if(mode==='demo'){try{const initial=generateDemo(prompt,source?.html).html;examples=[generateDemo('改成蓝色主题',initial).html,generateDemo('改成绿色主题',initial).html];}catch(error){throw new HttpError(422,(error as Error).message);}}
-  const now=new Date().toISOString(),ids=[crypto.randomUUID(),crypto.randomUUID()],requests=[crypto.randomUUID(),crypto.randomUUID()],lockIds=requests.map(r=>'candidate:'+r);
+  if(mode==='demo'){try{const initial=generateDemo(prompt,source?.html).html;examples=['改成蓝色主题','改成绿色主题','改成深色主题','改成浅色主题'].slice(0,count as number).map(theme=>generateDemo(theme,initial).html);}catch(error){throw new HttpError(422,(error as Error).message);}}
+  const now=new Date().toISOString(),ids=Array.from({length:count as number},()=>crypto.randomUUID()),requests=ids.map(()=>crypto.randomUUID()),lockIds=requests.map(r=>'candidate:'+r);
   const stateSql="EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND g.workspace_id=? AND w.owner=? AND g.archived=0) AND (SELECT count(*) FROM motes_candidate_groups WHERE owner=?)<?"+(appId?" AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?) AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND expires_at>?) AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60":" AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?");
   const stateBindings:(string|number)[]=[target,wid,who,who,MAX_GROUPS,...appId?[appId,who,baseVersionId!,appId,Date.now(),appId]:[who,LIMITS.apps]];
-  const first=budgetReservation(db,{id:requests[0],owner:who,projectId:lockIds[0],fingerprint:await digest(fingerprint+':0'),mode,createdAt:now,units:2,fence:{sql:stateSql,bindings:stateBindings}});
-  const second=budgetReservation(db,{id:requests[1],owner:who,projectId:lockIds[1],fingerprint:await digest(fingerprint+':1'),mode,createdAt:now,fence:{sql:'EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)',bindings:[requests[0],who]}});
-  const statements=[first,second,db.prepare('INSERT INTO motes_candidate_groups(id,owner,fingerprint,prompt,mode,model,app_id,base_version_id,managed_project_id,created_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?) AND EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(groupId,who,fingerprint,prompt,mode,model,appId,baseVersionId,target,now,requests[0],who,requests[1],who)];
-  for(let slot=0;slot<2;slot++){
-    statements.push(db.prepare("INSERT INTO motes_candidates(id,group_id,slot,request_id,strategy,status,created_at,updated_at) SELECT ?,?,?,?,?,'running',?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_groups WHERE id=? AND owner=?)").bind(ids[slot],groupId,slot,requests[slot],mode==='demo'?(slot===0?'蓝色示例':'绿色示例'):strategies[slot],now,now,groupId,who));
+  const first=budgetReservation(db,{id:requests[0],owner:who,projectId:lockIds[0],fingerprint:await digest(fingerprint+':0'),mode,createdAt:now,units:count as 2|3|4,fence:{sql:stateSql,bindings:stateBindings}});
+  const statements=[first];
+  for(let slot=1;slot<(count as number);slot++)statements.push(budgetReservation(db,{id:requests[slot],owner:who,projectId:lockIds[slot],fingerprint:await digest(fingerprint+':'+slot),mode,createdAt:now,units:((count as number)-slot) as 1|2|3,fence:{sql:'EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)',bindings:[requests[0],who]}}));
+  const context=generationPreferences(prefs.effective,!!source);
+  statements.push(db.prepare('INSERT INTO motes_candidate_groups(id,owner,fingerprint,prompt,mode,model,app_id,base_version_id,managed_project_id,created_at,candidate_count,generation_context) SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(groupId,who,fingerprint,prompt,mode,model,appId,baseVersionId,target,now,count,context,requests[(count as number)-1],who));
+  for(let slot=0;slot<(count as number);slot++){
+    statements.push(db.prepare("INSERT INTO motes_candidates(id,group_id,slot,request_id,strategy,status,created_at,updated_at) SELECT ?,?,?,?,?,'running',?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_groups WHERE id=? AND owner=?)").bind(ids[slot],groupId,slot,requests[slot],mode==='demo'?['蓝色示例','绿色示例','深色示例','浅色示例'][slot]:strategies[slot],now,now,groupId,who));
     statements.push(db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_groups WHERE id=? AND owner=?)').bind(lockIds[slot],requests[slot],Date.now()+210000,groupId,who));
     if(mode==='model')statements.push(usageReservation(db,requests[slot],who,model!,'candidate',now));
   }
   let reserved:D1Result[];
   try{reserved=await db.batch(statements);}catch(error){const retry=await prior();if(retry)return retry;throw error;}
-  if(!reserved[0].meta.changes){const retry=await prior();if(retry)return retry;const day=now.slice(0,10),budget=GENERATION_LIMITS[mode];const counts=await db.prepare('SELECT count(*) AS global_count,sum(CASE WHEN owner=? THEN 1 ELSE 0 END) AS own FROM forma_requests WHERE day=? AND mode=?').bind(who,day,mode).first<{global_count:number;own:number}>();if(counts!.global_count+2>budget.global||(counts!.own??0)+2>budget.visitor)throw new HttpError(429,'剩余额度不足两次，未调用模型；可返回单次生成。','new');throw new HttpError(409,'应用、目标项目、生成锁或容量状态已变化；最多保留20组方案，请检查后重试。','new');}
+  if(!reserved[0].meta.changes){const retry=await prior();if(retry)return retry;const day=now.slice(0,10),budget=GENERATION_LIMITS[mode];const counts=await db.prepare('SELECT count(*) AS global_count,sum(CASE WHEN owner=? THEN 1 ELSE 0 END) AS own FROM forma_requests WHERE day=? AND mode=?').bind(who,day,mode).first<{global_count:number;own:number}>();if(counts!.global_count+(count as number)>budget.global||(counts!.own??0)+(count as number)>budget.visitor)throw new HttpError(429,`剩余额度不足${count}次，未调用模型；可减少候选数后重新确认。`,'new');throw new HttpError(409,'应用、目标项目、生成锁或容量状态已变化；最多保留20组方案，请检查后重试。','new');}
   const run=async(slot:number)=>{
     let observation:ModelObservation|null=null,html:string|null=null,errorCode:string|null=null;
-    try{html=mode==='demo'?examples[slot]:await generateModel(prompt,source?.html,env.OPENAI_API_KEY!,model!,generationPreferences(prefs.effective,!!source)+` Explore alternative ${slot+1}: ${slot===0?'a restrained, action-focused layout with clear primary controls':'an information-focused layout with stronger visual hierarchy'}. Preserve all requested functionality; explicit user constraints take priority.`,value=>{observation=value});}catch(error){errorCode=(observation as ModelObservation|null)?.errorCode??(error instanceof ModelError?'upstream':'output');}
+    try{html=mode==='demo'?examples[slot]:await generateModel(prompt,source?.html,env.OPENAI_API_KEY!,model!,context+` Explore alternative ${slot+1}: ${directions[slot]}. Preserve all requested functionality; explicit user constraints take priority.`,value=>{observation=value});}catch(error){errorCode=(observation as ModelObservation|null)?.errorCode??(error instanceof ModelError?'upstream':'output');}
     const updated=new Date().toISOString(),fence={sql:"EXISTS(SELECT 1 FROM forma_requests r JOIN forma_locks l ON l.request_id=r.id WHERE r.id=? AND r.owner=? AND r.status='running' AND l.expires_at>?)",bindings:[requests[slot],who,Date.now()]};
     let saveFailure='storage';
     try { const saved=await db.batch([
@@ -86,8 +91,8 @@ export async function createCandidates(request:Request){
       ]);
     }
   };
-  // Both reservations exist before either fetch starts; failures are independent.
-  await Promise.allSettled([run(0),run(1)]);
+  // All reservations exist before either fetch starts; failures are independent.
+  await Promise.allSettled(ids.map((_,slot)=>run(slot)));
   return json({group:await readCandidateGroup(who,groupId)},201);
 }
 
@@ -103,7 +108,7 @@ export async function adoptCandidate(request:Request,groupId:string){
   const sourceFence=group.app_id?" AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?"+(asNew?'':' AND current_version_id=?')+") AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND expires_at>?)":'';
   const bindings:(string|number)[]=[candidateId,groupId,who,group.managed_project_id,wid,who,...group.app_id?[group.app_id,who,...asNew?[]:[group.base_version_id!],group.app_id,Date.now()]:[],...asNew?[who,LIMITS.apps]:[appId]];
   const guard="EXISTS(SELECT 1 FROM motes_candidates c JOIN motes_candidate_groups g ON g.id=c.group_id WHERE c.id=? AND g.id=? AND g.owner=? AND c.status='ready' AND c.adopted_app_id IS NULL) AND EXISTS(SELECT 1 FROM motes_projects p JOIN motes_workspaces w ON w.id=p.workspace_id WHERE p.id=? AND p.workspace_id=? AND w.owner=? AND p.archived=0)"+sourceFence+(asNew?' AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?':' AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60');
-  const annotation=`采用两方案中的${candidate.slot===0?'A':'B'}；未额外调用模型。`;
+  const annotation=`采用候选方案 ${String.fromCharCode(65+candidate.slot)}；未额外调用模型。`;
   const statements=[asNew?db.prepare(`INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE ${guard}`).bind(appId,who,initialAppTitle(candidate.html,group.prompt),now,now,versionId,...bindings):db.prepare(`UPDATE forma_projects SET updated_at=? WHERE id=? AND owner=? AND ${guard}`).bind(now,appId,who,...bindings)];
   // Following writes depend on the newly inserted version, then adoption receipt.
   const gate=asNew?'EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?)':guard;

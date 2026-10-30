@@ -1,7 +1,7 @@
 import type { ModelObservation } from '../forma/model';
 export const GENERATION_LIMITS = { model: { visitor: 10, global: 50 }, demo: { visitor: 100, global: 2000 } };
 export type ModelOperation = 'generate' | 'modify' | 'repair' | 'candidate' | 'discuss';
-export function budgetReservation(db: D1Database, value: { id:string; owner:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string; units?: 1 | 2; fence?: { sql: string; bindings: (string | number | null)[] } }) {
+export function budgetReservation(db: D1Database, value: { id:string; owner:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string; units?: 1 | 2 | 3 | 4; fence?: { sql: string; bindings: (string | number | null)[] } }) {
   const day=value.createdAt.slice(0,10),limits=GENERATION_LIMITS[value.mode];
   return db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) SELECT ?,?,?,?,?,?,'running',? WHERE (SELECT count(*) FROM forma_requests WHERE owner=? AND day=? AND mode=?)+?<=? AND (SELECT count(*) FROM forma_requests WHERE day=? AND mode=?)+?<=?"+(value.fence?' AND '+value.fence.sql:'')).bind(value.id,value.owner,value.projectId,value.fingerprint,day,value.mode,value.createdAt,value.owner,day,value.mode,value.units??1,limits.visitor,day,value.mode,value.units??1,limits.global,...value.fence?.bindings??[]);
 }
