@@ -16,15 +16,18 @@ const PaletteContext = createContext<PaletteContextValue | null>(null);
 let storedPreference: PalettePreference = 'slate';
 let previewPreference: PalettePreference | null = null;
 let storageFailed = false;
+let preferenceLoaded = false;
 const listeners = new Set<() => void>();
 function subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); }
 function notify() { listeners.forEach(listener => listener()); }
 function getPreference() { return storedPreference; }
 function getPreviewPreference() { return previewPreference; }
 function getStorageFailure() { return storageFailed; }
+function getPreferenceLoaded() { return preferenceLoaded; }
 function getServerPreference(): PalettePreference { return 'slate'; }
 function getServerPreviewPreference(): PalettePreference | null { return null; }
 function getServerStorageFailure() { return false; }
+function getServerPreferenceLoaded() { return false; }
 
 export function usePalettePreference() {
   const value = useContext(PaletteContext);
@@ -37,6 +40,7 @@ export default function PalettePreferenceProvider({ children }: { children: Reac
   const preference = useSyncExternalStore(subscribe, getPreference, getServerPreference);
   const preview = useSyncExternalStore(subscribe, getPreviewPreference, getServerPreviewPreference);
   const storageUnavailable = useSyncExternalStore(subscribe, getStorageFailure, getServerStorageFailure);
+  const loaded = useSyncExternalStore(subscribe, getPreferenceLoaded, getServerPreferenceLoaded);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -51,6 +55,7 @@ export default function PalettePreferenceProvider({ children }: { children: Reac
     } catch {
       storageFailed = true;
     }
+    preferenceLoaded = true;
     window.addEventListener('storage', onStorage);
     notify();
     return () => window.removeEventListener('storage', onStorage);
@@ -86,11 +91,26 @@ export default function PalettePreferenceProvider({ children }: { children: Reac
     const root = document.documentElement;
     if (!isWorkbenchPath(pathname)) {
       delete root.dataset.motesPalette;
+      delete root.dataset.motesPaletteReady;
       return;
     }
     root.dataset.motesPalette = resolvePalette(preference, preview);
-    return () => { delete root.dataset.motesPalette; };
   }, [pathname, preference, preview]);
+
+  const workbenchPath = isWorkbenchPath(pathname);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!workbenchPath || !loaded) {
+      delete root.dataset.motesPaletteReady;
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => { root.dataset.motesPaletteReady = 'true'; });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      delete root.dataset.motesPaletteReady;
+      if (workbenchPath) delete root.dataset.motesPalette;
+    };
+  }, [workbenchPath, loaded]);
 
   const value = useMemo(() => ({ preference, setPreference, previewPalette, clearPreview, storageUnavailable }), [preference, setPreference, previewPalette, clearPreview, storageUnavailable]);
   return <PaletteContext.Provider value={value}>{children}</PaletteContext.Provider>;
