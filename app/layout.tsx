@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./components/motion-preferences.css";
 import MotionPreferenceProvider from "./components/MotionPreferenceProvider";
+import PalettePreferenceProvider from "./components/PalettePreferenceProvider";
 import HostLocaleProvider from "./components/HostLocaleProvider";
 import ThemePreferenceProvider from "./components/ThemePreferenceProvider";
 
@@ -11,5 +12,5 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body><HostLocaleProvider><ThemePreferenceProvider><MotionPreferenceProvider>{children}</MotionPreferenceProvider></ThemePreferenceProvider></HostLocaleProvider></body></html>;
+  return <html lang="zh-CN"><body><HostLocaleProvider><ThemePreferenceProvider><MotionPreferenceProvider><PalettePreferenceProvider>{children}</PalettePreferenceProvider></MotionPreferenceProvider></ThemePreferenceProvider></HostLocaleProvider></body></html>;
 }
