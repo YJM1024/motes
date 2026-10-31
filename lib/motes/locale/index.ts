@@ -1,3 +1,6 @@
+import {uxCoreMessages} from './ux-core';
+import {uxPanelMessages} from './ux-panels';
+import {uxLayoutMessages} from './ux-layout';
 import { backupMessages } from './backup';
 import { homeMessages } from './home';
 import { pageMessages } from './pages';
@@ -5,7 +8,7 @@ import { componentMessages } from './components';
 
 export type HostLocale = 'zh-CN' | 'en';
 export const HOST_LOCALE_KEY = 'motes:host-locale:v1';
-export const hostMessages = { ...homeMessages, ...pageMessages, ...componentMessages, ...backupMessages } as const;
+export const hostMessages = { ...homeMessages, ...pageMessages, ...componentMessages, ...backupMessages, ...uxCoreMessages, ...uxPanelMessages, ...uxLayoutMessages } as const;
 export type HostMessageKey = keyof typeof hostMessages;
 export type HostMessageParams = Readonly<Record<string, string | number>>;
 export function parseHostLocale(value: unknown): HostLocale { return value === 'en' ? 'en' : 'zh-CN'; }
