@@ -9,3 +9,5 @@
 :global(html[data-motes-theme="dark"]) .toggle{background:var(--motes-muted-surface);border-color:var(--motes-border)}
 :global(html[data-motes-theme="dark"]) .toggle button{color:var(--motes-muted)}
 :global(html[data-motes-theme="dark"]) .toggle button.active{background:#28364d;color:var(--motes-accent);box-shadow:none}
+.toggle{background:var(--motes-muted-surface);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);color:var(--motes-text)}.toggle button{min-height:var(--motes-control-height,40px);padding-inline:14px;border-radius:var(--motes-radius,12px);color:var(--motes-muted);font-size:13px}.toggle button.active{background:var(--motes-accent-soft,#eef3fb);color:var(--motes-accent);box-shadow:none}.toggle button:focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
+:global(html[data-motes-theme="dark"]) .toggle button.active{background:var(--motes-accent-soft);color:var(--motes-accent)}
