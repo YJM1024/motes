@@ -4,9 +4,9 @@
 
 [在线体验](https://forma-junmin.warmgrove10.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地运行补充](docs/local-setup.md) · [架构与取舍](docs/architecture.md) · [验收与上线状态](docs/acceptance.md)
 
-当前生产为 v15（2026-10-31，source 与 deployment ID 见[验收记录](docs/acceptance.md)）；native 部署和生产迁移已通过，线上 UI 读写复核仍在进行。v15 延续 v14 的 UI4 全站配色与中英文界面，并启用共享运行数据 SDK 和可选运行数据备份。生产复核状态以验收记录为准；本地与自动测试不代表长期负载或 SLA 验证。
+当前生产为 v15（2026-10-31，source 与 deployment ID 见[验收记录](docs/acceptance.md)）；native 部署和生产迁移已通过，线上计数器保存、刷新恢复及新访客读取复核已通过。v15 延续 v14 的 UI4 全站配色与中英文界面，并启用共享运行数据 SDK 和可选运行数据备份。生产复核状态以验收记录为准；本地与自动测试不代表长期负载或 SLA 验证。
 
-本轮已在本地验证运行数据写入、冲突处理和备份恢复；v15 生产迁移已通过，线上 UI 读写复核仍在进行。285 项测试、TypeScript 与构建通过；本轮未进行额外模型调用。详见[共享运行数据](docs/shared-runtime.md)与[非功能验收](docs/nonfunctional-verification.md)。
+本轮已在本地验证运行数据写入、冲突处理和备份恢复；v15 生产迁移已通过，线上计数器保存、刷新恢复及新访客读取复核已通过。285 项测试、TypeScript 与构建通过；本轮未进行额外模型调用。详见[共享运行数据](docs/shared-runtime.md)与[非功能验收](docs/nonfunctional-verification.md)。
 
 本页描述当前源码能力。线上部署与实际验证范围以[验收状态表](docs/acceptance.md#当前验收状态)为准。项目原名 Forma，沿用原地址和存储标识以保留已有作品。
 
