@@ -8,10 +8,10 @@ import styles from './PublicationPanel.module.css';
 import { hostText, useHostLocale } from './HostLocaleProvider';
 
 type Publication = { appId: string; versionId: string; versionNumber: number; title: string; path: string; publishedAt: string; updatedAt: string; enabled: boolean; revision: number };
-type Props = { project: Project; onClose: () => void };
+type Props = { project: Project; shared?: boolean; onClose: () => void };
 type Action = 'publish' | 'unpublish';
 
-export default function PublicationPanel({ project, onClose }: Props) {
+export default function PublicationPanel({ project, shared = false, onClose }: Props) {
   const { t, locale } = useHostLocale();
   const endpoint = `/api/projects/${encodeURIComponent(project.id)}/publication`;
   const [publication, setPublication] = useState<Publication|null>(null);
@@ -62,7 +62,7 @@ export default function PublicationPanel({ project, onClose }: Props) {
   return <dialog ref={dialog} className={styles.panel} aria-labelledby="publication-title" onCancel={event=>{event.preventDefault();if(!busy)onClose();}}>
     <header className={styles.header}><div><h2 id="publication-title">{t('稳定发布链接')}</h2><p>{project.title}</p></div><button type="button" onClick={onClose} disabled={busy} aria-label={t('关闭发布管理')}>{t('关闭')}</button></header>
     <div className={styles.body}>
-      <p className={styles.disclosure}>{t('发布会公开所选版本的标题和完整 HTML 页面，任何持有链接的人都可访问。需求对话和其他版本不会公开；发布前请检查标题和源码中是否包含私人内容。不会调用模型。')}</p>
+      <p className={styles.disclosure}>{t(shared?'发布链接只展示所选已保存版本的标题和完整 HTML。公共工作空间中的项目、对话和其他版本也可被访客查看和修改；请勿放入私密内容。不会调用模型。':'发布会公开所选版本的标题和完整 HTML 页面，任何持有链接的人都可访问。需求对话和其他版本不会公开；发布前请检查标题和源码中是否包含私人内容。不会调用模型。')}</p>
       <p className={styles.stable}>{t('此链接保持稳定。更新发布会让同一链接显示新选版本；暂停后链接返回 404，之后重新发布会恢复原链接。')}</p>
       <div className={styles.versionPicker}><label>{t('发布内容')}<select value={selectedVersionId} disabled={loading||busy||!!action||!project.versions.length} onChange={event=>{setSelectedVersionId(event.target.value);setError('');setFeedback('');setConflict(false);}}><option value="" disabled>{t('请选择已保存版本')}</option>{project.versions.map(version=><option key={version.id} value={version.id}>v{version.number}{version.id===project.currentVersionId?t(' · 当前'):''}{publication?.versionId===version.id?t(' · 已发布'):''}{version.name?` · ${version.name}`:''}</option>)}</select></label><span>{t('只会公开所选保存版本的标题和页面内容。')}</span></div>
       <section className={styles.preflight} aria-labelledby="publication-preflight-title">

@@ -1,5 +1,5 @@
 import { database, json, payload, readProject } from '../forma/server';
-import { digest, HttpError, owner } from '../forma/security';
+import { digest, HttpError, owner, isSharedOwner } from '../forma/security';
 import { initializeWorkspace, LIMITS } from './management';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,7 +10,7 @@ function identifier(value: unknown) {
 
 /** Copy an immutable version, never generate HTML or alter the source pointer. */
 export async function forkVersion(request: Request, sourceId: string) {
-  const who = await owner(request), body = await payload(request), db = database();
+  const who = await owner(request), shared = isSharedOwner(who), body = await payload(request), db = database();
   identifier(sourceId);
   if (Object.keys(body).some(k => !['versionId', 'targetProjectId', 'title', 'requestId'].includes(k))) throw new HttpError(400, '包含不支持的字段。');
   const versionId = identifier(body.versionId);
@@ -42,7 +42,9 @@ export async function forkVersion(request: Request, sourceId: string) {
   }
   const id = crypto.randomUUID(), copyVersion = crypto.randomUUID(), now = new Date().toISOString();
   const title = typeof body.title === 'string' ? body.title.trim() : `${source.title.slice(0,55)} · v${source.number} 副本`.slice(0,80);
-  const description = `从「${source.title.slice(0,80)}」v${source.number} 创建的历史副本；未调用模型。`;
+  const description = shared
+    ? `公共演示应用，所有访客可见和修改。基于「${source.title.slice(0,80)}」v${source.number} 的历史版本创建；未调用模型。`
+    : `从「${source.title.slice(0,80)}」v${source.number} 创建的历史副本；未调用模型。`;
   // D1 batch is one transaction. Recheck source ownership, the immutable version,
   // live generation lease, target scope and capacity inside the first insert.
   // Every following insert depends on that new row; none may become an orphan.

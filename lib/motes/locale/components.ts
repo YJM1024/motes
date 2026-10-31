@@ -283,6 +283,7 @@ export const componentMessages = {
   '先预检再确认；将新建一个项目，应用与版本使用新编号，不覆盖原作，也不恢复公开分享。已有同名标签会复用当前颜色。备份代码仍在隔离预览中运行。': 'Preview the backup before confirming. A new project will be created with new app and version IDs. Originals are not overwritten and public shares are not restored. Existing tags with the same name reuse their current color. Backed-up code still runs in an isolated preview.',
   '选择 JSON 备份': 'Choose JSON backup', '{apps} 个应用 · {versions} 个版本 · {size} KiB': '{apps} apps · {versions} versions · {size} KiB', '{count} 个版本': '{count} versions',
   '确认导入这些应用为新的私有副本': 'Confirm importing these apps as new private copies', '正在导入…': 'Importing…', '确认导入副本': 'Confirm import',
+  '导入已完成，可关闭此窗口查看新建的私有项目。': 'Import is complete. Close this window to view the new private project.',
   '每份最多 2 MiB、10 个应用、200 个版本，每应用 60 个版本。超限请分批导出。预检不写入作品，不调用模型；不会恢复预览中临时填写的数据。': 'Each backup can contain up to 2 MiB, 10 apps, and 200 versions, with up to 60 versions per app. Export in batches if needed. Preview does not write to your workspace or call a model. Temporary preview input is not restored.',
   '正在处理，请稍候…': 'Working… Please wait.',
   '模板操作未完成，请重试。': 'The template action did not complete. Please retry.', '读取失败，请重试。': 'Could not load the templates. Please retry.',

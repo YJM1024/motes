@@ -1,5 +1,5 @@
 import { database,json,payload,readProject } from '../forma/server';
-import { owner,digest,HttpError } from '../forma/security';
+import { owner,digest,HttpError,isSharedOwner } from '../forma/security';
 import { initializeWorkspace,LIMITS } from './management';
 import type { AppTemplateSummary,AppTemplateLibrary } from './app-template-types';
 export const APP_TEMPLATE_LIMIT=30;
@@ -29,13 +29,13 @@ export async function manageAppTemplates(request:Request){
  return json({...await snapshot(who,wid),completed:true,templateId:tid},action==='create'?201:200);
 }
 export async function copyAppTemplate(request:Request,tid:string){
- const who=await owner(request),body=await payload(request),db=database(),wid=await initializeWorkspace(who);identifier(tid);if(Object.keys(body).some(k=>!['requestId','managedProjectId'].includes(k)))throw new HttpError(400,'模板复制参数无效。');const rid=requestId(body.requestId),target=identifier(body.managedProjectId),fingerprint=await digest(JSON.stringify(['app-template-copy',tid,target]));
+ const who=await owner(request),shared=isSharedOwner(who),body=await payload(request),db=database(),wid=await initializeWorkspace(who);identifier(tid);if(Object.keys(body).some(k=>!['requestId','managedProjectId'].includes(k)))throw new HttpError(400,'模板复制参数无效。');const rid=requestId(body.requestId),target=identifier(body.managedProjectId),fingerprint=await digest(JSON.stringify(['app-template-copy',tid,target]));
  const prior=async()=>{const row=await db.prepare('SELECT owner,fingerprint,mode,status,project_id FROM forma_requests WHERE id=?').bind(rid).first<{owner:string;fingerprint:string;mode:string;status:string;project_id:string}>();if(!row)return null;if(row.owner!==who||row.fingerprint!==fingerprint||row.mode!=='app-template-copy'||row.status!=='done')throw new HttpError(409,'此复制请求编号已被使用。');return json({project:await readProject(who,row.project_id),copied:true});};const old=await prior();if(old)return old;
  const template=await db.prepare('SELECT t.* FROM motes_app_templates t JOIN motes_workspaces w ON w.id=t.workspace_id WHERE t.id=? AND t.workspace_id=? AND w.owner=?').bind(tid,wid,who).first<Row>();if(!template)throw new HttpError(404,'模板不存在或不属于当前访客。');
  const appId=crypto.randomUUID(),versionId=crypto.randomUUID(),now=new Date().toISOString(),guard='EXISTS(SELECT 1 FROM motes_app_templates t JOIN motes_workspaces w ON w.id=t.workspace_id WHERE t.id=? AND t.workspace_id=? AND w.owner=?) AND EXISTS(SELECT 1 FROM motes_projects p JOIN motes_workspaces w ON w.id=p.workspace_id WHERE p.id=? AND p.workspace_id=? AND w.owner=? AND p.archived=0) AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?',bindings=[tid,wid,who,target,wid,who,who,LIMITS.apps],gate='EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?)',gateBindings=[appId,who,versionId];
  let results:D1Result[];try{results=await db.batch([
   db.prepare('INSERT INTO forma_projects(id,owner,title,created_at,updated_at,current_version_id) SELECT ?,?,?,?,?,? WHERE '+guard).bind(appId,who,template.name,now,now,versionId,...bindings),
-  db.prepare("INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,1,?,?,?,?, 'manual',NULL WHERE "+gate).bind(versionId,appId,'从个人应用模板创建：'+template.name,'复制独立私有应用，未调用模型；不复制原应用运行时、讨论或权限。',template.html!,now,...gateBindings),
+  db.prepare("INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,?,1,?,?,?,?, 'manual',NULL WHERE "+gate).bind(versionId,appId,(shared?'从公共演示空间模板创建：':'从个人应用模板创建：')+template.name,shared?'创建公共演示应用，所有访客可见和修改。未调用模型；不复制原应用运行时、讨论或权限。':'复制独立私有应用，未调用模型；不复制原应用运行时、讨论或权限。',template.html!,now,...gateBindings),
   db.prepare("INSERT INTO motes_version_config(version_id,operation,base_version_id,settings_json,created_at) SELECT ?,'template-copy',?,NULL,? WHERE "+gate).bind(versionId,template.source_version_id,now,...gateBindings),
   db.prepare('INSERT INTO motes_apps(app_id,workspace_id,project_id,description,updated_at) SELECT ?,?,?,?,? WHERE '+gate).bind(appId,wid,target,template.description,now,...gateBindings),
   db.prepare("INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) SELECT ?,?,?,?,?,'app-template-copy','done',?,? WHERE "+gate).bind(rid,who,appId,fingerprint,now.slice(0,10),now,versionId,...gateBindings),

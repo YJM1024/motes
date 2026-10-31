@@ -9,7 +9,7 @@ async function harness(){
   for(const file of ['0000_great_roland_deschain.sql','0001_first_wind_dancer.sql','0004_version_annotations.sql','0007_generation_candidates.sql','0014_version_config.sql'])sqlite.exec(await readFile(new URL('../drizzle/'+file,import.meta.url),'utf8'));
   const control={beforeBatch:null};
   function prepare(sql,args=[]){return {bind(...values){return prepare(sql,values)},async first(){return sqlite.prepare(sql).get(...args)??null},async all(){return {results:sqlite.prepare(sql).all(...args)}},run(){return {meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}}}};}
-  const key=crypto.randomUUID();globalThis[key]={DB:{prepare,async batch(statements){if(control.beforeBatch){const run=control.beforeBatch;control.beforeBatch=null;run();}sqlite.exec('BEGIN');try{const results=statements.map(s=>s.run());sqlite.exec('COMMIT');return results;}catch(e){sqlite.exec('ROLLBACK');throw e;}}}};
+  const key=crypto.randomUUID(),env={DB:{prepare,async batch(statements){if(control.beforeBatch){const run=control.beforeBatch;control.beforeBatch=null;run();}sqlite.exec('BEGIN');try{const results=statements.map(s=>s.run());sqlite.exec('COMMIT');return results;}catch(e){sqlite.exec('ROLLBACK');throw e;}}}};globalThis[key]=env;
   const cache=new Map();
   async function moduleUrl(file){
     if(cache.has(file))return cache.get(file);
@@ -26,7 +26,7 @@ async function harness(){
   delete globalThis[key];
   const who=visitor=>security.digest(visitor.repeat(64));
   async function seed(visitor='a',mode='model'){
-    const own=await who(visitor),id=crypto.randomUUID(),versionId=crypto.randomUUID(),current=crypto.randomUUID(),now=new Date().toISOString();
+    const own=visitor==='shared'?security.sharedWorkspaceOwner():await who(visitor),id=crypto.randomUUID(),versionId=crypto.randomUUID(),current=crypto.randomUUID(),now=new Date().toISOString();
     sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,own,'原应用',now,now,current);
     for(const [v,n,html] of [[versionId,1,'<html><body>old</body></html>'],[current,2,'<html><body>current</body></html>']])sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(v,id,n,'原需求','原摘要',html,now,mode,mode==='model'?'source-model':null);
     await management.initializeWorkspace(own);return {id,versionId,current,owner:own};
@@ -35,7 +35,7 @@ async function harness(){
     const req=new Request('https://motes.test/api/projects/'+id+'/fork',{method:'POST',headers:{origin,cookie:'forma_session='+visitor.repeat(64),'content-type':'application/json'},body:JSON.stringify(body)});
     const response=await server.route(()=>tools.forkVersion(req,id));return {status:response.status,data:await response.json()};
   }
-  return {sqlite,control,tools,management,who,seed,request,close:()=>sqlite.close()};
+  return {sqlite,control,tools,management,who,seed,request,enableShared:()=>{env.MOTES_WORKSPACE_VISIBILITY='shared';},sharedOwner:security.sharedWorkspaceOwner,close:()=>sqlite.close()};
 }
 
 test('historical copy preserves selected HTML as v1, source pointers and ownership; no model call',async t=>{
@@ -55,6 +55,10 @@ test('historical copy preserves selected HTML as v1, source pointers and ownersh
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,2);
   assert.equal(h.sqlite.prepare("SELECT count(*) AS n FROM forma_requests WHERE mode IN ('model','demo')").get().n,0,'Copy does not use generation quota');
   assert.equal(h.sqlite.prepare('PRAGMA foreign_key_check').all().length,0);
+});
+
+test('shared historical copies are labeled public demo apps for all visitors',async t=>{
+  const h=await harness();t.after(h.close);h.enableShared();const source=await h.seed('shared'),result=await h.request(source.id,{versionId:source.versionId,requestId:crypto.randomUUID()});assert.equal(result.status,201);assert.match(result.data.project.versions[0].summary,/公共演示应用，所有访客可见和修改/);const description=h.sqlite.prepare('SELECT description FROM motes_apps WHERE app_id=?').get(result.data.project.id).description;assert.match(description,/公共演示应用，所有访客可见和修改/);
 });
 
 test('explicit destination is scoped to this visitor; wrong source/version and reused IDs cannot leak data',async t=>{

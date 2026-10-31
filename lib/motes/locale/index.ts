@@ -5,10 +5,11 @@ import { backupMessages } from './backup';
 import { homeMessages } from './home';
 import { pageMessages } from './pages';
 import { componentMessages } from './components';
+import { sharedMessages } from './shared';
 
 export type HostLocale = 'zh-CN' | 'en';
 export const HOST_LOCALE_KEY = 'motes:host-locale:v1';
-export const hostMessages = { ...homeMessages, ...pageMessages, ...componentMessages, ...backupMessages, ...uxCoreMessages, ...uxPanelMessages, ...uxLayoutMessages } as const;
+export const hostMessages = { ...homeMessages, ...pageMessages, ...componentMessages, ...sharedMessages, ...backupMessages, ...uxCoreMessages, ...uxPanelMessages, ...uxLayoutMessages } as const;
 export type HostMessageKey = keyof typeof hostMessages;
 export type HostMessageParams = Readonly<Record<string, string | number>>;
 export function parseHostLocale(value: unknown): HostLocale { return value === 'en' ? 'en' : 'zh-CN'; }

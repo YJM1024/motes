@@ -13,7 +13,7 @@ type AppTemplate = { id: string; name: string; description: string; sourceAppId:
 type TemplateDetail = AppTemplate & { html: string };
 type LibrarySnapshot = { workspaceId: string; templates: AppTemplate[]; limit: number };
 type MutationResult = LibrarySnapshot & { completed: true; templateId: string };
-type Props = { project: Project | null; onClose: () => void; onCopied: (project: Project) => void };
+type Props = { project: Project | null; shared: boolean; onClose: () => void; onCopied: (project: Project) => void };
 
 const fixedErrorKeys: Record<string, HostMessageKey> = {
   '请求来源无效，请返回本站重试。': '请求来源无效，请返回本站重试。',
@@ -47,7 +47,7 @@ async function request<T>(path: string, body?: Record<string, unknown>, signal?:
   return data;
 }
 
-export default function AppTemplateLibrary({ project, onClose, onCopied }: Props) {
+export default function AppTemplateLibrary({ project, shared, onClose, onCopied }: Props) {
   const { t, locale } = useHostLocale();
   const dialog = useRef<HTMLDialogElement>(null), closeButton = useRef<HTMLButtonElement>(null), requestRef = useRef<AppTemplateRequest | null>(null), inFlight = useRef(false);
   const [library, setLibrary] = useState<LibrarySnapshot | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState('');
@@ -178,7 +178,7 @@ export default function AppTemplateLibrary({ project, onClose, onCopied }: Props
             <div className={styles.detailHeading}><div><h3>{selected.name}</h3><p>{selected.description || t('暂无说明')}</p></div><span>{t('独立快照')}</span></div>
             <dl className={styles.source}><div><dt>{t('来源应用')}</dt><dd>{project?.id === detail.sourceAppId ? project.title : t('其他来源应用')}</dd></div><div><dt>{t('来源版本')}</dt><dd>{sourceVersion ? `v${sourceVersion.number}${sourceVersion.name ? ` · ${sourceVersion.name}` : ''}` : t('版本详情不可用')}</dd></div></dl>
             <details className={styles.sourceIds}><summary>{t('查看内部来源编号')}</summary><dl><div><dt>{t('来源应用编号')}</dt><dd>{detail.sourceAppId}</dd></div><div><dt>{t('来源版本编号')}</dt><dd>{detail.sourceVersionId}</dd></div></dl></details>
-            <p className={styles.note}>{t('模板内容固定于来源版本。复制会创建独立私有应用；不会带入原应用的讨论、分享链接、应用设置或预览运行时输入。')}</p>
+            <p className={styles.note}>{t(shared ? '模板内容固定于来源版本。复制会创建公共演示应用，所有访客可见和修改；不会带入原应用的讨论、分享链接、应用设置或预览运行时输入。' : '模板内容固定于来源版本。复制会创建独立私有应用；不会带入原应用的讨论、分享链接、应用设置或预览运行时输入。')}</p>
             <div className={styles.preview}><div className={styles.previewTitle}>{t('隔离预览')}</div><iframe title={t('模板“{name}”的隔离预览', { name: detail.name })} srcDoc={srcDoc} sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" /></div>
             <div className={styles.detailActions}><button type="button" onClick={() => { setEditing(value => !value); setDeleting(false); setCopyOpen(false); setName(selected.name); setDescription(selected.description); }} disabled={!!busy}>{t('修改名称和说明')}</button><button type="button" onClick={() => { setCopyOpen(value => !value); setEditing(false); setDeleting(false); if (!copyOpen) void loadProjects(); }} disabled={!!busy}>{t('复制为新应用')}</button><button type="button" className={styles.deleteAction} onClick={() => { setDeleting(true); setEditing(false); setCopyOpen(false); }} disabled={!!busy}>{t('删除模板')}</button></div>
             {editing && <form className={styles.editForm} onSubmit={event => { event.preventDefault(); if (name.trim()) void mutateLibrary('update', { id: selected.id, name: name.trim(), description: description.trim() }); }}><label>{t('模板名称')}<input value={name} onChange={event => setName(event.target.value)} required disabled={!!busy} /></label><label>{t('说明')}<textarea rows={2} value={description} onChange={event => setDescription(event.target.value)} disabled={!!busy} /></label><div><button type="button" onClick={() => setEditing(false)} disabled={!!busy}>{t('取消')}</button><button type="submit" className={styles.primary} disabled={!name.trim() || !!busy}>{busy === 'update' ? t('正在保存…') : t('保存修改')}</button></div></form>}
