@@ -236,3 +236,4 @@ html .forma-app .suggestion-row button{min-height:32px;padding:6px 10px;border-r
 html .forma-app .message-author>span{font-size:11px;line-height:1.5}
 @media(max-width:600px){html .forma-app .composer .composer-footer .send-button{width:44px;height:44px;min-width:44px;max-width:44px;min-height:44px;flex-basis:44px}html .forma-app .composer .composer-footer>button[type="button"],html .forma-app .suggestion-row button{min-height:44px}}
 @media(max-width:600px){.is-workspace .topbar-right{width:100%}}
+@media(max-width:700px){html :is(.manage-shell,.settings-shell,.compare-shell) :is(input:not([type="checkbox"]):not([type="color"]),select,textarea){font-size:16px}}
