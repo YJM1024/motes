@@ -67,3 +67,4 @@ html[data-motes-theme="dark"] .manage-card-top .manage-icon,html[data-motes-them
 .manage-sidebar nav button.selected,.manage-star-filter.selected{background:var(--motes-accent-soft,#eef3fb);border-color:var(--motes-border);color:var(--motes-accent)}
 html[data-motes-theme="dark"] .manage-danger{background:#3a2928;color:#f0b7aa;border-color:#69423d}
 .manage-palette-slot{display:inline-flex;align-items:center;flex:0 0 auto;margin-left:auto}
+html .manage-shell a.manage-primary.manage-create,html .manage-shell a.manage-primary.manage-create:hover,html .manage-shell a.manage-primary.manage-create:focus-visible{min-height:var(--motes-control-height,40px);background:var(--motes-accent);border-color:var(--motes-accent);color:var(--motes-on-accent,#fff)}
