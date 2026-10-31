@@ -1,8 +1,8 @@
 export type WorkspaceBackupScope = { kind: 'workspace' } | { kind: 'project'; projectId: string } | { kind: 'apps'; appIds: string[] };
-export type WorkspaceBackupSections = { discussions: boolean; promptTemplates: boolean; appTemplates: boolean; settings: boolean; versionConfigs: boolean };
+export type WorkspaceBackupSections = { discussions: boolean; promptTemplates: boolean; appTemplates: boolean; settings: boolean; versionConfigs: boolean; runtimeData: boolean };
 export type WorkspaceBackupRequest = { fingerprint: string; requestId: string };
 
-const sectionKeys: (keyof WorkspaceBackupSections)[] = ['discussions', 'promptTemplates', 'appTemplates', 'settings', 'versionConfigs'];
+const sectionKeys: (keyof WorkspaceBackupSections)[] = ['discussions', 'promptTemplates', 'appTemplates', 'settings', 'versionConfigs', 'runtimeData'];
 
 export function buildWorkspaceBackupQuery(scope: WorkspaceBackupScope, sections: WorkspaceBackupSections): string {
   const params = new URLSearchParams();

@@ -11,10 +11,10 @@ import styles from './WorkspaceBackupPanel.module.css';
 const MAX_BACKUP_BYTES = 2 * 1024 * 1024;
 type BackupPreview = {
   previewHash: string; bytes: number; projectCount: number; appCount: number; versionCount: number;
-  promptTemplateCount: number; appTemplateCount: number; discussionCount: number; turnCount: number; versionConfigCount: number;
+  promptTemplateCount: number; appTemplateCount: number; discussionCount: number; turnCount: number; versionConfigCount: number; runtimeDataCount?: number;
   sections: Partial<WorkspaceBackupSections>; notes: string[];
 };
-export type WorkspaceBackupImportResult = { imported: true; projectIds: string[]; appIds: string[]; promptTemplateCount: number; appTemplateCount: number; discussionCount: number };
+export type WorkspaceBackupImportResult = { imported: true; projectIds: string[]; appIds: string[]; promptTemplateCount: number; appTemplateCount: number; discussionCount: number; runtimeDataCount?: number };
 type Props = { snapshot: WorkspaceSnapshot; onClose: () => void; onImported: (result: WorkspaceBackupImportResult) => void };
 
 type Translate = (key: HostMessageKey, params?: HostMessageParams) => string;
@@ -43,7 +43,7 @@ export default function WorkspaceBackupPanel({ snapshot, onClose, onImported }: 
   const [scopeMode, setScopeMode] = useState<'workspace' | 'project' | 'apps'>('workspace');
   const [projectId, setProjectId] = useState(snapshot.workspace.defaultProjectId);
   const [appIds, setAppIds] = useState<string[]>([]);
-  const [sections, setSections] = useState<WorkspaceBackupSections>({ discussions: true, promptTemplates: true, appTemplates: true, settings: true, versionConfigs: true });
+  const [sections, setSections] = useState<WorkspaceBackupSections>({ discussions: true, promptTemplates: true, appTemplates: true, settings: true, versionConfigs: true, runtimeData: true });
   const [busy, setBusy] = useState<'download' | 'preview' | 'import' | ''>('');
   const [downloadError, setDownloadError] = useState(''), [downloadNotice, setDownloadNotice] = useState('');
   const [importError, setImportError] = useState(''), [importNotice, setImportNotice] = useState('');
@@ -123,7 +123,10 @@ export default function WorkspaceBackupPanel({ snapshot, onClose, onImported }: 
       const result = await post<WorkspaceBackupImportResult>({ action: 'import', backup, previewHash: preview.previewHash, requestId: request.requestId }, t);
       if (result.imported !== true || !Array.isArray(result.projectIds) || !Array.isArray(result.appIds)) throw new Error(t('服务未确认导入完成；可使用同一文件和预检结果重试核对。'));
       setImported(true);
-      setImportNotice(t('已导入 {projects} 个新项目、{apps} 个新应用；未覆盖现有项目或空间设置。', { projects: result.projectIds.length, apps: result.appIds.length }));
+      const runtimeDataCount = count(result.runtimeDataCount);
+      setImportNotice(runtimeDataCount > 0
+        ? t('已导入 {projects} 个新项目、{apps} 个新应用，并恢复 {records} 条应用业务数据记录；未覆盖现有项目或空间设置。', { projects: result.projectIds.length, apps: result.appIds.length, records: runtimeDataCount })
+        : t('已导入 {projects} 个新项目、{apps} 个新应用；未检测到应用业务数据记录（旧备份可能未包含此项），未覆盖现有项目或空间设置。', { projects: result.projectIds.length, apps: result.appIds.length }));
       onImported(result);
     } catch (cause) {
       setImportError(`${cause instanceof Error ? localizeKnownBackupMessage(cause.message, t) : t('导入未完成。')} ${t('请保留同一文件和预检结果后重试；更换文件会使用新的请求编号。')}`);
@@ -137,12 +140,13 @@ export default function WorkspaceBackupPanel({ snapshot, onClose, onImported }: 
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="workspace-backup-title" onCancel={event => { event.preventDefault(); close(); }}>
     <header className={styles.header}><div><h2 id="workspace-backup-title">{t('工作空间备份')}</h2><p>{t('导出为 JSON，导入时先由服务端预检；确认后创建独立副本。')}</p></div><button ref={closeButton} type="button" onClick={close} disabled={!!busy} aria-label={t('关闭工作空间备份')}>{t('关闭')}</button></header>
     <div className={styles.body}>
-      <section className={styles.disclosure}><h3>{t('备份范围与隐私')}</h3><p>{t('备份不包含身份凭据、API Key、分享发布令牌、运行状态、进行中请求、候选暂存结果、运行时输入或浏览器本地偏好（收藏、分类、布局和草稿）。导入会创建全新的项目和应用，不覆盖当前空间；空间设置只作为新项目的默认设置。')}</p><p>{t('导出的讨论、需求模板、应用模板、非敏感设置和版本配置可分别选择。模板是整个空间级数据，与所选项目或应用范围无关。')}</p></section>
-      <section className={styles.section} aria-labelledby="workspace-export-heading"><div className={styles.sectionHeading}><div><h3 id="workspace-export-heading">{t('导出工作空间')}</h3><p>{t('单次最多 2 MiB、10 个应用、200 个版本。超过上限时可选择更少应用，或关闭模板部分。')}</p></div></div>
+      <section className={styles.disclosure}><h3>{t('备份范围与隐私')}</h3><p>{t('备份不包含身份凭据、API Key、分享发布令牌、运行状态、进行中请求、候选暂存结果或浏览器本地偏好（收藏、分类、布局和草稿）。可选的“应用业务数据”仅包含应用通过 Motes 数据接口保存的键值记录；共享工作空间中的访客可共同读取和修改这些记录。它不包含未保存的页面 DOM 状态、临时预览状态或输入内容。导入会创建全新的项目和应用，不覆盖当前空间；空间设置只作为新项目的默认设置。')}</p><p>{t('导出的讨论、需求模板、应用模板、非敏感设置、版本配置和应用业务数据可分别选择。模板是整个空间级数据，与所选项目或应用范围无关。')}</p></section>
+      <section className={styles.section} aria-labelledby="workspace-export-heading"><div className={styles.sectionHeading}><div><h3 id="workspace-export-heading">{t('导出工作空间')}</h3><p>{t('单次最多 2 MiB、10 个应用、200 个版本。超过上限时可选择更少应用，或关闭部分备份内容；不会静默截断。')}</p></div></div>
         <fieldset className={styles.scope}><legend>{t('导出范围')}</legend><label><input type="radio" name="backup-scope" checked={scopeMode === 'workspace'} onChange={() => setScopeMode('workspace')} disabled={!!busy} />{t('整个空间')}</label><label><input type="radio" name="backup-scope" checked={scopeMode === 'project'} onChange={() => setScopeMode('project')} disabled={!!busy} />{t('所选项目')}</label><label><input type="radio" name="backup-scope" checked={scopeMode === 'apps'} onChange={() => setScopeMode('apps')} disabled={!!busy} />{t('所选应用')}</label></fieldset>
         {scopeMode === 'project' && <label className={styles.field}>{t('项目')}<select value={projectId} onChange={event => setProjectId(event.target.value)} disabled={!!busy}>{snapshot.projects.map(project => <option key={project.id} value={project.id}>{project.name}{project.archived ? t(' · 已归档') : ''} · {project.appCount} {t(' 个应用')}</option>)}</select></label>}
         {scopeMode === 'apps' && <div className={styles.appSelect}><div><strong>{t('选择应用（最多 10 个）')}</strong><span>{appIds.length}/10</span></div>{!snapshot.apps.length ? <p>{t('当前没有可选择的应用。')}</p> : <ul>{snapshot.apps.map(app => <li key={app.id}><label><input type="checkbox" checked={appIds.includes(app.id)} onChange={event => setAppIds(current => event.target.checked ? [...current, app.id] : current.filter(id => id !== app.id))} disabled={!!busy || (!appIds.includes(app.id) && appIds.length >= 10)} /><span>{app.name}<small>{projectNames.get(app.projectId) || t('项目')}{app.archived ? t(' · 已归档') : ''}</small></span></label></li>)}</ul>}</div>}
-        <fieldset className={styles.sections}><legend>{t('备份内容')}</legend>{([["discussions",'讨论与消息'],["promptTemplates",'需求模板'],["appTemplates",'应用模板'],["settings",'非敏感设置'],["versionConfigs",'版本配置']] as const).map(([key,label])=><label key={key}><input type="checkbox" checked={sections[key]} onChange={event => setSection(key,event.target.checked)} disabled={!!busy} />{t(label)}</label>)}</fieldset>
+        <fieldset className={styles.sections}><legend>{t('备份内容')}</legend>{([["discussions",'讨论与消息'],["promptTemplates",'需求模板'],["appTemplates",'应用模板'],["settings",'非敏感设置'],["versionConfigs",'版本配置'],["runtimeData",'应用业务数据']] as const).map(([key,label])=><label key={key}><input type="checkbox" checked={sections[key]} onChange={event => setSection(key,event.target.checked)} disabled={!!busy} />{t(label)}</label>)}</fieldset>
+        <p className={styles.hint}>{t('应用业务数据默认包含：仅备份 Motes 数据接口保存的记录。共享空间的访客可共同读写这些数据；未保存的 DOM 状态不包含。取消勾选可减小备份体积。')}</p>
         {sections.promptTemplates || sections.appTemplates ? <p className={styles.hint}>{t('需求模板和应用模板始终按整个空间导出，不随项目或应用筛选。')}</p> : null}
         {scopeMode === 'project' && (snapshot.projects.find(project => project.id === projectId)?.appCount ?? 0) > 10 && <p className={styles.warning}>{t('此项目有超过 10 个应用。请切换到“所选应用”分批导出。')}</p>}
         {appLimitExceeded && <p className={styles.warning}>{t('每份最多 10 个应用，请减少选择。')}</p>}
@@ -153,7 +157,8 @@ export default function WorkspaceBackupPanel({ snapshot, onClose, onImported }: 
         <label className={styles.file}>{t('选择工作空间备份 JSON')}<input type="file" accept=".json,application/json" onChange={event => void inspectFile(event)} disabled={!!busy} /></label>
         {busy === 'preview' && <p className={styles.status} role="status">{t('正在读取文件并请求服务端预检…')}</p>}
         {importError && <p className={styles.error} role="alert">{importError}</p>}{importNotice && <p className={styles.notice} role="status">{importNotice}</p>}
-        {preview && <div className={styles.preview}><h4>{t('服务端预检结果')}</h4><p>{preview.projectCount} {t(' 个项目 · ')}{preview.appCount} {t(' 个应用 · ')}{preview.versionCount} {t(' 个版本 · ')} {formatBackupBytes(preview.bytes)}</p><dl>{[["promptTemplateCount",'需求模板'],["appTemplateCount",'应用模板'],["discussionCount",'讨论线程'],["turnCount",'讨论消息'],["versionConfigCount",'版本配置']] .map(([key,label])=><div key={key}><dt>{t(label as HostMessageKey)}</dt><dd>{count(preview[key as keyof BackupPreview])}</dd></div>)}</dl>
+        {preview && <div className={styles.preview}><h4>{t('服务端预检结果')}</h4><p>{preview.projectCount} {t(' 个项目 · ')}{preview.appCount} {t(' 个应用 · ')}{preview.versionCount} {t(' 个版本 · ')} {formatBackupBytes(preview.bytes)}</p><dl>{[["promptTemplateCount",'需求模板'],["appTemplateCount",'应用模板'],["discussionCount",'讨论线程'],["turnCount",'讨论消息'],["versionConfigCount",'版本配置'],["runtimeDataCount",'应用业务数据记录']] .map(([key,label])=><div key={key}><dt>{t(label as HostMessageKey)}</dt><dd>{count(preview[key as keyof BackupPreview])}</dd></div>)}</dl>
+          {preview.sections.runtimeData !== true && <p className={styles.hint}>{t('此备份未包含应用业务数据；不会在导入时恢复这类记录。')}</p>}
           {preview.notes.length > 0 && <ul className={styles.notes}>{preview.notes.map((note,index)=><li key={index}>{localizeKnownBackupMessage(note,t)}</li>)}</ul>}
           <label className={styles.confirm}><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={!!busy || imported} /> {t('我确认导入为新建项目和应用副本；不会覆盖当前空间设置、分享或已有内容。')}</label>
           <button type="button" className={styles.primary} onClick={() => void importBackup()} disabled={!confirmed || !!busy || imported}>{busy === 'import' ? t('正在创建副本…') : imported ? t('已完成导入') : importError ? t('使用同一预检结果重试导入') : t('确认导入新副本')}</button>
