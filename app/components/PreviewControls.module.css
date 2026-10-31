@@ -11,10 +11,26 @@
 .confirm{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 9px;border:1px solid #eadfca;border-radius:8px;background:#fcfaf4;color:#655d50}
 .confirm button{border:1px solid #e4ded2;background:#fff}
 .confirm button:last-child{background:#f0e8dc}
-@media(max-width:620px){.root{gap:6px}.confirm{width:100%;font-size:11px}.width input{width:68px}}
+.mobileSettings{display:none}
+@media(max-width:620px){
+  .root{gap:6px;align-items:center}
+  .devices{flex:1 1 auto;min-width:0}
+  .devices button,.icon{min-height:40px;min-width:40px}
+  .desktopCustom,.root>.width,.root>.scale{display:none}
+  .mobileSettings{display:block;position:relative;flex:0 0 auto}
+  .mobileSettings>summary{min-height:40px;display:inline-flex;align-items:center;padding:0 9px;border:1px solid #e7e5e1;border-radius:7px;background:#fff;color:#494640;cursor:pointer;list-style:none;white-space:nowrap}
+  .mobileSettings>summary::-webkit-details-marker{display:none}
+  .mobileSettings>summary:focus-visible,.mobileSettingsBody button:focus-visible{outline:2px solid #8a9bb4;outline-offset:2px}
+  .mobileSettings[open] .mobileSettingsBody{position:absolute;right:0;top:calc(100% + 5px);z-index:20;display:grid;gap:8px;min-width:220px;padding:10px;border:1px solid #e7e5e1;border-radius:9px;background:#fff;color:#494640;box-shadow:0 8px 24px #17130d1f}
+  .mobileSettingsBody button{min-height:40px;padding:0 10px;border:1px solid #e7e5e1;border-radius:6px;background:#fff;color:#494640;text-align:left}
+  .mobileSettingsBody .width,.mobileSettingsBody .scale{justify-content:space-between}
+  .mobileSettingsBody .width input{width:78px}
+  .confirm{width:100%;font-size:11px}
+}
 @media(prefers-reduced-motion:reduce){.root *{scroll-behavior:auto}}
 
 :global(html[data-motes-theme="dark"]) .root{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .devices,:global(html[data-motes-theme="dark"]) .devices button,:global(html[data-motes-theme="dark"]) .icon,:global(html[data-motes-theme="dark"]) .scale select,:global(html[data-motes-theme="dark"]) .width input,:global(html[data-motes-theme="dark"]) .confirm,:global(html[data-motes-theme="dark"]) .confirm button{background:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
 :global(html[data-motes-theme="dark"]) .devices button[aria-pressed="true"],:global(html[data-motes-theme="dark"]) .confirm button:last-child{background:#28364d!important;border-color:#49658d!important;color:var(--motes-accent)!important}
 :global(html[data-motes-theme="dark"]) .root :is(input,select){color-scheme:dark}
+@media(max-width:620px){:global(html[data-motes-theme="dark"]) .mobileSettings>summary,:global(html[data-motes-theme="dark"]) .mobileSettings[open] .mobileSettingsBody,:global(html[data-motes-theme="dark"]) .mobileSettingsBody button{background:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}}

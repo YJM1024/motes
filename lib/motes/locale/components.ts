@@ -4,7 +4,7 @@ export const componentMessages = {
   '分栏': 'Split view', '专注对话': 'Focus on chat', '专注预览': 'Focus on preview',
   '工作区布局': 'Workspace layout', '对话宽度': 'Chat width', '调整对话面板宽度': 'Adjust chat panel width',
   '调整对话面板宽度为 {pixels} 像素': 'Set chat panel width to {pixels} pixels', '展开侧栏': 'Expand sidebar', '折叠侧栏': 'Collapse sidebar',
-  '预览控件': 'Preview controls', '预览尺寸': 'Preview size', '桌面': 'Desktop', '手机': 'Mobile', '自定义': 'Custom',
+  '预览控件': 'Preview controls', '预览尺寸': 'Preview size', '预览设置': 'Preview settings', '应用宽度': 'Apply width', '桌面': 'Desktop', '手机': 'Mobile', '自定义': 'Custom',
   '宽度': 'Width', '自定义预览宽度': 'Custom preview width', '缩放': 'Zoom', '预览缩放': 'Preview zoom',
   '全屏预览': 'Full-screen preview', '全屏': 'Full screen', '刷新预览': 'Refresh preview', '刷新': 'Refresh',
   '刷新会清空预览中未保存的临时输入，已保存版本不受影响。': 'Refreshing clears temporary preview input that has not been saved. Saved versions are not affected.',
