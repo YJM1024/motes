@@ -34,3 +34,19 @@ html[data-motes-theme="dark"] .compare-grid pre{background:#111318;border-color:
   .compare-confirm{line-height:1.55}
   .compare-content>p,.compare-hint{font-size:13px;line-height:1.6}
 }
+/* UI4 shared host tokens: comparison surfaces and controls */
+.compare-shell{background:var(--motes-bg,var(--motes-canvas));color:var(--motes-text);font-size:14px;line-height:1.65}
+.compare-shell header,.compare-content section,.compare-grid article,.compare-frame,.compare-tabs,.compare-pending{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+.compare-content h1,.compare-content h2,.compare-content h3,.compare-shell header strong{color:var(--motes-text)}
+.compare-content>p,.compare-hint,.compare-history small,.compare-grid details,.compare-placeholder{color:var(--motes-muted);font-size:12px}
+.compare-content section{border-radius:var(--motes-radius,12px);padding:22px;box-shadow:var(--motes-shadow,0 2px 8px rgb(22 28 45 / 5%))}
+.compare-shell label,.compare-confirm{color:var(--motes-text);font-size:13px}
+.compare-shell select,.compare-shell textarea{border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-surface);color:var(--motes-text);font-size:14px}
+.compare-shell button{min-height:var(--motes-control-height,40px);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-accent-soft,#eef3fb);color:var(--motes-accent);font-size:13px}
+
+.compare-confirm{background:var(--motes-muted-surface);border-radius:var(--motes-radius,12px)}
+.compare-error{background:#fff0eb;color:#995d52;border-radius:var(--motes-radius,12px)}
+.compare-notice{background:#edf8f1;color:#477656;border-radius:var(--motes-radius,12px)}
+.compare-shell :focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
+.compare-create>button{background:var(--motes-accent);border-color:var(--motes-accent);color:var(--motes-on-accent,#fff);box-shadow:var(--motes-shadow,0 2px 6px rgb(22 28 45 / 12%))}
+@media(max-width:700px){.compare-shell select,.compare-shell textarea{font-size:16px}}
