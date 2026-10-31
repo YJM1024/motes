@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, dirname, resolve, basename } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 
@@ -11,7 +14,21 @@ async function harness({key=true}={}) {
   function prepare(sql,args=[]) { return {isDiscuss:sql.startsWith('INSERT INTO forma_locks')&&sql.includes('motes_discussion_threads'),bind(...values){return prepare(sql,values)},async first(){return sqlite.prepare(sql).get(...args)??null},async all(){if(control.failSnapshot&&sql.includes('SELECT t.*,r.status')){control.failSnapshot=false;throw Error('simulated read outage')}return{results:sqlite.prepare(sql).all(...args)}},run(){return{meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}}}}; }
   const env={OPENAI_API_KEY:key?'fake-test-key':'',OPENAI_MODEL:'fake-model',OPENAI_MODELS:'fake-model,another-model',DB:{prepare,async batch(statements){if(control.beforeBatch&&statements.some(s=>s.isDiscuss)){const run=control.beforeBatch;control.beforeBatch=null;run()}sqlite.exec('BEGIN');try{const r=statements.map(s=>s.run());sqlite.exec('COMMIT');return r}catch(e){sqlite.exec('ROLLBACK');throw e}}}};
   const envKey=crypto.randomUUID();globalThis[envKey]=env;const cache=new Map();
-  async function moduleUrl(file){if(cache.has(file))return cache.get(file);let source=await readFile(new URL('../lib/'+file+'.ts',import.meta.url),'utf8');source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(envKey)}];`);for(const m of [...source.matchAll(/from\s+(['"])(\.[^'"]+)\1/g)]){const target=new URL(m[2]+'.ts',new URL('../lib/'+file+'.ts',import.meta.url));source=source.replaceAll(m[1]+m[2]+m[1],JSON.stringify(await moduleUrl(target.pathname.split('/lib/').at(-1).replace(/\.ts$/,''))))}const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;const url='data:text/javascript;base64,'+Buffer.from(js).toString('base64');cache.set(file,url);return url}
+  // Short file URLs keep fixture-isolated ESM imports linear in source size. Recursively
+  // embedded base64 dependency URLs otherwise retain hundreds of MiB in Node's ESM cache.
+  const tempRoot=await mkdtemp(join(tmpdir(),'motes-discussion-test-'));
+  async function moduleUrl(file){
+    if(cache.has(file))return cache.get(file);
+    let source=await readFile(new URL('../lib/'+file+'.ts',import.meta.url),'utf8');
+    source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(envKey)}];`);
+    for(const m of [...source.matchAll(/from\s+(['"])(\.[^'"]+)\1/g)]){
+      const target=new URL(m[2]+'.ts',new URL('../lib/'+file+'.ts',import.meta.url));
+      source=source.replaceAll(m[1]+m[2]+m[1],JSON.stringify(await moduleUrl(target.pathname.split('/lib/').at(-1).replace(/\.ts$/,''))));
+    }
+    const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+    const output=join(tempRoot,file+'.mjs');await mkdir(dirname(output),{recursive:true});await writeFile(output,js);
+    const url=pathToFileURL(output).href;cache.set(file,url);return url;
+  }
   const discussions=await import(await moduleUrl('motes/discussions')),server=await import(await moduleUrl('forma/server')),security=await import(await moduleUrl('forma/security')),usage=await import(await moduleUrl('motes/usage')),model=await import(await moduleUrl('forma/discussion-model')),intent=await import(await moduleUrl('motes/discussion-intent')),tasks=await import(await moduleUrl('motes/tasks'));delete globalThis[envKey];
   const who=v=>security.digest(v.repeat(64));
   function req(body,visitor='a',query='',origin='https://motes.test'){return new Request('https://motes.test/api/discussions'+query,{method:body?'POST':'GET',headers:{cookie:'forma_session='+visitor.repeat(64),...(body?{origin,'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})})}
@@ -25,7 +42,7 @@ async function harness({key=true}={}) {
   async function app(visitor='a',html='<!doctype html><html><head><title>Current</title></head><body><button>OWN SAVED CODE</button></body></html>'){const owner=await who(visitor),id=crypto.randomUUID(),version=crypto.randomUUID(),now=new Date().toISOString();sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,owner,'App',now,now,version);sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'SECRET BUILD PROMPT','summary',html,now,'manual',null);return{id,version,owner}}
   function answer(text='这是讨论回答，不会修改应用。',counts={input_tokens:10,output_tokens:20,total_tokens:30}){return Response.json({status:'completed',model:'fake-model',usage:counts,output:[{content:[{type:'output_text',text}]}]})}
   function budget(owner,count){const day=new Date().toISOString().slice(0,10);for(let i=0;i<count;i++)sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) VALUES(?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),owner,'legacy','legacy',day,'model','done',day+'T01:00:00Z',null)}
-  return{sqlite,env,control,discussions,server,usage,model,intent,who,req,run,create,get,send,status,save,saveTask,listTasks,attach,app,answer,budget,close:()=>sqlite.close()};
+  return{sqlite,env,control,discussions,server,usage,model,intent,who,req,run,create,get,send,status,save,saveTask,listTasks,attach,app,answer,budget,close:async()=>{sqlite.close();const target=resolve(tempRoot);if(dirname(target)!==resolve(tmpdir())||!basename(target).startsWith('motes-discussion-test-'))throw Error('Unexpected fixture cleanup path');await rm(target,{recursive:true,force:true})}};
 }
 
 test('pre-app text discussion persists and never creates an app, version or preview HTML',async t=>{
