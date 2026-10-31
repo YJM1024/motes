@@ -24,7 +24,7 @@ async function harness({key=true}={}) {
   const attach=(threadId,appId,visitor='a')=>run(()=>discussions.attachDiscussion(req({appId},visitor),threadId));
   async function app(visitor='a',html='<!doctype html><html><head><title>Current</title></head><body><button>OWN SAVED CODE</button></body></html>'){const owner=await who(visitor),id=crypto.randomUUID(),version=crypto.randomUUID(),now=new Date().toISOString();sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,owner,'App',now,now,version);sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'SECRET BUILD PROMPT','summary',html,now,'manual',null);return{id,version,owner}}
   function answer(text='这是讨论回答，不会修改应用。',counts={input_tokens:10,output_tokens:20,total_tokens:30}){return Response.json({status:'completed',model:'fake-model',usage:counts,output:[{content:[{type:'output_text',text}]}]})}
-  function budget(owner,count){const day=new Date().toISOString().slice(0,10);for(let i=0;i<count;i++)sqlite.prepare('INSERT INTO forma_requests VALUES(?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),owner,'legacy','legacy',day,'model','done',day+'T01:00:00Z',null)}
+  function budget(owner,count){const day=new Date().toISOString().slice(0,10);for(let i=0;i<count;i++)sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) VALUES(?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),owner,'legacy','legacy',day,'model','done',day+'T01:00:00Z',null)}
   return{sqlite,env,control,discussions,server,usage,model,intent,who,req,run,create,get,send,status,save,saveTask,listTasks,attach,app,answer,budget,close:()=>sqlite.close()};
 }
 
@@ -83,7 +83,7 @@ test('thread and turn caps are fenced without model calls or orphan usage rows',
   const h=await harness();t.after(h.close);const first=(await h.create()).data.thread,wid='workspace:'+await h.who('a'),now=new Date().toISOString();
   for(let i=1;i<49;i++)h.sqlite.prepare('INSERT INTO motes_discussion_threads VALUES(?,?,?,?,?,?,?)').run(crypto.randomUUID(),wid,null,null,'saved',now,now);
   const result=await Promise.all([h.create(),h.create()]);assert.deepEqual(result.map(r=>r.status).sort(),[201,429]);
-  for(let i=0;i<100;i++){const rid=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_requests VALUES(?,?,?,?,?,?,?,?,?)').run(rid,await h.who('a'),'discussion:'+first.id,'old','2026-01-01','model','done','2026-01-01T00:00:00Z',rid);h.sqlite.prepare('INSERT INTO motes_discussion_turns(request_id,thread_id,prompt,reply,created_at) VALUES(?,?,?,?,?)').run(rid,first.id,'q','a','2026-01-01T00:00:00Z')}
+  for(let i=0;i<100;i++){const rid=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) VALUES(?,?,?,?,?,?,?,?,?)').run(rid,await h.who('a'),'discussion:'+first.id,'old','2026-01-01','model','done','2026-01-01T00:00:00Z',rid);h.sqlite.prepare('INSERT INTO motes_discussion_turns(request_id,thread_id,prompt,reply,created_at) VALUES(?,?,?,?,?)').run(rid,first.id,'q','a','2026-01-01T00:00:00Z')}
   t.mock.method(globalThis,'fetch',()=>{throw Error('No calls at capacity')});assert.equal((await h.send(first.id)).status,429);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_model_usage').get().n,0);
 });
 test('ownership changes before reservation fence abort without reserving a paid attempt',async t=>{

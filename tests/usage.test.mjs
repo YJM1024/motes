@@ -16,12 +16,14 @@ async function harness(config={}){
   const server=await import(serverUrl),usage=await import(usageUrl),settings=await import(await moduleUrl('motes/settings')),security=await import(await moduleUrl('forma/security')),management=await import(await moduleUrl('motes/management')),demo=await import(await moduleUrl('forma/demo'));delete globalThis[key];
   const routeSource=(await readFile(new URL('../app/api/usage/route.ts',import.meta.url),'utf8')).replaceAll("'@/lib/forma/server'",JSON.stringify(serverUrl)).replaceAll("'@/lib/motes/usage'",JSON.stringify(usageUrl)).replaceAll("'@/lib/forma/security'",JSON.stringify(await moduleUrl('forma/security')));
   const route=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(routeSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
+  const sessionSource=(await readFile(new URL('../app/api/session/route.ts',import.meta.url),'utf8')).replaceAll("'@/lib/forma/server'",JSON.stringify(serverUrl)).replaceAll("'@/lib/forma/security'",JSON.stringify(await moduleUrl('forma/security')));
+  const session=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(sessionSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
   const who=visitor=>config.MOTES_WORKSPACE_VISIBILITY==='shared'?security.SHARED_OWNER:security.digest(visitor.repeat(64));
   async function generate(body,visitor='a'){const req=new Request('https://motes.test/api/generate',{method:'POST',headers:{origin:'https://motes.test',cookie:'forma_session='+visitor.repeat(64),'content-type':'application/json'},body:JSON.stringify(body)});const response=await server.route(()=>server.generate(req));return{status:response.status,data:await response.json()}}
   const snapshot=async(visitor='a')=>usage.readUsage(env.DB,await who(visitor),await security.digest(visitor.repeat(64)));
   const save=async(patch,scope='workspace',selection={})=>settings.saveSettings(env.DB,await who('a'),server.modelName(),{scope,patch,...selection},server.modelNames());
   const success=(model='gpt-6-luna',reported={input_tokens:120,output_tokens:80,total_tokens:200})=>Response.json({status:'completed',model,usage:reported,output:[{content:[{type:'output_text',text:demo.generateDemo('番茄钟').html}]}]});
-  return{sqlite,env,control,server,usage,settings,management,route,security,who,generate,snapshot,save,success,close:()=>sqlite.close()};
+  return{sqlite,env,control,server,usage,settings,management,route,session,security,who,generate,snapshot,save,success,close:()=>sqlite.close()};
 }
 
 test('configured model allowlist has no secrets and missing key remains honest demo',async t=>{
@@ -135,4 +137,15 @@ test('shared reservation retains legacy visitor spend, global spend and atomic c
  for(let i=10;i<49;i++)insert.run(crypto.randomUUID(),'historical-private','legacy','legacy',day,'model','failed',now);
  assert.equal(reserve(b,2),0); // 11 actual rows + 39 legacy rows already reach the global cap.
  const usage=await h.snapshot('a');assert.equal(usage.limits.visitor.model.used,10);assert.equal(usage.limits.shared.model.used,2);assert.equal(usage.limits.global.model.used,50);assert.equal(usage.quota.model.remaining,0);
+});
+
+test('session bootstrap issues separate opaque cookies with identical shared workspace and server persistence',async t=>{
+ const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared',OPENAI_API_KEY:''});t.after(h.close);
+ const first=await h.session.GET(new Request('https://motes.test/api/session')),cookie=first.headers.get('set-cookie'),a=await first.json();
+ assert.equal(a.visibility,'shared');assert.equal(a.persistence,'cloud');assert.equal(a.workspaceId,'workspace:'+h.security.SHARED_OWNER);assert.match(cookie,/^forma_session=[a-f0-9]{64}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=31536000; Secure$/);
+ const body={mode:'demo',prompt:'番茄钟',requestId:crypto.randomUUID()};assert.equal((await h.generate(body)).status,200);
+ const second=await h.session.GET(new Request('https://motes.test/api/session')),b=await second.json();assert.notEqual(second.headers.get('set-cookie'),cookie);assert.equal(b.workspaceId,a.workspaceId);assert.equal(b.projects.length,1);
+ const existing=await h.session.GET(new Request('https://motes.test/api/session',{headers:{cookie:cookie.split(';')[0]}}));assert.equal(existing.headers.get('set-cookie'),null);assert.equal((await existing.json()).projects.length,1);
+ const privateMode=await harness({OPENAI_API_KEY:''});t.after(privateMode.close);const old=await privateMode.session.GET(new Request('https://motes.test/api/session'));assert.equal((await old.json()).visibility,'private');
+ assert.doesNotMatch(JSON.stringify(b),/test-secret|visitor_id|forma_session|api_key/);
 });

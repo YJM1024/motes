@@ -3,3 +3,6 @@ OPENAI_API_KEY=
 OPENAI_MODEL=
 # Optional comma-separated server-approved models (default: OPENAI_MODEL)
 OPENAI_MODELS=
+
+# Public demo namespace; unset retains historical anonymous private spaces.
+MOTES_WORKSPACE_VISIBILITY=shared

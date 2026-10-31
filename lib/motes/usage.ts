@@ -3,6 +3,12 @@ import type { ModelObservation } from '../forma/model';
 export const GENERATION_LIMITS = { model: { visitor: 10, global: 50 }, demo: { visitor: 100, global: 2000 } };
 // Shared workspace cap also survives a cleared/replaced anonymous cookie.
 export const SHARED_GENERATION_LIMITS = { model: 10, demo: 100 };
+/** Read-only denial classification; the transaction above remains the spend authority. */
+export async function visitorBudgetExhausted(db:D1Database,who:string,actor:string,mode:'model'|'demo',day:string,units=1){
+  if(!isSharedOwner(who))return false;
+  const row=await db.prepare('SELECT count(*) AS n FROM forma_requests WHERE coalesce(visitor_id,owner)=? AND day=? AND mode=?').bind(actor,day,mode).first<{n:number}>();
+  return (row?.n??0)+units>GENERATION_LIMITS[mode].visitor;
+}
 export type ModelOperation = 'generate' | 'modify' | 'repair' | 'candidate' | 'discuss';
 export function budgetReservation(db: D1Database, value: { id:string; owner:string; visitorId?:string; projectId:string; fingerprint:string; mode:'model'|'demo'; createdAt:string; units?: 1 | 2 | 3 | 4; fence?: { sql: string; bindings: (string | number | null)[] } }) {
   const day=value.createdAt.slice(0,10),limits=GENERATION_LIMITS[value.mode];
