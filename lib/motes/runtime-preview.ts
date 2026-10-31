@@ -1,6 +1,7 @@
 import { safeDocument, PREVIEW_POLICY } from './preview-document';
 import { elementBridgeScript } from './element-preview';
 import { RUNTIME_PROTOCOL } from './runtime-diagnostics';
+import { runtimeDataClientScript } from './runtime-data-client';
 
 export function runtimeBridgeScript(channel: string, targetOrigin: string): string {
   if (!/^[a-f0-9]{32}$/.test(channel)) throw new Error('预览诊断通道无效。');
@@ -25,7 +26,7 @@ export function runtimeBridgeScript(channel: string, targetOrigin: string): stri
 }
 export function runtimePreview(html: string, channel: string, targetOrigin: string): string {
   const doc = new DOMParser().parseFromString(safeDocument(html, PREVIEW_POLICY), 'text/html');
-  const bridge = doc.createElement('script'); bridge.textContent = runtimeBridgeScript(channel, targetOrigin)+elementBridgeScript(channel,targetOrigin);
+  const bridge = doc.createElement('script'); bridge.textContent = runtimeBridgeScript(channel, targetOrigin)+elementBridgeScript(channel,targetOrigin)+runtimeDataClientScript(channel,targetOrigin);
   // The policy remains first, followed by our listener before application scripts.
   doc.head.insertBefore(bridge, doc.head.firstChild?.nextSibling || null);
   return '<!DOCTYPE html>' + doc.documentElement.outerHTML;

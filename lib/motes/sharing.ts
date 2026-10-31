@@ -66,11 +66,12 @@ export async function revokeShare(request:Request,appId:string,shareId:string) {
 
 export async function readSharedVersion(token:string):Promise<SharedVersion|null> {
   if(!/^[a-f0-9]{64}$/.test(token))return null;
-  const row=await database().prepare(`SELECT s.title,v.number,v.html FROM motes_shares s JOIN forma_versions v ON v.id=s.version_id AND v.project_id=s.app_id WHERE s.token=? AND s.revoked_at IS NULL AND length(v.html)<=180000`).bind(token).first<{title:string;number:number;html:string}>();
-  return row?{title:row.title,versionNumber:row.number,html:row.html}:null;
+  const row=await database().prepare(`SELECT s.app_id,s.version_id,s.title,v.number,v.html FROM motes_shares s JOIN forma_versions v ON v.id=s.version_id AND v.project_id=s.app_id WHERE s.token=? AND s.revoked_at IS NULL AND length(v.html)<=180000`).bind(token).first<{app_id:string;version_id:string;title:string;number:number;html:string}>();
+  return row?{appId:row.app_id,versionId:row.version_id,title:row.title,versionNumber:row.number,html:row.html}:null;
 }
 
 export async function getSharedVersion(token:string) {
   const share=await readSharedVersion(token);
-  return json(share??{error:'分享不可用，链接可能已撤销或不存在。'},share?200:404,{'Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow, noarchive','X-Content-Type-Options':'nosniff'});
+  const publicValue=share?{title:share.title,versionNumber:share.versionNumber,html:share.html}:null;
+  return json(publicValue??{error:'分享不可用，链接可能已撤销或不存在。'},publicValue?200:404,{'Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow, noarchive','X-Content-Type-Options':'nosniff'});
 }
