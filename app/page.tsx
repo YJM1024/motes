@@ -12,7 +12,7 @@ import { useWorkbenchLayout } from './hooks/useWorkbenchLayout';
 import { usePanelScrollMemory } from './hooks/usePanelScrollMemory';
 import workspaceToolsStyles from "./components/WorkspaceTools.module.css";
 import WorkspaceOutcomeCard from "./components/WorkspaceOutcome";
-import {outcomeIsCurrent,transferCreationDraft,finishRecoveredView,type WorkspaceOutcome} from "./hooks/workspace-outcome";
+import {outcomeIsCurrent,transferCreationDraft,finishRecoveredView,workspaceCallbackCurrent,type WorkspaceOutcome} from "./hooks/workspace-outcome";
 import PreviewVersionStatus from "./components/PreviewVersionStatus";
 import previewVersionStyles from "./components/PreviewVersionStatus.module.css";
 import BuildAttemptFeedback from "./components/BuildAttemptFeedback";
@@ -80,6 +80,8 @@ export default function Home() {
   const [connectionError,setConnectionError]=useState(""),[revealedWorkspaceId,setRevealedWorkspaceId]=useState<string|null>(null);
   const [projects, setProjects] = useState<Summary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
+  const currentAppRef=useRef<string|undefined>(undefined);
+  useLayoutEffect(()=>{currentAppRef.current=project?.id;},[project?.id]);
   const [creationTarget, setCreationTarget] = useState<{ id: string; name: string } | null>(null);
   const [creationContextId, setCreationContextId] = useState<string | undefined>();
   const [recoveryGeneration, setRecoveryGeneration] = useState(0);
@@ -296,7 +298,7 @@ export default function Home() {
     if(operationLock.current||discussionBusy||opening)throw new Error(t("请等待当前操作完成，预设仍保留。"));
     const fingerprint=JSON.stringify([styleBase.appId,styleBase.baseVersionId,styleBase.expectedCurrentVersionId,candidateHtml,name]);if(styleAttempt.current?.fingerprint!==fingerprint)styleAttempt.current={fingerprint,requestId:crypto.randomUUID()};
     operationLock.current=true;setBusy(true);
-    try{const result=await api<{project:Project}>('/api/projects/'+encodeURIComponent(styleBase.appId)+'/source',{baseVersionId:styleBase.baseVersionId,expectedCurrentVersionId:styleBase.expectedCurrentVersionId,html:candidateHtml,name,requestId:styleAttempt.current.requestId},AbortSignal.timeout(30000));adoptSavedProject(result.project);setViewVersion(null);presentSavedOutcome(result.project,"manual");}
+    try{const result=await api<{project:Project}>('/api/projects/'+encodeURIComponent(styleBase.appId)+'/source',{baseVersionId:styleBase.baseVersionId,expectedCurrentVersionId:styleBase.expectedCurrentVersionId,html:candidateHtml,name,requestId:styleAttempt.current.requestId},AbortSignal.timeout(30000));if(!adoptSavedProject(result.project))return;setViewVersion(null);presentSavedOutcome(result.project,"manual");}
     finally{operationLock.current=false;setBusy(false);}
   }
   async function saveAttempt(a:Attempt){
@@ -481,15 +483,15 @@ export default function Home() {
     {newAppOptions&&<NewAppOptions busy={busy||discussionBusy||opening} targetLabel={creationTarget?.name??t("默认项目")} onCreate={createNewPrivateApp} onClose={()=>setNewAppOptions(false)}/>}
     {dataManagement&&<DataManagementPanel onClose={()=>setDataManagement(false)} onClearDrafts={clearLocalDrafts} onResetDisplayPreferences={resetLocalDisplay} onOpenBackup={()=>{setDataManagement(false);void openWorkspaceBackup();}} onOpenArchive={()=>router.push("/manage")} alertPreferences={usageAlerts} onAlertPreferencesChange={changeUsageAlertPreference}/>}
     {publicationOpen&&project&&<PublicationPanel project={project} onClose={()=>setPublicationOpen(false)}/>}
-    {workspaceBackup&&<WorkspaceBackupPanel snapshot={workspaceBackup} onClose={()=>setWorkspaceBackup(null)} onImported={result=>{setWorkspaceBackup(null);const owner=workspaceRef.current;if(owner){setOutcome({workspaceId:owner,appId:result.appIds[0]??"",source:"import",appCount:result.appIds.length,projectCount:result.projectIds.length});setNotice("");}else setNotice(t("导入资料已保存，可在应用管理查看新项目。"));void refreshProjectList();}}/>}
+    {workspaceBackup&&<WorkspaceBackupPanel snapshot={workspaceBackup} onClose={()=>setWorkspaceBackup(null)} onImported={result=>{const owner=workspaceBackup.workspace.id;if(!workspaceCallbackCurrent({mounted:mounted.current,expectedWorkspace:owner,currentWorkspace:workspaceRef.current}))return;setWorkspaceBackup(null);if(owner){setOutcome({workspaceId:owner,appId:result.appIds[0]??"",source:"import",appCount:result.appIds.length,projectCount:result.projectIds.length});setNotice("");}else setNotice(t("导入资料已保存，可在应用管理查看新项目。"));void refreshProjectList();}}/>}
     {appTemplatesOpen&&<AppTemplateLibrary project={project} onClose={()=>setAppTemplatesOpen(false)} onCopied={next=>{if(!adoptSavedProject(next))return;setAppTemplatesOpen(false);presentSavedOutcome(next,"copy");}}/>}
     {versionConfig&&<VersionConfigPanel projectId={versionConfig.appId} versionId={versionConfig.versionId} onClose={()=>setVersionConfig(null)}/>}
     {styleBase&&<StylePresetPanel html={styleBase.html} baseVersionId={styleBase.baseVersionId} disabled={busy||discussionBusy||opening} onApply={applyStyle} onClose={()=>setStyleBase(null)}/>}
     {tasksOpen&&<TaskCenter items={taskItems} busy={tasksBusy||busy||discussionBusy} onCheck={()=>void loadTasks()} onSave={id=>void saveTask(id)} onClose={()=>setTasksOpen(false)}/>}
     {repairCandidate && <RuntimeRepairDialog initial={repairCandidate} draft={prompt} onClose={() => setRepairCandidate(null)} onApply={fillRepair}/>}
     {templatesOpen && <PromptLibrary draft={prompt} initialChoice={templateChoice} onClose={() => { setTemplatesOpen(false); setTemplateChoice(undefined); }} onUse={fillTemplate}/>}
-    {editorVersionId && project && <SourceEditor project={project} selectedVersionId={editorVersionId} onClose={() => setEditorVersionId(null)} onMetadataUpdated={next => setProject(next)} onSaved={next => { adoptSavedProject(next); setEditorVersionId(null); setSource(false); setHistory(false); setViewVersion(null);presentSavedOutcome(next,"manual"); }}/>}
-    {source && project && <VersionTools project={project} selectedVersionId={viewVersion ?? project.currentVersionId} onEdit={versionId => { setSource(false); setHistory(false); setEditorVersionId(versionId); }} onClose={() => setSource(false)} onSaved={next => { adoptSavedProject(next); setSource(false); setHistory(false); setViewVersion(null);presentSavedOutcome(next,"copy"); }}/>}
+    {editorVersionId && project && <SourceEditor project={project} selectedVersionId={editorVersionId} onClose={() => setEditorVersionId(null)} onMetadataUpdated={next => {if(!workspaceCallbackCurrent({mounted:mounted.current,expectedWorkspace:workspaceId,currentWorkspace:workspaceRef.current,checkApp:true,expectedApp:next.id,currentApp:currentAppRef.current}))return;setProject(previous=>workspaceRef.current===workspaceId&&previous?.id===next.id?preferSavedProject(previous,next):previous);}} onSaved={next => { if(!adoptSavedProject(next))return; setEditorVersionId(null); setSource(false); setHistory(false); setViewVersion(null);presentSavedOutcome(next,"manual"); }}/>}
+    {source && project && <VersionTools project={project} selectedVersionId={viewVersion ?? project.currentVersionId} onEdit={versionId => { setSource(false); setHistory(false); setEditorVersionId(versionId); }} onClose={() => setSource(false)} onSaved={next => { if(!adoptSavedProject(next))return; setSource(false); setHistory(false); setViewVersion(null);presentSavedOutcome(next,"copy"); }}/>}
   </div>;
 }
 

@@ -7,3 +7,5 @@ export function transferCreationDraft(hasApp:boolean,source:'result'|'navigation
 
 /** Finish optional linkage before consuming the outbox; applying may then invalidate the old poll. */
 export async function finishRecoveredView(value:{isCurrent:()=>boolean;prepare:()=>Promise<unknown>;apply:()=>void}):Promise<boolean>{if(!value.isCurrent())return false;await value.prepare();if(!value.isCurrent())return false;value.apply();return true;}
+
+export function workspaceCallbackCurrent(value:{mounted:boolean;expectedWorkspace:string|null;currentWorkspace:string|null;checkApp?:boolean;expectedApp?:string|null;currentApp?:string|null}):boolean{return value.mounted&&!!value.expectedWorkspace&&value.expectedWorkspace===value.currentWorkspace&&(!value.checkApp||(value.expectedApp??null)===(value.currentApp??null));}
