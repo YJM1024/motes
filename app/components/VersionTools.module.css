@@ -13,3 +13,14 @@
 :global(html[data-motes-theme="dark"]) .code,:global(html[data-motes-theme="dark"]) .empty,:global(html[data-motes-theme="dark"]) .versionInfo,:global(html[data-motes-theme="dark"]) .capacity{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .caption,:global(html[data-motes-theme="dark"]) .capacity{color:var(--motes-muted)}
 :global(html[data-motes-theme="dark"]) .controls select,:global(html[data-motes-theme="dark"]) .check{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .panel,:global(html[data-motes-theme="dark"]) .header{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header h2,:global(html[data-motes-theme="dark"]) .caption span:first-child,:global(html[data-motes-theme="dark"]) .versionInfo strong{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .panel button:not(.primary),:global(html[data-motes-theme="dark"]) .panel select{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .panel .primary{background:#416f9a;border-color:#416f9a;color:#fff}
+:global(html[data-motes-theme="dark"]) .header p,:global(html[data-motes-theme="dark"]) .capacity,:global(html[data-motes-theme="dark"]) .caption,:global(html[data-motes-theme="dark"]) .versionInfo span,:global(html[data-motes-theme="dark"]) .versionInfo>p,:global(html[data-motes-theme="dark"]) .versionInfo summary,:global(html[data-motes-theme="dark"]) .footer p{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .notice{background:#332f24;color:#ead9a5}
+:global(html[data-motes-theme="dark"]) .added{background:#1e3929;color:#b5dfc0}
+:global(html[data-motes-theme="dark"]) .removed{background:#3a2529;color:#f0b0a6}
+:global(html[data-motes-theme="dark"]) .same,:global(html[data-motes-theme="dark"]) .number{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .footer [role="status"]{color:#b5dfc0}
+:global(html[data-motes-theme="dark"]) .footer .error{color:#f0b0a6}

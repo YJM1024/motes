@@ -4,3 +4,9 @@
 
 :global(html[data-motes-theme="dark"]) .body,:global(html[data-motes-theme="dark"]) .settings,:global(html[data-motes-theme="dark"]) .disclosures,:global(html[data-motes-theme="dark"]) .empty{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .note,:global(html[data-motes-theme="dark"]) .status{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .dialog,:global(html[data-motes-theme="dark"]) .header,:global(html[data-motes-theme="dark"]) .settings,:global(html[data-motes-theme="dark"]) .disclosures details,:global(html[data-motes-theme="dark"]) .status{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header h2,:global(html[data-motes-theme="dark"]) .settings h3,:global(html[data-motes-theme="dark"]) .settings dd,:global(html[data-motes-theme="dark"]) .disclosures dd,:global(html[data-motes-theme="dark"]) .disclosures summary{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header button,:global(html[data-motes-theme="dark"]) .empty button{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header p,:global(html[data-motes-theme="dark"]) .note,:global(html[data-motes-theme="dark"]) .status,:global(html[data-motes-theme="dark"]) .settings dt,:global(html[data-motes-theme="dark"]) .disclosures dt,:global(html[data-motes-theme="dark"]) .settings>p,:global(html[data-motes-theme="dark"]) .disclosures details>p,:global(html[data-motes-theme="dark"]) .error{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .note{background:var(--motes-muted-surface);color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .error{color:#f0b0a6}

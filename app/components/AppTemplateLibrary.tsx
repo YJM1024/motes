@@ -153,6 +153,7 @@ export default function AppTemplateLibrary({ project, onClose, onCopied }: Props
 
   function close() { if (inFlight.current) return; onClose(); }
   const currentSaveBody = { name: name.trim(), description: description.trim(), sourceAppId: project?.id, sourceVersionId: currentVersion?.id };
+  const sourceVersion = project && detail?.sourceAppId === project.id ? project.versions.find(version => version.id === detail.sourceVersionId) : undefined;
 
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="app-template-library-title" onCancel={event => { event.preventDefault(); close(); }}>
     <header className={styles.header}><div><h2 id="app-template-library-title">{t('应用模板库')}</h2><p>{t('模板保存的是已保存版本的 HTML 快照，不包含运行时输入。')}</p></div><button ref={closeButton} type="button" onClick={close} disabled={!!busy} aria-label={t('关闭应用模板库')}>{t('关闭')}</button></header>
@@ -175,7 +176,8 @@ export default function AppTemplateLibrary({ project, onClose, onCopied }: Props
         <section className={styles.detailPane} aria-label={t('模板详情')}>
           {!selectedId ? <div className={styles.empty}><p>{t('选择一个模板查看隔离预览、修改信息或复制到项目。')}</p></div> : detailLoading ? <p className={styles.empty} role="status">{t('正在读取模板和已保存 HTML…')}</p> : detailError ? <div className={styles.empty}><p className={styles.error} role="alert">{detailError}</p><button type="button" onClick={() => { setDetailLoading(true); setDetailError(''); setDetailReload(value => value + 1); }}>{t('重试读取详情')}</button></div> : detail && selected ? <>
             <div className={styles.detailHeading}><div><h3>{selected.name}</h3><p>{selected.description || t('暂无说明')}</p></div><span>{t('独立快照')}</span></div>
-            <dl className={styles.source}><div><dt>{t('来源应用')}</dt><dd title={detail.sourceAppId}>{detail.sourceAppId}</dd></div><div><dt>{t('来源版本')}</dt><dd title={detail.sourceVersionId}>{detail.sourceVersionId}</dd></div></dl>
+            <dl className={styles.source}><div><dt>{t('来源应用')}</dt><dd>{project?.id === detail.sourceAppId ? project.title : t('其他来源应用')}</dd></div><div><dt>{t('来源版本')}</dt><dd>{sourceVersion ? `v${sourceVersion.number}${sourceVersion.name ? ` · ${sourceVersion.name}` : ''}` : t('版本详情不可用')}</dd></div></dl>
+            <details className={styles.sourceIds}><summary>{t('查看内部来源编号')}</summary><dl><div><dt>{t('来源应用编号')}</dt><dd>{detail.sourceAppId}</dd></div><div><dt>{t('来源版本编号')}</dt><dd>{detail.sourceVersionId}</dd></div></dl></details>
             <p className={styles.note}>{t('模板内容固定于来源版本。复制会创建独立私有应用；不会带入原应用的讨论、分享链接、应用设置或预览运行时输入。')}</p>
             <div className={styles.preview}><div className={styles.previewTitle}>{t('隔离预览')}</div><iframe title={t('模板“{name}”的隔离预览', { name: detail.name })} srcDoc={srcDoc} sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" /></div>
             <div className={styles.detailActions}><button type="button" onClick={() => { setEditing(value => !value); setDeleting(false); setCopyOpen(false); setName(selected.name); setDescription(selected.description); }} disabled={!!busy}>{t('修改名称和说明')}</button><button type="button" onClick={() => { setCopyOpen(value => !value); setEditing(false); setDeleting(false); if (!copyOpen) void loadProjects(); }} disabled={!!busy}>{t('复制为新应用')}</button><button type="button" className={styles.deleteAction} onClick={() => { setDeleting(true); setEditing(false); setCopyOpen(false); }} disabled={!!busy}>{t('删除模板')}</button></div>

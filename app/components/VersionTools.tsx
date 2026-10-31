@@ -82,9 +82,9 @@ function VersionToolsDialog({project,selectedVersionId,targetProjectId,onClose,o
     <section className={styles.panel} ref={panel} role="dialog" aria-modal="true" aria-labelledby={labelId}>
       <header className={styles.header}><div><h2 id={labelId}>{t('版本比较与副本')}</h2><p>{project.title}</p></div><button ref={closeButton} type="button" onClick={onClose} aria-label={t('关闭版本工具')}>{t('关闭')}</button></header>
       <div className={styles.controls}>
-        <label htmlFor={leftId}>{t('比较基准')}<select id={leftId} value={left} onChange={e=>setLeft(e.target.value)} disabled={busy}>{project.versions.map(v=><option key={v.id} value={v.id}>v{v.number}{v.id===project.currentVersionId?t(' · 当前'):''}</option>)}</select></label>
+        <label htmlFor={leftId}>{t('比较基准')}<select id={leftId} value={left} onChange={e=>setLeft(e.target.value)} disabled={busy}>{project.versions.map(v=><option key={v.id} value={v.id}>{v.important?'★ ':''}v{v.number}{v.name?` · ${v.name}`:''}{v.id===project.currentVersionId?t(' · 当前'):''}</option>)}</select></label>
         <span className={styles.arrow} aria-hidden="true">→</span>
-        <label htmlFor={rightId}>{t('所选版本')}<select id={rightId} value={right} onChange={e=>{setRight(e.target.value);setFeedback('');setError('');}} disabled={busy}>{project.versions.map(v=><option key={v.id} value={v.id}>v{v.number}{v.id===project.currentVersionId?t(' · 当前'):''}</option>)}</select></label>
+        <label htmlFor={rightId}>{t('所选版本')}<select id={rightId} value={right} onChange={e=>{setRight(e.target.value);setFeedback('');setError('');}} disabled={busy}>{project.versions.map(v=><option key={v.id} value={v.id}>{v.important?'★ ':''}v{v.number}{v.name?` · ${v.name}`:''}{v.id===project.currentVersionId?t(' · 当前'):''}</option>)}</select></label>
         <label className={styles.check}><input type="checkbox" checked={changesOnly} onChange={e=>setChangesOnly(e.target.checked)}/>{t('只看更改')}</label>
         <label className={styles.check}><input type="checkbox" checked={wrapLines} onChange={e=>setWrapLines(e.target.checked)}/>{t('折行查看（保留源码行号）')}</label>
       </div>

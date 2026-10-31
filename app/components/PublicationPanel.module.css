@@ -3,3 +3,11 @@
 
 :global(html[data-motes-theme="dark"]) .statusCard,:global(html[data-motes-theme="dark"]) .versionPicker,:global(html[data-motes-theme="dark"]) .confirm{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .header p,:global(html[data-motes-theme="dark"]) .disclosure,:global(html[data-motes-theme="dark"]) .snapshotNote{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .panel,:global(html[data-motes-theme="dark"]) .header{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header h2,:global(html[data-motes-theme="dark"]) .statusCard strong{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header button,:global(html[data-motes-theme="dark"]) .body button:not(.secondary):not(.refresh),:global(html[data-motes-theme="dark"]) .versionPicker select,:global(html[data-motes-theme="dark"]) .confirm>div button:first-child{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .actions>button:first-child,:global(html[data-motes-theme="dark"]) .confirm>div button:last-child{background:#416f9a;border-color:#416f9a;color:#fff}
+:global(html[data-motes-theme="dark"]) .statusCard span,:global(html[data-motes-theme="dark"]) .statusCard code,:global(html[data-motes-theme="dark"]) .status,:global(html[data-motes-theme="dark"]) .stable,:global(html[data-motes-theme="dark"]) .snapshotNote,:global(html[data-motes-theme="dark"]) .versionPicker label,:global(html[data-motes-theme="dark"]) .versionPicker>span,:global(html[data-motes-theme="dark"]) .confirm p{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .disclosure{background:#332f24;border-color:#695d3d;color:#ead9a5}
+:global(html[data-motes-theme="dark"]) .feedback{background:#20352a;color:#b5dfc0}
+:global(html[data-motes-theme="dark"]) .error{background:#382624;border-color:#69403a;color:#f0b0a6}

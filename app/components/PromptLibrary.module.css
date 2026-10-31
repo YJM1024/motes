@@ -6,3 +6,12 @@
 :global(html[data-motes-theme="dark"]) .toolbar button,:global(html[data-motes-theme="dark"]) .cardActions button{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .toolbar button.active{background:#28364d;border-color:#49658d;color:var(--motes-accent)}
 :global(html[data-motes-theme="dark"]) .hint,:global(html[data-motes-theme="dark"]) .footnote,:global(html[data-motes-theme="dark"]) .choiceText{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .dialog,:global(html[data-motes-theme="dark"]) .header{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header h2,:global(html[data-motes-theme="dark"]) .cardHeading h3,:global(html[data-motes-theme="dark"]) .choiceTitle{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .dialog button:not(.primary):not(.danger),:global(html[data-motes-theme="dark"]) .toolbar input,:global(html[data-motes-theme="dark"]) .field input,:global(html[data-motes-theme="dark"]) .field textarea,:global(html[data-motes-theme="dark"]) .preferences select,:global(html[data-motes-theme="dark"]) .cardActions select{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .dialog .primary{background:#416f9a!important;border-color:#416f9a!important;color:#fff!important}
+:global(html[data-motes-theme="dark"]) .dialog .danger{background:#3a2928!important;border-color:#69423d!important;color:#f0b7aa!important}
+:global(html[data-motes-theme="dark"]) .header p,:global(html[data-motes-theme="dark"]) .createBar>span,:global(html[data-motes-theme="dark"]) .preferences,:global(html[data-motes-theme="dark"]) .preferences>span,:global(html[data-motes-theme="dark"]) .cardHeading small,:global(html[data-motes-theme="dark"]) .cardHeading>span,:global(html[data-motes-theme="dark"]) .card>p,:global(html[data-motes-theme="dark"]) .empty,:global(html[data-motes-theme="dark"]) .errorText{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .choiceText{background:var(--motes-surface);border-color:var(--motes-border)}
+:global(html[data-motes-theme="dark"]) .error{background:#382624;border-color:#69403a;color:#f0b0a6}
+:global(html[data-motes-theme="dark"]) .notice{background:#20352a;color:#b5dfc0}

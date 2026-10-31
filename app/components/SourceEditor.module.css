@@ -8,3 +8,17 @@
 :global(html[data-motes-theme="dark"]) .header p,:global(html[data-motes-theme="dark"]) .hint,:global(html[data-motes-theme="dark"]) .toolbar label,:global(html[data-motes-theme="dark"]) .searchBar label,:global(html[data-motes-theme="dark"]) .searchBar>span{color:var(--motes-muted)}
 :global(html[data-motes-theme="dark"]) .searchBar>input,:global(html[data-motes-theme="dark"]) .toolbar select,:global(html[data-motes-theme="dark"]) .paneHeader select{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .code,:global(html[data-motes-theme="dark"]) .highlight{background:#111318;color:#edf0f5;border-color:var(--motes-border)}
+:global(html[data-motes-theme="dark"]) .dialog,:global(html[data-motes-theme="dark"]) .header{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .header h2,:global(html[data-motes-theme="dark"]) .paneHeader span{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .dialog button:not(.primary),:global(html[data-motes-theme="dark"]) .metadata input,:global(html[data-motes-theme="dark"]) .toolbar select,:global(html[data-motes-theme="dark"]) .paneHeader select,:global(html[data-motes-theme="dark"]) .searchBar>input{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .dialog .primary{background:#416f9a;border-color:#416f9a;color:#fff}
+:global(html[data-motes-theme="dark"]) .header p,:global(html[data-motes-theme="dark"]) .hint,:global(html[data-motes-theme="dark"]) .toolbar label,:global(html[data-motes-theme="dark"]) .searchBar label,:global(html[data-motes-theme="dark"]) .searchBar>span,:global(html[data-motes-theme="dark"]) .footer>span,:global(html[data-motes-theme="dark"]) .metadata summary{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .highlight{color:#edf0f5}
+:global(html[data-motes-theme="dark"]) .highlight .tag{color:#8ab4ff}
+:global(html[data-motes-theme="dark"]) .highlight .attribute{color:#a7d7a6}
+:global(html[data-motes-theme="dark"]) .highlight .string{color:#e5bd8a}
+:global(html[data-motes-theme="dark"]) .highlight .comment{color:#a6afbd}
+:global(html[data-motes-theme="dark"]) .highlight .hit{background:#5a4b2c;color:#edf0f5}
+:global(html[data-motes-theme="dark"]) .highlight .activeHit{background:#9b7831;color:#111318;box-shadow:0 0 0 1px #d6ad55}
+:global(html[data-motes-theme="dark"]) .error,:global(html[data-motes-theme="dark"]) .validation{background:#382624;border-color:#69403a;color:#f0b0a6}
+:global(html[data-motes-theme="dark"]) .notice{background:#20352a;color:#b5dfc0}

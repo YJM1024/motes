@@ -3,3 +3,7 @@
 :global(html[data-motes-theme="dark"]) .box,:global(html[data-motes-theme="dark"]) .list li{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .box .note,:global(html[data-motes-theme="dark"]) .list small{color:var(--motes-muted)}
 :global(html[data-motes-theme="dark"]) .box button{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .box .disclosure{background:#332f24;border-color:#695d3d;color:#ead9a5}
+:global(html[data-motes-theme="dark"]) .box .feedback{color:#b5dfc0}
+:global(html[data-motes-theme="dark"]) .box .error{color:#f0b0a6}
+:global(html[data-motes-theme="dark"]) .actions a{color:var(--motes-accent)}
