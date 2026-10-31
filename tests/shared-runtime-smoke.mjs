@@ -20,15 +20,21 @@ const output=resolve(options.output),checks=[],clients=new Map();
 const report={schemaVersion:1,mode:options['verify-existing']?'verify-existing':'create',baseOrigin:base.origin,startedAt:new Date().toISOString(),modelCalls:0,status:'running',checks};
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const ensure=(condition,name)=>assert(condition,name);
+function anonymousCookie(headers){
+ const values=typeof headers.getSetCookie==='function'?[...headers.getSetCookie()]:[];
+ const combined=headers.get('set-cookie');if(combined)values.push(combined);
+ for(const value of values){const match=/(?:^|,\s*)forma_session=([a-f0-9]{64})(?=;|,|$)/.exec(value);if(match)return 'forma_session='+match[1]}
+ return null;
+}
 async function call(client,path,{method='GET',body,origin=base.origin,raw}={}){
  const headers={};if(clients.get(client))headers.cookie=clients.get(client);if(method!=='GET'){headers.origin=origin;headers['content-type']='application/json'}
  const start=performance.now(),response=await fetch(new URL(path,base),{method,headers,...method==='GET'?{}:{body:raw??JSON.stringify(body)},redirect:'error',signal:AbortSignal.timeout(20000)});
- const elapsedMs=Number((performance.now()-start).toFixed(2)),cookie=response.headers.get('set-cookie');
- if(cookie){const match=/(?:^|,\s*)forma_session=([a-f0-9]{64})(?:;|$)/.exec(cookie);ensure(match,'Valid anonymous cookie issued');clients.set(client,'forma_session='+match[1])}
+ const elapsedMs=Number((performance.now()-start).toFixed(2)),cookie=anonymousCookie(response.headers);
+ if(cookie)clients.set(client,cookie);
  const text=await response.text();let data=null;try{data=JSON.parse(text)}catch{}return{status:response.status,data,elapsedMs,serverTiming:response.headers.get('server-timing'),requestId:response.headers.get('x-request-id')};
 }
 async function step(name,run){const started=performance.now();const details=await run();checks.push({name,status:'passed',elapsedMs:Number((performance.now()-started).toFixed(2)),...details});}
-async function session(name){const result=await call(name,'/api/session');ensure(result.status===200,'Session HTTP 200');ensure(result.data.visibility==='shared','Deployment must explicitly enable shared workspace');ensure(typeof result.data.workspaceId==='string','Workspace ID present');ensure(clients.has(name),'Anonymous cookie initialized');return result.data.workspaceId;}
+async function session(name){const result=await call(name,'/api/session');ensure(result.status===200,'Session HTTP 200');ensure(result.data.visibility==='shared','Deployment must explicitly enable shared workspace');ensure(typeof result.data.workspaceId==='string','Workspace ID present');ensure(/^forma_session=[a-f0-9]{64}$/.test(clients.get(name)??''),'Anonymous cookie initialized');return result.data.workspaceId;}
 let target;
 try{
  const a=await session('A'),b=await session('B');ensure(a===b,'A and B share a workspace');ensure(clients.get('A')!==clients.get('B'),'A and B have separate anonymous cookies');checks.push({name:'separate sessions share workspace',status:'passed'});
