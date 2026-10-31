@@ -4,3 +4,5 @@
 
 .menu .item :is(button,a){display:flex;align-items:center;justify-content:flex-start;text-align:left}
 .primaryLink{display:inline-flex;align-items:center;min-height:38px;padding:7px 10px;font-size:12px;color:var(--motes-text,#62748d);text-decoration:none;border-radius:7px}.primaryLink:hover{background:var(--motes-muted-surface,#f0f4f9)}.primaryLink:focus-visible{outline:2px solid var(--motes-focus,#6a86c5);outline-offset:2px}
+
+@media(max-width:600px){.trigger{width:44px;min-width:44px;height:44px;padding:0;justify-content:center}.triggerLabel{display:none}}

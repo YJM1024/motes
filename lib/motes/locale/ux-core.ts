@@ -56,5 +56,20 @@ export const uxCoreMessages = {
   "返回当前保存版本": "Return to current saved version",
   "切换版本会重新载入预览，临时运行输入不保留；未发送草稿与保存记录保留。": "Switching versions reloads the preview and clears temporary runtime input. Unsent drafts and saved records are preserved.",
   "当前保存": "Current saved",
-  "正在预览": "Previewing"
+  "正在预览": "Previewing",
+  "收起完成提示": "Dismiss completion message",
+  "导入资料已保存，可在应用管理查看新项目。": "Imported data is saved. Find the new projects in app management.",
+  "导入内容已保存": "Imported content saved",
+  "独立应用已打开": "Independent app opened",
+  "版本 v{number} 已保存": "Version v{number} saved",
+  "已导入 {projects} 个项目、{apps} 个应用；当前应用和草稿保持原位。": "Imported {projects} projects and {apps} apps. Your current app and draft stay in place.",
+  "原作品与草稿保留。可预览新应用，或前往应用管理。": "Original work and drafts are preserved. Preview the new app or visit app management.",
+  "手工新版本已保存，未调用模型。": "New manual version saved without calling a model.",
+  "当前保存版本已还原，历史和草稿完整保留。": "Current saved version restored. History and drafts are preserved.",
+  "原结果已保存，本次未再次调用模型。": "Original result saved without calling the model again.",
+  "新版本已保存，下一条草稿保留。": "New version saved. Your next draft is preserved.",
+  "打开导入的应用": "Open imported app",
+  "预览新应用": "Preview new app",
+  "查看保存版本 v{number}": "View saved version v{number}",
+  "查看导入的项目": "View imported projects"
 } as const;
