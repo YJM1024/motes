@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
 async function harness() {
@@ -43,6 +44,7 @@ async function harness() {
     return result;
   }
   const runtime = await import(await moduleUrl('motes/runtime-data'));
+  const demo = await import(await moduleUrl('forma/demo'));
   delete globalThis[key];
   const now = new Date().toISOString();
   function addApp(owner = 'motes-public-demo-v1', currentVersion = randomUUID()) {
@@ -60,7 +62,7 @@ async function harness() {
     return { status: response.status, data: await response.json() };
   }
   const body = (action, appId, versionId, key, extra = {}) => ({ action, appId, versionId, key, ...extra });
-  return { sqlite, env, addApp, call, body };
+  return { sqlite, env, addApp, call, body, demo };
 }
 
 test('app-scoped data persists across visitors and compare-and-set rejects a stale writer', async () => {
@@ -144,5 +146,77 @@ test('aggregate capacity uses UTF-8 bytes and rejected updates preserve value an
     assert.equal(after.data.value, value);
     const newKey = await h.call(h.body('set', app.appId, app.currentVersion, 'overflow', { value, expectedRevision: 0 }));
     assert.equal(newKey.status, 413);
+  } finally { h.sqlite.close(); }
+});
+
+test('generated task, budget, and timer demos restore/save actual shared API data across visitors', async () => {
+  const h = await harness();
+  try {
+    const app = h.addApp();
+    const fakeDocument = kind => {
+      const elements = new Map(), created = [];
+      const make = (name, value = '') => ({ tagName: name, value, textContent: '', disabled: false, children: [], listeners: {}, append(...nodes) { this.children.push(...nodes); }, replaceChildren(...nodes) { this.children = nodes; }, addEventListener(event, callback) { this.listeners[event] = callback; } });
+      const id = (selector, name = 'div', value = '') => { if (!elements.has(selector)) elements.set(selector, make(name, value)); return elements.get(selector); };
+      const inputs = kind === 'budget' ? [id('#limit','input','5000'),...['800','1200','600','400'].map(value=>make('input',value))] : kind === 'tasks' ? [id('#task','input','')] : [];
+      const controls = [...inputs];
+      if (kind === 'tasks') controls.push(id('#add','form'));
+      const minuteButtons = kind === 'timer' ? [make('button'),make('button')] : [];
+      const doc = {
+        querySelector(selector) {
+          if (selector === '#persistence') return id(selector,'p');
+          if (selector === '#limit') return inputs[0];
+          if (selector === '.expense') return null;
+          if (selector === '#total' || selector === '#remaining' || selector === '#progress') return id(selector, selector==='#progress'?'progress':'p');
+          if (selector === '#board') return id(selector,'div');
+          if (selector === '#add') return id(selector,'form');
+          if (selector === '#task') return inputs[0];
+          if (selector === '#clock') return id(selector,'div');
+          if (selector === '#toggle') return id(selector,'button');
+          if (selector === '#status') return id(selector,'p');
+          if (selector === '#reset') return id(selector,'button');
+          return id(selector);
+        },
+        querySelectorAll(selector) {
+          if (selector === 'input,button') return controls;
+          if (selector === 'input') return inputs;
+          if (selector === '.expense') return kind==='budget'?inputs.slice(1):[];
+          if (selector === '[data-min]') return minuteButtons;
+          return [];
+        },
+        createElement(name) { const node=make(name); created.push(node); return node; },
+      };
+      return { doc, inputs, created, id };
+    };
+    const runDemo = async (kind, visitor) => {
+      const generated = h.demo.generateDemo(kind==='budget'?'旅行预算计算器':kind==='tasks'?'任务看板':'番茄钟');
+      const script = generated.html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+      assert.ok(script, `${kind} demo script exists`);
+      const ui = fakeDocument(kind), channel = { data: {
+        ready: Promise.resolve({available:true}),
+        async get(key) { const result=await h.call(h.body('get',app.appId,app.currentVersion,key),{visitor});if(result.status!==200)throw Error(result.data.error);return result.data; },
+        async set(key,value,expectedRevision) { const result=await h.call(h.body('set',app.appId,app.currentVersion,key,{value,expectedRevision}),{visitor});if(result.status!==200){const error=new Error(result.data.error);error.code=result.data.code;throw error;}return result.data; },
+      }};
+      runInNewContext(script,{document:ui.doc,window:{motes:channel},TextEncoder,Number,Array,Math,Date,JSON,Promise,Error,clearTimeout,setTimeout,setInterval(){return 1;}});
+      const deadline=Date.now()+1000;while(Date.now()<deadline&&!ui.id('#persistence','p').textContent.includes('共享数据已载入')&&!ui.id('#persistence','p').textContent.includes('已连接共享数据'))await new Promise(resolve=>setTimeout(resolve,5));
+      return {...ui,channel};
+    };
+    const tasksFirst=await runDemo('tasks','a');
+    assert.match(tasksFirst.id('#persistence','p').textContent,/已连接共享数据/);
+    const add=tasksFirst.id('#add','form');add.onsubmit({preventDefault(){}}); // empty task is rejected and does not write
+    const board=tasksFirst.id('#board','div'),allNodes=nodes=>nodes.flatMap(node=>[node,...allNodes(node.children??[])]),next=allNodes(board.children).find(node=>node.textContent==='下一步 →');
+    assert.ok(next?.onclick);
+    next.onclick();
+    await new Promise(resolve=>setTimeout(resolve,650));
+    const persisted=await h.call(h.body('get',app.appId,app.currentVersion,'demo.tasks.v1'),{visitor:'b'});
+    assert.equal(persisted.data.value[0].status,1);
+    const tasksSecond=await runDemo('tasks','b');
+    assert.ok(tasksSecond.id('#board','div').children[1].children.some(card=>card.children?.some(child=>child.textContent==='整理本周灵感')));
+
+    for (const [kind,key,value] of [['budget','demo.budget.v1',{limit:2345,expenses:[1,2,3,4]}],['timer','demo.timer.v1',{duration:300,remaining:240,running:false,endsAt:null}]]) {
+      const stored=await h.call(h.body('set',app.appId,app.currentVersion,key,{value,expectedRevision:0}),{visitor:'a'});assert.equal(stored.status,200);
+      const ui=await runDemo(kind,'b');
+      if(kind==='budget'){assert.equal(ui.inputs[0].value,'2345');assert.deepEqual(ui.inputs.slice(1).map(input=>input.value),['1','2','3','4']);}
+      else assert.equal(ui.id('#clock','div').textContent,'04:00');
+    }
   } finally { h.sqlite.close(); }
 });
