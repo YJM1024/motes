@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import ts from 'typescript';
+const source=await readFile(new URL('../app/hooks/workspace-status.ts',import.meta.url),'utf8');const {workspaceStatusView:view}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
+const base={ready:true,intent:'build',mode:'model',connected:true,warning:false};
+test('an unconnected discussion intent cannot present a ready model or normal AI quota',()=>{assert.deepEqual(view({...base,intent:'discuss',connected:false}),{kind:'disconnected',connectedDot:false,showQuota:false});});
+test('example mode does not imply that its limit is the AI quota; a genuine low-quota alert is retained',()=>{assert.equal(view({...base,mode:'demo'}).showQuota,false);assert.equal(view({...base,mode:'demo',warning:true}).showQuota,true);assert.equal(view({...base,mode:'demo'}).connectedDot,false);});
+test('loading never presents an active model and a connected AI mode can show actual quota',()=>{assert.equal(view({...base,ready:false}).kind,'restoring');assert.equal(view({...base,ready:false}).showQuota,false);assert.equal(view(base).connectedDot,true);assert.equal(view(base).showQuota,true);});

@@ -45,5 +45,8 @@ export const uxCoreMessages = {
   "重新尝试示例需求，当前草稿保留。": "Retries the example request. Your current draft is preserved.",
   "仅重试保存": "Retry saving only",
   "核对原请求": "Check original request",
-  "继续原请求（同编号）": "Continue original request (same ID)"
+  "继续原请求（同编号）": "Continue original request (same ID)",
+  "AI 剩余 {remaining}/{limit}": "AI {remaining}/{limit} remaining",
+  "AI 额度未读取": "AI quota not read",
+  "讨论需要服务端连接模型，当前草稿会保留。": "Discussion needs a server-connected model. Your current draft is preserved."
 } as const;
