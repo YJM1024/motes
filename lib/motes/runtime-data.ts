@@ -110,25 +110,28 @@ async function setData(body: Extract<RuntimeBody, { action: 'set' }>) {
     result = await db.prepare(`INSERT INTO motes_app_runtime_data(app_id,data_key,value_json,revision,updated_at)
       SELECT ?,?,?,1,? WHERE
         (SELECT count(*) FROM motes_app_runtime_data WHERE app_id=?) < ? AND
-        (SELECT coalesce(sum(length(value_json)),0)+length(?) FROM motes_app_runtime_data WHERE app_id=?) <= ? AND
+        (SELECT coalesce(sum(length(CAST(value_json AS BLOB))),0)+length(CAST(? AS BLOB)) FROM motes_app_runtime_data WHERE app_id=?) <= ? AND
         ${sharedVersionFence()}
       ON CONFLICT(app_id,data_key) DO NOTHING RETURNING revision`).bind(body.appId,body.key,valueJson,now,body.appId,RUNTIME_DATA_LIMITS.keysPerApp,valueJson,body.appId,RUNTIME_DATA_LIMITS.bytesPerApp,...versionBindings(body.appId,body.versionId)).run<{revision:number}>();
   } else {
     result = await db.prepare(`UPDATE motes_app_runtime_data AS d SET value_json=?,revision=d.revision+1,updated_at=?
       WHERE d.app_id=? AND d.data_key=? AND d.revision=? AND ${sharedVersionFence()}
-        AND (SELECT coalesce(sum(length(value_json)),0)-length(d.value_json)+? FROM motes_app_runtime_data WHERE app_id=d.app_id) <= ?
+        AND (SELECT coalesce(sum(length(CAST(value_json AS BLOB))),0)-length(CAST(d.value_json AS BLOB))+length(CAST(? AS BLOB)) FROM motes_app_runtime_data WHERE app_id=d.app_id) <= ?
       RETURNING revision`).bind(valueJson,now,body.appId,body.key,body.expectedRevision,...versionBindings(body.appId,body.versionId),valueJson,RUNTIME_DATA_LIMITS.bytesPerApp).run<{revision:number}>();
   }
   const row = result.results?.[0];
   if (result.meta.changes && row) return json({ key: body.key, revision: row.revision, updatedAt: now });
   await requireSharedVersion(body.appId, body.versionId);
-  const current = await db.prepare('SELECT revision FROM motes_app_runtime_data WHERE app_id=? AND data_key=?').bind(body.appId,body.key).first<{revision:number}>();
-  if (current) return conflict(current.revision);
-  const count = await db.prepare('SELECT count(*) AS count,coalesce(sum(length(value_json)),0) AS bytes FROM motes_app_runtime_data WHERE app_id=?').bind(body.appId).first<{count:number;bytes:number}>();
-  if (body.expectedRevision > 0) return conflict(0);
-  if ((count?.count ?? 0) >= RUNTIME_DATA_LIMITS.keysPerApp || (count?.bytes ?? 0) + new TextEncoder().encode(valueJson).byteLength > RUNTIME_DATA_LIMITS.bytesPerApp) {
+  const current = await db.prepare('SELECT revision,length(CAST(value_json AS BLOB)) AS bytes FROM motes_app_runtime_data WHERE app_id=? AND data_key=?').bind(body.appId,body.key).first<{revision:number;bytes:number}>();
+  const count = await db.prepare('SELECT count(*) AS count,coalesce(sum(length(CAST(value_json AS BLOB))),0) AS bytes FROM motes_app_runtime_data WHERE app_id=?').bind(body.appId).first<{count:number;bytes:number}>();
+  if (current && (body.expectedRevision === 0 || current.revision !== body.expectedRevision)) return conflict(current.revision);
+  if (!current && body.expectedRevision > 0) return conflict(0);
+  const nextBytes = (count?.bytes ?? 0) - (current?.bytes ?? 0) + new TextEncoder().encode(valueJson).byteLength;
+  if ((!current && (count?.count ?? 0) >= RUNTIME_DATA_LIMITS.keysPerApp) || nextBytes > RUNTIME_DATA_LIMITS.bytesPerApp) {
     return json({ error: '此应用的共享运行数据已达到容量限制。', code: 'capacity' }, 413);
   }
+  if (!await database().prepare(`SELECT p.id FROM forma_projects p WHERE ${allowedVersionSql}`).bind(...versionBindings(body.appId,body.versionId)).first()) throw new HttpError(404, '此应用版本没有可用的共享运行数据。');
+  if (current) return conflict(current.revision);
   throw new HttpError(404, '此应用版本没有可用的共享运行数据。');
 }
 

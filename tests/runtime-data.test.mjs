@@ -126,3 +126,23 @@ test('origin, exact body, byte limits, key and nested JSON rules are enforced', 
     assert.equal((await h.call(h.body('set', app.appId, app.currentVersion, 'item64', { value: 64, expectedRevision: 0 }))).status, 413);
   } finally { h.sqlite.close(); }
 });
+
+test('aggregate capacity uses UTF-8 bytes and rejected updates preserve value and revision', async () => {
+  const h = await harness();
+  try {
+    const app = h.addApp(), value = '中'.repeat(3000);
+    for (let index = 0; index < 29; index++) {
+      const response = await h.call(h.body('set', app.appId, app.currentVersion, `data${index}`, { value, expectedRevision: 0 }));
+      assert.equal(response.status, 200);
+    }
+    const before = await h.call(h.body('get', app.appId, app.currentVersion, 'data0'));
+    const oversizedUpdate = await h.call(h.body('set', app.appId, app.currentVersion, 'data0', { value: '中'.repeat(4000), expectedRevision: before.data.revision }));
+    assert.equal(oversizedUpdate.status, 413);
+    assert.equal(oversizedUpdate.data.code, 'capacity');
+    const after = await h.call(h.body('get', app.appId, app.currentVersion, 'data0'));
+    assert.equal(after.data.revision, before.data.revision);
+    assert.equal(after.data.value, value);
+    const newKey = await h.call(h.body('set', app.appId, app.currentVersion, 'overflow', { value, expectedRevision: 0 }));
+    assert.equal(newKey.status, 413);
+  } finally { h.sqlite.close(); }
+});
