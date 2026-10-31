@@ -28,17 +28,18 @@ test('parent bridge accepts only the bound opaque frame, nonce channel, and fres
 });
 
 test('injected child SDK sends hello and uses one request/response path for get and set', async () => {
-  const { runtimeDataClientScript } = await loadTs('lib/motes/runtime-data-client.ts');
+  const { runtimeDataClientScript, runtimeDataHostScript } = await loadTs('lib/motes/runtime-data-client.ts');
   const channel = 'fedcba9876543210fedcba9876543210', targetOrigin = 'https://host.test';
   const parent = { postMessage(data, origin) { sent.push({ data, origin }); } };
   const sent = [], listeners = new Map(), timers = new Map(); let timerId = 0;
-  const window = { parent, addEventListener(name, callback) { listeners.set(name, callback); } };
+  const window = { parent, location: { origin: 'null' }, addEventListener(name, callback) { listeners.set(name, callback); } };
   runInNewContext(runtimeDataClientScript(channel, targetOrigin), {
     window, TextEncoder, Map, Set, Promise, Error, Object, Array, Number, JSON, Date,
     setTimeout(callback) { const id = ++timerId; timers.set(id, callback); return id; }, clearTimeout(id) { timers.delete(id); },
     setInterval() { return ++timerId; }, clearInterval() {},
   });
   assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), { data: { protocol: 'motes.runtime-data.v1', channel, kind: 'hello' }, origin: targetOrigin });
+  assert.ok(runtimeDataHostScript(channel, targetOrigin, crypto.randomUUID(), crypto.randomUUID()).includes(`targetOrigin=${JSON.stringify(targetOrigin)}`));
   const receive = data => listeners.get('message')({ source: parent, origin: targetOrigin, data });
   receive({ protocol: 'motes.runtime-data.v1', channel, kind: 'ready', ok: true });
   assert.deepEqual(JSON.parse(JSON.stringify(await window.motes.data.ready)), { available: true });

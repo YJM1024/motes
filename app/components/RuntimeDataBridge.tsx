@@ -26,12 +26,12 @@ export default function RuntimeDataBridge({ frameRef, appId, versionId, channel,
     let highestSequence = 0;
     let writes = 0;
     let writeWindow = Date.now();
-    const activeRequests = new Set<string>();
-    const controller = new AbortController();
+    const activeRequests = new Map<string, { controller: AbortController; timeout: ReturnType<typeof setTimeout> }>();
+    const sessionController = new AbortController();
     const respond = (payload: Record<string, unknown>) => { if (active) frameWindow.postMessage({ protocol: RUNTIME_DATA_PROTOCOL, channel, ...payload }, '*'); };
     const initialize = async () => {
       try {
-        const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+        const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal: sessionController.signal });
         const session = await response.json() as { visibility?: unknown };
         if (!response.ok || session.visibility !== 'shared') throw new Error('共享运行数据不可用。');
         if (active) ready = true;
@@ -66,10 +66,12 @@ export default function RuntimeDataBridge({ frameRef, appId, versionId, channel,
         }
         writes++;
       }
-      activeRequests.add(request.requestId);
+      const requestController = new AbortController();
+      const timeout = setTimeout(() => requestController.abort(), 15_000);
+      activeRequests.set(request.requestId, { controller: requestController, timeout });
       try {
         const response = await fetch('/api/runtime-data', {
-          method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+          method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: requestController.signal,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ action: request.action, appId, versionId, key: request.key, ...(request.action === 'set' ? { value: request.value, expectedRevision: request.expectedRevision } : {}) }),
         });
@@ -78,11 +80,11 @@ export default function RuntimeDataBridge({ frameRef, appId, versionId, channel,
         if (response.ok) respond({ kind: 'result', requestId: request.requestId, ok: true, result: request.action === 'get' ? { key: result.key, value: result.value, revision: result.revision, updatedAt: result.updatedAt } : { key: result.key, revision: result.revision, updatedAt: result.updatedAt } });
         else respond({ kind: 'result', requestId: request.requestId, ok: false, error: { code: typeof result.code === 'string' ? result.code : `http_${response.status}`, message: typeof result.error === 'string' ? result.error : '共享数据暂时无法保存。', ...(Number.isSafeInteger(result.revision) ? { revision: result.revision } : {}) } });
       } catch {
-        if (active) respond({ kind: 'result', requestId: request.requestId, ok: false, error: { code: 'unavailable', message: '共享数据暂时无法连接，请保留当前内容后重试。' } });
-      } finally { activeRequests.delete(request.requestId); }
+        if (active) respond({ kind: 'result', requestId: request.requestId, ok: false, error: { code: requestController.signal.aborted ? 'timeout' : 'unavailable', message: requestController.signal.aborted ? '请求等待超时，写入结果可能尚未确认；请先重新读取数据。' : '共享数据暂时无法连接，请保留当前内容后重试。' } });
+      } finally { clearTimeout(timeout); activeRequests.delete(request.requestId); }
     };
     window.addEventListener('message', receive);
-    return () => { active = false; controller.abort(); activeRequests.clear(); window.removeEventListener('message', receive); };
+    return () => { active = false; sessionController.abort(); for (const entry of activeRequests.values()) { clearTimeout(entry.timeout); entry.controller.abort(); } activeRequests.clear(); window.removeEventListener('message', receive); };
   }, [frameRef, appId, versionId, channel, enabled]);
 
   return null;
