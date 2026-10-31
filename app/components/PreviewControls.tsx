@@ -45,7 +45,14 @@ export default function PreviewControls({ device, onDeviceChange, width, onWidth
       </div>
       <label className={styles.width}>{t('宽度')} <input id="preview-custom-width" aria-label={t('自定义预览宽度')} type="number" min={280} max={1920} step={1} value={widthDraft} onChange={event => setWidthDraft(event.target.value)} onBlur={commitWidth} onKeyDown={event => { if (event.key === 'Enter') { commitWidth(); event.currentTarget.blur(); } }} /> px</label>
       <label className={styles.scale}>{t('缩放')} <select aria-label={t('预览缩放')} value={scale} onChange={event => onScaleChange(Number(event.target.value))}>{[0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5].map(value => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
-      <details className={styles.mobileSettings}>
+      <details className={styles.mobileSettings} onKeyDown={event => {
+        if (event.key === 'Escape' && event.currentTarget.open) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector('summary')?.focus();
+        }
+      }}>
         <summary>{t('预览设置')}</summary>
         <div className={styles.mobileSettingsBody}>
           <button type="button" onClick={() => mobileWidthInput.current?.focus()}>{t('自定义')}</button>
