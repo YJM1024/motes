@@ -28,13 +28,21 @@ export default function MotionPreferenceProvider({ children }: { children: React
   const storageUnavailable = useSyncExternalStore(subscribe, getStorageFailure, getServerStorageFailure);
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== MOTION_PREFERENCE_KEY && event.key !== null) return;
+      storedPreference = parseMotionPreference(event.key === null ? null : event.newValue);
+      storageFailed = false;
+      notify();
+    };
     try {
       const stored = localStorage.getItem(MOTION_PREFERENCE_KEY);
       storedPreference = parseMotionPreference(stored);
     } catch {
       storageFailed = true;
     }
+    window.addEventListener('storage', onStorage);
     notify();
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const setPreference = useCallback((value: MotionPreference) => {
