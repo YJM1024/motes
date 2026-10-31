@@ -20,7 +20,6 @@ html[data-motes-theme="dark"] .manage-card-top .manage-icon,html[data-motes-them
 .manage-dialog{max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain}
 .manage-dialog :is(button,input,select,textarea){min-height:44px;max-width:100%}
 .manage-dialog textarea{height:auto;min-height:110px}
-.manage-dialog :is(input,textarea){font-size:16px}
 .manage-dialog-head{gap:10px;min-width:0}
 .manage-form-actions{flex-wrap:wrap}
 .manage-form-actions>button{min-height:44px;white-space:normal;overflow-wrap:anywhere}
