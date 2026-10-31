@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '@/lib/forma/types';
 import { publicationRequestId, publicationUrl, type PublicationMutation, type PublicationReceipt } from '@/lib/motes/publication-client';
+import { publicationPreflight } from '@/lib/motes/publication-preflight';
 import styles from './PublicationPanel.module.css';
 import { hostText, useHostLocale } from './HostLocaleProvider';
 
@@ -20,6 +21,8 @@ export default function PublicationPanel({ project, onClose }: Props) {
   const [action, setAction] = useState<Action|null>(null), [error, setError] = useState(''), [feedback, setFeedback] = useState(''), [conflict, setConflict] = useState(false);
   const request = useRef<PublicationReceipt|null>(null), inFlight = useRef(false), dialog=useRef<HTMLDialogElement>(null);
   const selected = project.versions.find(version=>version.id===selectedVersionId);
+  const editingBase = project.versions.find(version=>version.id===project.currentVersionId);
+  const preflight = useMemo(() => publicationPreflight(selected?.html ?? ''), [selected?.html]);
   const publicUrl = useMemo(()=>{if(!publication||typeof window==='undefined')return '';try{return publicationUrl(publication.path,window.location.origin);}catch{return ''; }},[publication]);
   const read = useCallback(async (reselect=false) => {
     setLoading(true);setError('');
@@ -61,12 +64,22 @@ export default function PublicationPanel({ project, onClose }: Props) {
     <div className={styles.body}>
       <p className={styles.disclosure}>{t('发布会公开所选版本的标题和完整 HTML 页面，任何持有链接的人都可访问。需求对话和其他版本不会公开；发布前请检查标题和源码中是否包含私人内容。不会调用模型。')}</p>
       <p className={styles.stable}>{t('此链接保持稳定。更新发布会让同一链接显示新选版本；暂停后链接返回 404，之后重新发布会恢复原链接。')}</p>
-      <div className={styles.versionPicker}><label>{t('发布内容')}<select value={selectedVersionId} disabled={loading||busy||!!action||!project.versions.length} onChange={event=>{setSelectedVersionId(event.target.value);setError('');setFeedback('');setConflict(false);}}><option value="" disabled>{t('请选择已保存版本')}</option>{project.versions.map(version=><option key={version.id} value={version.id}>v{version.number}{version.id===project.currentVersionId?t(' · 当前'):''}{version.name?` · ${version.name}`:''}</option>)}</select></label><span>{t('只会公开所选保存版本的标题和页面内容。')}</span></div>
+      <div className={styles.versionPicker}><label>{t('发布内容')}<select value={selectedVersionId} disabled={loading||busy||!!action||!project.versions.length} onChange={event=>{setSelectedVersionId(event.target.value);setError('');setFeedback('');setConflict(false);}}><option value="" disabled>{t('请选择已保存版本')}</option>{project.versions.map(version=><option key={version.id} value={version.id}>v{version.number}{version.id===project.currentVersionId?t(' · 当前'):''}{publication?.versionId===version.id?t(' · 已发布'):''}{version.name?` · ${version.name}`:''}</option>)}</select></label><span>{t('只会公开所选保存版本的标题和页面内容。')}</span></div>
+      <section className={styles.preflight} aria-labelledby="publication-preflight-title">
+        <h3 id="publication-preflight-title">{t('发布前静态检查')}</h3>
+        <p>{t('检查仅读取源码文本，不会执行 HTML，也不能证明页面安全或可运行。')}</p>
+        <p className={styles.versionMap}>{t('当前编辑基准')}：{editingBase?`v${editingBase.number}`:t('版本详情不可用')} · {t('已发布版本')}：{publication?`v${publication.versionNumber}`:t('尚未创建稳定发布链接')} · {t('发布内容')}：{selected?`v${selected.number}`:t('请选择已保存版本')}</p>
+        <p>{t('这只是已保存版本；未保存的编辑器草稿不会发布。先保存代码，再选新版本。')}</p>
+        <p>{preflight.errors.length?t('需先处理阻止项'):preflight.warnings.length?t('有提醒，请人工检查'):t('检查通过')} · {preflight.htmlLength.toLocaleString(locale==='en'?'en-US':'zh-CN')} / 180,000</p>
+        {[...preflight.errors,...preflight.warnings].length>0&&<ul>{[...preflight.errors,...preflight.warnings].map((message,index)=><li key={`${index}-${message}`}>{t(message)}</li>)}</ul>}
+        {selected?.summary&&<details><summary>{t('保存版本摘要（供发布前核对）')}</summary><p>{selected.summary}</p><small>{t('此摘要仅供核对；公开页面展示标题、版本号和 HTML。')}</small></details>}
+        <p className={styles.policyNote}>{t('发布预览会隔离页面并限制网络请求；依赖外部资源的功能可能无法加载。')}</p>
+      </section>
       {loading?<p className={styles.status} role="status">{t('正在读取发布状态…')}</p>:publication?<div className={styles.statusCard}><strong>{publication.enabled?t('发布中'):t('已暂停')} · v{publication.versionNumber} · {t('修订')} {publication.revision}</strong><span>{t('最近更新')}：{new Date(publication.updatedAt).toLocaleString(locale==='en'?'en-US':'zh-CN')}</span><code>{publicUrl || publication.path}</code>{publication.enabled&&publicUrl&&<a href={publicUrl} target="_blank" rel="noreferrer">{t('打开公开页面')}</a>}<button type="button" disabled={busy} onClick={()=>void copy()}>{t('复制稳定链接')}</button></div>:<p className={styles.status}>{t('尚未创建稳定发布链接。')}</p>}
       {error&&<p className={styles.error} role="alert">{error}{conflict&&<button type="button" disabled={busy||loading} onClick={()=>void read(action==='publish')}>{t("刷新状态并重新选择")}</button>}</p>}
       {feedback&&<p className={styles.feedback} role="status" aria-live="polite">{feedback}</p>}
-      <div className={styles.actions}><button type="button" disabled={loading||busy||!!action||!selected} onClick={()=>{setAction('publish');setError('');setFeedback('');}}> {publication?.enabled?t('更新发布内容'):publication?t('重新启用固定链接'):t('创建稳定发布链接')}</button>{publication?.enabled&&<button type="button" className={styles.secondary} disabled={loading||busy||!!action} onClick={()=>{setAction('unpublish');setError('');setFeedback('');}}>{t('暂停发布')}</button>}<button type="button" className={styles.refresh} disabled={busy||loading||!!action} onClick={()=>void read()}>{t('刷新发布状态')}</button></div>
-      {action&&<div className={styles.confirm} role="group" aria-label={t('确认发布操作')}><p>{action==='publish'?t('确认{action}标题「{title}」和已保存的 v{version} 页面吗？该操作会{effect}稳定链接。',{action:t(publication?.enabled?'更新':'发布'),title:project.title,version:selected?.number ?? '',effect:t(publication?.enabled?'更新':'启用')}):t('确认暂停稳定发布？现有链接将返回 404；之后重新发布会恢复同一个链接。')}</p><div><button type="button" disabled={busy} onClick={()=>setAction(null)}>{t('返回检查')}</button><button type="button" disabled={busy||loading||action==='publish'&&!selected} onClick={()=>void mutate(action)}>{busy?t('正在保存…'):currentActionLabel}</button></div></div>}
+      <div className={styles.actions}><button type="button" disabled={loading||busy||!!action||!selected||preflight.errors.length>0} onClick={()=>{setAction('publish');setError('');setFeedback('');}}> {publication?.enabled?t('更新发布内容'):publication?t('重新启用固定链接'):t('创建稳定发布链接')}</button>{publication?.enabled&&<button type="button" className={styles.secondary} disabled={loading||busy||!!action} onClick={()=>{setAction('unpublish');setError('');setFeedback('');}}>{t('暂停发布')}</button>}<button type="button" className={styles.refresh} disabled={busy||loading||!!action} onClick={()=>void read()}>{t('刷新发布状态')}</button></div>
+      {action&&<div className={styles.confirm} role="group" aria-label={t('确认发布操作')}><p>{action==='publish'?t('确认{action}标题「{title}」和已保存的 v{version} 页面吗？该操作会{effect}稳定链接。',{action:t(publication?.enabled?'更新':'发布'),title:project.title,version:selected?.number ?? '',effect:t(publication?.enabled?'更新':'启用')}):t('确认暂停稳定发布？现有链接将返回 404；之后重新发布会恢复同一个链接。')}</p><div><button type="button" disabled={busy} onClick={()=>setAction(null)}>{t('返回检查')}</button><button type="button" disabled={busy||loading||action==='publish'&&(!selected||preflight.errors.length>0)} onClick={()=>void mutate(action)}>{busy?t('正在保存…'):currentActionLabel}</button></div></div>}
       <p className={styles.snapshotNote}>{t('这与“固定版本分享”不同：固定分享始终指向创建时的快照，不会随新版本漂移；两种链接相互独立。')}</p>
     </div>
   </dialog>;
