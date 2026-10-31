@@ -1,6 +1,6 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- Production vinext Link/RSC navigation is incompatible; native anchors retain synchronous draft persistence and existing leave guards. */
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, Settings2, ShieldCheck } from 'lucide-react';
 import type { SettingKey, SettingsPatch, SettingsSnapshot, SettingScope } from '@/lib/motes/settings';
@@ -76,7 +76,7 @@ export default function SettingsPage() {
   }
   const filtered = localizedFields.filter(f => `${f.title}${f.description}${f.group}`.includes(query.trim()));
   function linkGuard(e: React.MouseEvent<HTMLAnchorElement>) { if (!mayLeave()) e.preventDefault(); }
-  return <main className="settings-shell"><header className="settings-top"><Link href="/" onClick={linkGuard}><ArrowLeft size={16}/>{t('回到创作')}</Link><strong>motes<span>.</span></strong><Link href="/manage" onClick={linkGuard}>{t('应用管理')}<ChevronRight size={14}/></Link></header>
+  return <main className="settings-shell"><header className="settings-top"><a href="/" onClick={linkGuard}><ArrowLeft size={16}/>{t('回到创作')}</a><strong>motes<span>.</span></strong><a href="/manage" onClick={linkGuard}>{t('应用管理')}<ChevronRight size={14}/></a></header>
     <div className="settings-layout"><aside className="settings-sidebar"><p className="settings-kicker">{t('偏好与空间')}</p><h1><Settings2 size={22}/>{t('设置')}</h1><a href="#settings-preferences">{t('创作与工作台')}</a><a href="#settings-usage">{t('用量与任务')}</a><a href="#settings-identity">{t('个人资料')}</a><a href="#settings-security">{t('数据与安全')}</a><p className="settings-side-note">{t('测试模式')}<br/>{t('当前浏览器的独立空间，尚无正式账号和跨设备同步。')}</p></aside>
     <section className="settings-content"><div className="settings-intro"><h2>{t('让工作台更合你的习惯')}</h2><p>{t('只调整今后的默认行为。已有应用代码与历史版本不会被设置变化重写。')}</p></div>
       {error && <div role="alert" className="settings-error"><strong>{t("操作未完成：")}</strong>{error}{!workspace && <button onClick={() => void initial()} disabled={loading}>{t('重新加载')}</button>}</div>}{notice && <p role="status" className="settings-notice"><Check size={15}/>{t(notice)}</p>}
@@ -94,7 +94,7 @@ export default function SettingsPage() {
       <ThemePreferences />
       <MotionPreferences />
       {workspace && <UsagePanel/>}
-      <section className="settings-section settings-info" id="settings-identity"><h3>{t('个人资料')}</h3><div><span className="settings-profile-avatar">{workspace?.profile.displayName.slice(0, 1) || 'M'}</span><p><strong>{workspace?.profile.displayName || t('测试用户')}</strong><small>{t('测试资料 · 显示名称不用于登录认证')}</small></p><Link href="/manage" onClick={linkGuard}>{t('编辑资料')}<ChevronRight size={14}/></Link></div></section>
+      <section className="settings-section settings-info" id="settings-identity"><h3>{t('个人资料')}</h3><div><span className="settings-profile-avatar">{workspace?.profile.displayName.slice(0, 1) || 'M'}</span><p><strong>{workspace?.profile.displayName || t('测试用户')}</strong><small>{t('测试资料 · 显示名称不用于登录认证')}</small></p><a href="/manage" onClick={linkGuard}>{t('编辑资料')}<ChevronRight size={14}/></a></div></section>
       <section className="settings-section settings-info" id="settings-security"><h3><ShieldCheck size={17}/>{t('数据与安全')}</h3><dl><dt>{t('身份与归属')}</dt><dd>{t('匿名 HttpOnly Cookie 识别访客。清除 Cookie、更换浏览器或设备后无法找回原身份。每个设置作用范围均由服务端检查归属。')}</dd><dt>{t('保存内容')}</dt><dd>{t('项目、需求、代码版本和设置保存到服务端。预览中的费用、任务与计时等运行状态不持久化。')}</dd><dt>{t('模型与密钥')}</dt><dd>{t('密钥只保存在服务端，不返回浏览器。AI 生成会发送当前需求和代码到模型服务；这里不显示账户账单或余额。')}</dd><dt>{t('固定安全边界')}</dt><dd>{t('隔离预览、网络限制、3 分钟模型超时、输出上限与每日额度由服务端控制，不能被项目或应用偏好覆盖。')}</dd></dl><p className="settings-hint">{t('当前不提供正式登录、数据清除或安全策略开关。需要带走应用时，可在工作台导出 HTML。')}</p></section>
     </section></div>
   </main>;
