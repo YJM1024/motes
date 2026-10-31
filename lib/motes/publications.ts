@@ -1,5 +1,5 @@
 import { database,json,payload } from '../forma/server';
-import { owner,digest,HttpError } from '../forma/security';
+import { owner,digest,HttpError,isSharedOwner,sharedWorkspaceEnabled } from '../forma/security';
 import type { Publication } from './publication-types';
 import type { SharedVersion } from './share-types';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -24,6 +24,6 @@ export async function managePublication(request:Request,appId:string){
  if(!results[0].meta.changes){const retry=await prior();if(retry)return retry;throw new HttpError(409,'发布状态、版本归属或源码大小已变化，请刷新发布状态后核对。');}
  return json({publication:await snapshot(who,appId),completed:true},expected===0?201:200);
 }
-export async function readPublishedVersion(token:string):Promise<SharedVersion|null>{if(!/^[a-f0-9]{64}$/.test(token))return null;const row=await database().prepare('SELECT pub.app_id,pub.version_id,pub.title,v.number,v.html FROM motes_publications pub JOIN forma_versions v ON v.id=pub.version_id AND v.project_id=pub.app_id WHERE pub.token=? AND pub.enabled=1 AND length(v.html)<=180000').bind(token).first<{app_id:string;version_id:string;title:string;number:number;html:string}>();return row?{appId:row.app_id,versionId:row.version_id,title:row.title,versionNumber:row.number,html:row.html}:null;}
+export async function readPublishedVersion(token:string):Promise<SharedVersion|null>{if(!/^[a-f0-9]{64}$/.test(token))return null;const row=await database().prepare('SELECT pub.app_id,pub.version_id,pub.title,v.number,v.html,p.owner FROM motes_publications pub JOIN forma_versions v ON v.id=pub.version_id AND v.project_id=pub.app_id JOIN forma_projects p ON p.id=pub.app_id WHERE pub.token=? AND pub.enabled=1 AND length(v.html)<=180000').bind(token).first<{app_id:string;version_id:string;title:string;number:number;html:string;owner:string}>();if(!row)return null;const trustedRuntime=sharedWorkspaceEnabled()&&isSharedOwner(row.owner);return trustedRuntime?{appId:row.app_id,versionId:row.version_id,runtimeData:true,title:row.title,versionNumber:row.number,html:row.html}:{title:row.title,versionNumber:row.number,html:row.html};}
 export async function readPublication(token:string){const value=await readPublishedVersion(token);return value?{title:value.title,versionNumber:value.versionNumber,html:value.html}:null;}
 export async function getPublishedVersion(token:string){const value=await readPublication(token);return json(value??{error:'发布链接不可用，可能已下线或不存在。'},value?200:404,{'Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow, noarchive','X-Content-Type-Options':'nosniff'});}

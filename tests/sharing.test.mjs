@@ -11,7 +11,7 @@ async function harness(){
   for(const name of migrations)sqlite.exec(await readFile(new URL('../drizzle/'+name+'.sql',import.meta.url),'utf8'));
   const control={beforeInsert:null,failShareRead:false};
   function prepare(sql,args=[]){return {bind(...values){return prepare(sql,values)},async first(){if(control.failShareRead&&sql.includes('WHERE s.id=?')){control.failShareRead=false;throw Error('simulated read outage');}return sqlite.prepare(sql).get(...args)??null;},async all(){return {results:sqlite.prepare(sql).all(...args)}},run(){if(control.beforeInsert&&/^INSERT INTO motes_shares/.test(sql)){const run=control.beforeInsert;control.beforeInsert=null;run();}return {meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}}}};}
-  const key=crypto.randomUUID();globalThis[key]={DB:{prepare,async batch(statements){sqlite.exec('BEGIN');try{const values=statements.map(s=>s.run());sqlite.exec('COMMIT');return values;}catch(e){sqlite.exec('ROLLBACK');throw e;}}}};
+  const key=crypto.randomUUID(),env={DB:{prepare,async batch(statements){sqlite.exec('BEGIN');try{const values=statements.map(s=>s.run());sqlite.exec('COMMIT');return values;}catch(e){sqlite.exec('ROLLBACK');throw e;}}}};globalThis[key]=env;
   const cache=new Map();
   async function moduleUrl(file){
     if(cache.has(file))return cache.get(file);
@@ -43,7 +43,7 @@ async function harness(){
     return {status:response.status,data:await response.json()};
   }
   const create=(a,body={},visitor='a')=>request('create',a.id,{versionId:a.versionId,requestId:crypto.randomUUID(),...body},visitor);
-  return {sqlite,sharing,page,pageRoute,control,seed,request,create,close:()=>sqlite.close()};
+  return {sqlite,sharing,page,pageRoute,control,seed,request,create,env,close:()=>sqlite.close()};
 }
 
 test('links expose only a fixed version and snapshot title; generation/restore/rename never retarget them',async t=>{
@@ -151,6 +151,16 @@ test('share HTTP route returns 200 without server DOMParser and uniform 404 afte
   for(const internal of [a.id,a.owner,a.versionId,a.current])assert.equal(html.includes(internal),false,'Public page must not reveal internal identifiers');
   await h.request('revoke',a.id,{},'a','https://motes.test',share.id);
   const revoked=await get(share.path),missing=await get('/share/'+'0'.repeat(64));assert.equal(revoked.status,404);assert.equal(missing.status,404);assert.equal(await revoked.text(),await missing.text());
+});
+
+test('runtime bridge metadata is present only for explicitly shared-owner apps',async t=>{
+  const h=await harness();t.after(h.close);const legacy=await h.seed(),legacyShare=await h.create(legacy),legacyToken=legacyShare.data.share.path.split('/').at(-1),legacyVersion=await h.sharing.readSharedVersion(legacyToken);
+  assert.deepEqual(Object.keys(legacyVersion).sort(),['html','title','versionNumber']);
+  const legacyHtml=h.page.sharedPage(legacyVersion,undefined,'snapshot','https://motes.test');assert.doesNotMatch(legacyHtml,new RegExp(legacy.id+'|'+legacy.versionId));assert.doesNotMatch(legacyHtml,/motes\.runtime-data\.v1|\/api\/runtime-data/);
+  h.env.MOTES_WORKSPACE_VISIBILITY='shared';const shared=await h.seed('b');h.sqlite.prepare('UPDATE forma_projects SET owner=? WHERE id=?').run('motes-public-demo-v1',shared.id);const sharedShare=await h.create(shared,{},'a'),sharedToken=sharedShare.data.share.path.split('/').at(-1),sharedVersion=await h.sharing.readSharedVersion(sharedToken);
+  assert.deepEqual({appId:sharedVersion.appId,versionId:sharedVersion.versionId,runtimeData:sharedVersion.runtimeData},{appId:shared.id,versionId:shared.versionId,runtimeData:true});
+  const sharedHtml=h.page.sharedPage(sharedVersion,undefined,'snapshot','https://motes.test');assert.match(sharedHtml,new RegExp(shared.id));assert.match(sharedHtml,new RegExp(shared.versionId));assert.match(sharedHtml,/motes\.runtime-data\.v1|\/api\/runtime-data/);
+  const publicResponse=await h.sharing.getSharedVersion(sharedToken),publicVersion=await publicResponse.json();assert.deepEqual(Object.keys(publicVersion).sort(),['html','title','versionNumber']);
 });
 
 test('0003 migration is schema-only and chains from the stable 0002 snapshot',async()=>{
