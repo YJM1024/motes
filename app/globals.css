@@ -235,3 +235,4 @@ html .forma-app .suggestion-row{gap:7px}
 html .forma-app .suggestion-row button{min-height:32px;padding:6px 10px;border-radius:calc(var(--motes-radius) - 4px);font-size:12px;line-height:1.5;color:var(--motes-text);border-color:var(--motes-border);background:var(--motes-surface)}
 html .forma-app .message-author>span{font-size:11px;line-height:1.5}
 @media(max-width:600px){html .forma-app .composer .composer-footer .send-button{width:44px;height:44px;min-width:44px;max-width:44px;min-height:44px;flex-basis:44px}html .forma-app .composer .composer-footer>button[type="button"],html .forma-app .suggestion-row button{min-height:44px}}
+@media(max-width:600px){.is-workspace .topbar-right{width:100%}}
