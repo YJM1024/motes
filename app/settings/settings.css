@@ -4,3 +4,40 @@ html[data-motes-theme="dark"] .settings-intro h2,html[data-motes-theme="dark"] .
 html[data-motes-theme="dark"] .settings-intro p,html[data-motes-theme="dark"] .settings-row p,html[data-motes-theme="dark"] .settings-row small,html[data-motes-theme="dark"] .settings-side-note,html[data-motes-theme="dark"] .settings-loading,html[data-motes-theme="dark"] .settings-info p small{color:var(--motes-muted)}
 html[data-motes-theme="dark"] .settings-section-title input,html[data-motes-theme="dark"] .settings-scope select,html[data-motes-theme="dark"] .settings-row>select{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 html[data-motes-theme="dark"] .settings-actions>button:not(.settings-primary){background:var(--motes-muted-surface);border:1px solid var(--motes-border);color:var(--motes-text)}
+
+/* UX3: readable settings copy and touch-sized controls at narrow widths. */
+.settings-content,.settings-section,.settings-row,.settings-info dd{min-width:0}
+.settings-intro p,.settings-row p,.settings-hint,.settings-side-note,.settings-info dd{color:#667085;overflow-wrap:anywhere}
+.settings-row h4{font-size:14px;color:#475467}
+.settings-row p{font-size:13px;line-height:1.65}
+.settings-row>select,.settings-scope select,.settings-actions>button{min-height:44px}
+.settings-section-title{flex-wrap:wrap}
+.settings-section-title input{min-height:42px}
+.settings-sidebar>a,.settings-top>a{min-height:44px;display:inline-flex;align-items:center;gap:6px;overflow-wrap:anywhere}
+.settings-error,.settings-notice{overflow-wrap:anywhere;line-height:1.6}
+.settings-info>div>a{min-height:44px;white-space:normal}
+@media(max-width:700px){
+  .settings-top{min-height:56px;height:auto;padding:6px 12px;gap:8px}
+  .settings-top>strong{font-size:22px}
+  .settings-top>a{min-width:0;max-width:42%;font-size:12px}
+  .settings-sidebar{padding:14px 14px 10px}
+  .settings-sidebar h1{font-size:19px}
+  .settings-sidebar>a{padding:8px 9px;margin:0 3px 3px 0;border-radius:6px}
+  .settings-content{padding:20px 12px calc(40px + env(safe-area-inset-bottom))}
+  .settings-intro h2{font-size:20px;line-height:1.35;overflow-wrap:anywhere}
+  .settings-intro p{font-size:13px;line-height:1.6}
+  .settings-section{padding:16px 13px;border-radius:9px}
+  .settings-section-title{align-items:stretch;gap:9px;margin-bottom:15px}
+  .settings-section-title input{max-width:none;width:100%;font-size:16px}
+  .settings-scope label{min-width:100%;font-size:12px}
+  .settings-row{gap:8px;padding:16px 0}
+  .settings-row h4{font-size:15px}
+  .settings-row p{font-size:13px;line-height:1.65}
+  .settings-row>select{width:100%;max-width:none;font-size:16px}
+  .settings-actions{justify-content:stretch;gap:8px}
+  .settings-actions>button{flex:1 1 42%;min-height:44px;white-space:normal}
+  .settings-actions>button:first-child{flex-basis:100%;margin:0;min-height:44px}
+  .settings-actions>span{font-size:12px;line-height:1.5}
+  .settings-info dl{font-size:13px}
+  .settings-info dd{line-height:1.65}
+}

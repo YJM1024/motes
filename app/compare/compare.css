@@ -4,3 +4,33 @@ html[data-motes-theme="dark"] .compare-frame{background:var(--motes-muted-surfac
 html[data-motes-theme="dark"] .compare-tabs .active{background:#28364d;border-color:#49658d;color:var(--motes-accent)}
 html[data-motes-theme="dark"] .compare-fields>label,html[data-motes-theme="dark"] .compare-confirm,html[data-motes-theme="dark"] .compare-tabs label,html[data-motes-theme="dark"] .compare-placeholder{color:var(--motes-muted)}
 html[data-motes-theme="dark"] .compare-grid pre{background:#111318;border-color:var(--motes-border);color:#edf0f5}
+
+/* UX3: prevent long localized labels and errors from widening the comparison workspace. */
+.compare-content,.compare-content section,.compare-grid article,.compare-fields>label{min-width:0}
+.compare-shell :is(h1,h2,h3,p,small,label,button,a){overflow-wrap:anywhere}
+.compare-shell :is(textarea,select){max-width:100%;min-width:0}
+.compare-shell textarea{font-size:16px;line-height:1.6}
+.compare-shell button,.compare-shell select,.compare-shell summary{min-height:44px}
+.compare-error,.compare-notice,.compare-pending{line-height:1.6;overflow-wrap:anywhere}
+.compare-grid details{min-width:0}
+.compare-grid pre{max-width:100%;overflow:auto;overscroll-behavior:contain}
+.compare-frame{height:min(520px,65dvh);min-height:330px}
+@media(max-width:760px){
+  .compare-shell header{min-height:56px;height:auto;padding:7px 12px;gap:8px;flex-wrap:wrap}
+  .compare-shell header strong{font-size:21px;line-height:1.25;overflow-wrap:anywhere}
+  .compare-content{padding:18px 12px calc(32px + env(safe-area-inset-bottom))}
+  .compare-content h1{font-size:22px;line-height:1.3;overflow-wrap:anywhere}
+  .compare-content section{padding:14px;margin:14px 0;border-radius:9px}
+  .compare-fields{gap:8px}
+  .compare-fields>label{flex-basis:100%;font-size:13px}
+  .compare-shell :is(select,textarea){font-size:16px;min-height:44px}
+  .compare-tabs{gap:7px;margin:12px 0}
+  .compare-tabs>*{max-width:100%;min-width:0}
+  .compare-tabs>select{flex:1 1 130px;width:auto;min-height:44px}
+  .compare-tabs label{flex:1 1 100%;display:flex;align-items:center;gap:8px;min-height:44px}
+  .compare-tabs label input,.compare-confirm input{width:20px;height:20px;flex:0 0 20px}
+  .compare-frame{height:56dvh;min-height:300px;max-height:520px}
+  .compare-adopt>*{min-height:44px;max-width:100%;white-space:normal}
+  .compare-confirm{line-height:1.55}
+  .compare-content>p,.compare-hint{font-size:13px;line-height:1.6}
+}

@@ -2,3 +2,23 @@
 
 :global(html[data-motes-theme="dark"]) .panel,:global(html[data-motes-theme="dark"]) .details{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .hint{color:var(--motes-muted)}
+
+.panel{max-height:min(36dvh,300px);padding:12px 16px;color:#5b4d38;font-size:13px;line-height:1.6;overflow:auto;overscroll-behavior:contain;overflow-wrap:anywhere}
+.heading{align-items:flex-start;flex-wrap:wrap}
+.heading p{color:#554832;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.panel button,.compact button{min-height:44px;padding:8px 12px;color:#554832;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.hint{font-size:12px;color:#625640;line-height:1.6;overflow-wrap:anywhere}
+.details{max-height:150px}
+.details li{align-items:flex-start;flex-wrap:wrap;gap:4px 10px;font-size:12px}
+.details strong,.details span{overflow-wrap:anywhere;word-break:break-word}
+.details strong{color:#554832}
+@media(max-width:620px){
+  .panel{max-height:34dvh;padding:10px 12px}
+  .heading{gap:8px}
+  .heading>button{min-width:44px;min-height:44px}
+  .actions{gap:6px}
+  .actions button{flex:1 1 135px}
+  .details{max-height:110px}
+}
+:global(html[data-motes-theme="dark"]) .panel,:global(html[data-motes-theme="dark"]) .heading p,:global(html[data-motes-theme="dark"]) .hint,:global(html[data-motes-theme="dark"]) .details strong,:global(html[data-motes-theme="dark"]) .details span{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .panel button,:global(html[data-motes-theme="dark"]) .compact button{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}

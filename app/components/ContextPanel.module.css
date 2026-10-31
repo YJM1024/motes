@@ -15,3 +15,10 @@
 .excerpts pre { max-height: 110px; overflow: auto; margin: 4px 0 0; color: #65768c; font: 10px/1.5 var(--font-sans, "Segoe UI", sans-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .root summary { min-height: 40px; padding: 12px; } }
 @media (prefers-reduced-motion: reduce) { .root { scroll-behavior: auto; } }
+
+:global(html[data-motes-theme="dark"]) .root{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .root summary{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .body{border-color:var(--motes-border)}
+:global(html[data-motes-theme="dark"]) .note,:global(html[data-motes-theme="dark"]) .stats dt{color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .stats div,:global(html[data-motes-theme="dark"]) .excerpts li{background:var(--motes-surface);border-color:var(--motes-border)}
+:global(html[data-motes-theme="dark"]) .stats dd,:global(html[data-motes-theme="dark"]) .excerpts pre{color:var(--motes-text)}

@@ -5,3 +5,33 @@
 :global(html[data-motes-theme="dark"]) .context,:global(html[data-motes-theme="dark"]) .welcome p{color:var(--motes-muted)}
 :global(html[data-motes-theme="dark"]) .switch button,:global(html[data-motes-theme="dark"]) .threadBar select,:global(html[data-motes-theme="dark"]) .failed button,:global(html[data-motes-theme="dark"]) .waiting button,:global(html[data-motes-theme="dark"]) .fill button{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .switch button[aria-pressed="true"]{background:#28364d;border-color:#49658d;color:var(--motes-accent)}
+
+/* UX3: readable message states and touch-safe composer controls. */
+.switch button{min-height:36px;color:#596579;font-size:12px}
+.threadBar,.context,.waiting,.failed,.info{color:#596579;overflow-wrap:anywhere}
+.answer{color:#465467}
+.failed{font-size:13px}.failed p{font-size:13px;color:#704c42}
+.info{font-size:12px}
+.error{color:#7e3f34;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.fill{color:#65543d;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.threadBar button,.failed button,.waiting button,.fill button,.adopt,.send{min-height:40px;font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+.newMessages{min-height:40px;font-size:12px}
+.dialog{overflow-wrap:anywhere}
+.dialog :is(h2,p,small){overflow-wrap:anywhere}
+.dialog :is(button,textarea){font-size:14px}
+.dialog textarea{min-height:180px;max-height:42dvh}
+@media(max-width:620px){
+  .switch{max-width:100%;flex-wrap:wrap}
+  .switch button{min-height:40px;flex:1 1 auto;white-space:normal}
+  .dialog{width:calc(100vw - 20px);max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:16px;overscroll-behavior:contain}
+  .dialog textarea{min-height:130px;max-height:30dvh;font-size:16px}
+  .dialog .actions button{min-height:44px;flex:1 1 130px;white-space:normal}
+  .threadBar button,.failed button,.waiting button,.fill button,.adopt,.send,.newMessages{min-height:44px}
+  .waiting button{margin-left:0;margin-top:6px}
+}
+:global(html[data-motes-theme="dark"]) .threadBar,:global(html[data-motes-theme="dark"]) .context,:global(html[data-motes-theme="dark"]) .waiting,:global(html[data-motes-theme="dark"]) .failed,:global(html[data-motes-theme="dark"]) .info,:global(html[data-motes-theme="dark"]) .answer{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .failed p,:global(html[data-motes-theme="dark"]) .error{color:#f0b7a8}
+:global(html[data-motes-theme="dark"]) .fill{color:var(--motes-text)}
+:global(html[data-motes-theme="dark"]) .newMessages{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-accent);box-shadow:0 3px 12px #0006}
+:global(html[data-motes-theme="dark"]) .assistant-avatar{background:var(--motes-muted-surface);color:var(--motes-accent)}
+:global(html[data-motes-theme="dark"]) .message-author>span{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-muted)}
