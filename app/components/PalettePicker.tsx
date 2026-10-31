@@ -73,13 +73,13 @@ export default function PalettePicker() {
     </summary>
     <div className={styles.panel} role="group" aria-label={isEnglish ? 'Workbench palette' : '工作台色系'}>
       <p>{isEnglish ? 'Workbench palette' : '工作台色系'}</p>
+      <p className={styles.hint}>{isEnglish ? 'Hover to preview · Click to apply' : '悬停预览，点击应用'}</p>
       <div className={styles.options}>
-        {PALETTE_OPTIONS.map(option => <label className={`${styles.option}${preference === option.value ? ` ${styles.selected}` : ''}`} key={option.value} onPointerDown={() => { keyboardFocus.current = false; }} onPointerEnter={event => { if (event.pointerType === 'mouse') previewPalette(option.value); }} onFocus={() => { if (keyboardFocus.current) previewPalette(option.value); }} onClick={() => { if (preference === option.value) commit(option.value); }}>
-          <input type="radio" name="workbench-palette-picker" value={option.value} checked={preference === option.value} onChange={() => commit(option.value)} />
+        {PALETTE_OPTIONS.map(option => <button type="button" className={`${styles.option}${preference === option.value ? ` ${styles.selected}` : ''}`} key={option.value} data-palette={option.value} aria-pressed={preference === option.value} onPointerDown={() => { keyboardFocus.current = false; }} onPointerEnter={event => { if (event.pointerType === 'mouse') previewPalette(option.value); }} onFocus={() => { if (keyboardFocus.current) previewPalette(option.value); }} onClick={() => commit(option.value)}>
           <span className={styles.swatch} data-palette={option.value} aria-hidden="true"><i /><i /><i /></span>
           <span className={styles.label}>{isEnglish ? option.en : option.zh}</span>
           <span className={styles.check} aria-hidden="true">✓</span>
-        </label>)}
+        </button>)}
       </div>
     </div>
   </details>;

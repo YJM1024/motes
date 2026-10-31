@@ -71,23 +71,16 @@ async function makePicker() {
   const { default: PalettePicker } = await import(`data:text/javascript;base64,${Buffer.from(moduleSource).toString('base64')}`);
   const tree = PalettePicker();
   const cleanups = effects.map(effect => effect()).filter(Boolean);
-  function find(node, predicate) {
-    if (Array.isArray(node)) { for (const child of node) { const found = find(child, predicate); if (found) return found; } return null; }
-    if (!node || typeof node !== 'object') return null;
-    if (predicate(node)) return node;
-    return find(node.children, predicate);
-  }
-  const labels = [];
+  const options = [];
   function collect(node) {
     if (Array.isArray(node)) { node.forEach(collect); return; }
     if (!node || typeof node !== 'object') return;
-    if (node.type === 'label') labels.push(node);
+    if (node.type === 'button' && node.props['data-palette']) options.push(node);
     collect(node.children);
   }
   collect(tree);
-  const inputFor = label => find(label.children, node => node.type === 'input');
   return {
-    tree, details, summary, labels, inputFor, calls, storedWrites,
+    tree, details, summary, options, calls, storedWrites,
     get stored() { return stored; }, get preview() { return preview; },
     dispose() {
       cleanups.forEach(cleanup => cleanup());
@@ -103,7 +96,7 @@ async function makePicker() {
 test('hover previews without saving and mouse leave clears preview and closes the picker', async () => {
   const picker = await makePicker();
   try {
-    const card = picker.labels.find(label => picker.inputFor(label).props.value === 'blue');
+    const card = picker.options.find(button => button.props['data-palette'] === 'blue');
     card.props.onPointerEnter({ pointerType: 'mouse' });
     assert.equal(picker.preview, 'blue');
     assert.deepEqual(picker.storedWrites, []);
@@ -114,13 +107,15 @@ test('hover previews without saving and mouse leave clears preview and closes th
   } finally { picker.dispose(); }
 });
 
-test('radio change commits the palette and closes the picker', async () => {
+test('one button click commits the palette and closes the picker', async () => {
   const picker = await makePicker();
   try {
     picker.calls.preview.length = 0;
     picker.calls.clear = 0;
-    const radio = picker.inputFor(picker.labels.find(label => picker.inputFor(label).props.value === 'violet'));
-    radio.props.onChange();
+    const button = picker.options.find(item => item.props['data-palette'] === 'violet');
+    assert.equal(button.props.type, 'button');
+    assert.equal(button.props['aria-pressed'], false);
+    button.props.onClick();
     assert.equal(picker.stored, 'violet');
     assert.deepEqual(picker.storedWrites, ['violet']);
     assert.equal(picker.preview, null);
@@ -129,17 +124,29 @@ test('radio change commits the palette and closes the picker', async () => {
   } finally { picker.dispose(); }
 });
 
-test('touch focus does not preview before an explicit radio selection', async () => {
+test('touch focus does not preview before its direct button click', async () => {
   const picker = await makePicker();
   try {
-    const label = picker.labels.find(item => picker.inputFor(item).props.value === 'blue');
-    label.props.onPointerDown();
-    label.props.onFocus();
+    const button = picker.options.find(item => item.props['data-palette'] === 'blue');
+    button.props.onPointerDown();
+    button.props.onFocus();
     assert.equal(picker.preview, null);
     assert.deepEqual(picker.storedWrites, []);
-    picker.inputFor(label).props.onChange();
+    button.props.onClick();
     assert.equal(picker.stored, 'blue');
     assert.deepEqual(picker.storedWrites, ['blue']);
+  } finally { picker.dispose(); }
+});
+
+test('clicking the already selected button also commits and closes', async () => {
+  const picker = await makePicker();
+  try {
+    const button = picker.options.find(item => item.props['data-palette'] === 'slate');
+    assert.equal(button.props['aria-pressed'], true);
+    button.props.onClick();
+    assert.deepEqual(picker.storedWrites, ['slate']);
+    assert.equal(picker.details.open, false);
+    assert.equal(picker.summary.focusCalls, 1);
   } finally { picker.dispose(); }
 });
 
@@ -158,20 +165,20 @@ test('Escape, focus leaving the picker, outside pointer, and window blur all cle
 
     picker.details.open = true;
     picker.calls.preview.length = 0;
-    picker.labels[0].props.onFocus();
+    picker.options[0].props.onFocus();
     detailsProps.onBlur({ relatedTarget: null, currentTarget: picker.details });
     assert.equal(picker.preview, null);
     assert.equal(picker.details.open, false);
 
     picker.details.open = true;
-    picker.labels[0].props.onPointerEnter({ pointerType: 'mouse' });
+    picker.options[0].props.onPointerEnter({ pointerType: 'mouse' });
     picker.details.open = true;
     globalThis.window.dispatch('blur');
     assert.equal(picker.preview, null);
     assert.equal(picker.details.open, false);
 
     picker.details.open = true;
-    picker.labels[0].props.onPointerEnter({ pointerType: 'mouse' });
+    picker.options[0].props.onPointerEnter({ pointerType: 'mouse' });
     globalThis.document.dispatch('pointerdown', { target: {} });
     assert.equal(picker.preview, null);
     assert.equal(picker.details.open, false);
