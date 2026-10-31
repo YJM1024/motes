@@ -28,5 +28,22 @@ export const uxCoreMessages = {
   "模型额度为最近一次服务端核对结果，额度日 {day} UTC。": "Model quota is the last server-confirmed result for {day} UTC.",
   "查看用量与设置": "Usage & settings",
   "额度提醒偏好": "Quota alert preferences",
-  "设置尚未确认，暂不能发送新请求。": "Settings are not confirmed yet. New requests are temporarily unavailable."
+  "设置尚未确认，暂不能发送新请求。": "Settings are not confirmed yet. New requests are temporarily unavailable.",
+  "已等待 {seconds} 秒": "Waited {seconds}s",
+  "原因与请求详情": "Reason & request details",
+  "原请求编号": "Original request ID",
+  "正在保存原结果": "Saving the original result",
+  "版本已保存，正在完成记录": "Version saved; finishing records",
+  "正在核对原请求": "Checking the original request",
+  "结果已返回，等待保存": "Result returned; waiting to save",
+  "等待核对原结果": "Waiting to check the original result",
+  "原请求尚未登记": "Original request not registered yet",
+  "只保存已返回的结果，不会重新调用模型。": "Only saves the returned result without calling the model again.",
+  "先确认原请求是否已保存，不会用新编号重复生成。": "Checks whether the original request was saved, without generating again under a new ID.",
+  "继续时沿用原请求编号，避免重复发送。": "Continues with the original request ID to avoid duplicate sending.",
+  "再次发送可能占用一次模型额度；当前草稿保留。": "Sending again may use one model call. Your current draft is preserved.",
+  "重新尝试示例需求，当前草稿保留。": "Retries the example request. Your current draft is preserved.",
+  "仅重试保存": "Retry saving only",
+  "核对原请求": "Check original request",
+  "继续原请求（同编号）": "Continue original request (same ID)"
 } as const;

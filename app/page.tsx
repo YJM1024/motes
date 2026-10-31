@@ -10,6 +10,8 @@ import WorkbenchLayoutControls,{WorkbenchResizeHandle} from './components/Workbe
 import { useWorkbenchLayout } from './hooks/useWorkbenchLayout';
 import { usePanelScrollMemory } from './hooks/usePanelScrollMemory';
 import workspaceToolsStyles from "./components/WorkspaceTools.module.css";
+import BuildAttemptFeedback from "./components/BuildAttemptFeedback";
+import ExpandableText from "./components/ExpandableText";
 import WorkspaceTools,{type WorkspaceToolGroup} from "./components/WorkspaceTools";
 import WorkspaceStatus from "./components/WorkspaceStatus";
 import WorkspaceConnection from "./components/WorkspaceConnection";
@@ -108,6 +110,7 @@ export default function Home() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templateChoice, setTemplateChoice] = useState<{ name: string; prompt: string } | undefined>();
   const [busy, setBusy] = useState(false);
+  const [savingAttemptId,setSavingAttemptId]=useState<string|null>(null),[buildReceiptId,setBuildReceiptId]=useState<string|null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"demo" | "model">("demo");
@@ -282,10 +285,10 @@ export default function Home() {
   }
   async function saveAttempt(a:Attempt){
     if(operationLock.current||opening||discussionBusy)return;
-    const epoch=interruptRecovery();operationLock.current=true;setBusy(true);setError('');
+    const epoch=interruptRecovery();operationLock.current=true;setBusy(true);setSavingAttemptId(a.requestId);setError('');
     try{const result=await api<{project:Project}>('/api/tasks/'+encodeURIComponent(a.requestId)+'/save',{});if(!mounted.current||epoch!==operationEpoch.current)return;remember(result.project,true);setAttempts(previous=>removeFinishedAttempt(previous,a));setNotice(t("原结果已保存，未重新调用模型；下一条草稿已保留。"));}
     catch(e){if(mounted.current&&epoch===operationEpoch.current)setError(e instanceof Error?e.message:t("保存暂未完成，原结果仍保留。"));}
-    finally{operationLock.current=false;if(mounted.current)setBusy(false);}
+    finally{operationLock.current=false;if(mounted.current){setBusy(false);setSavingAttemptId(null);}}
   }
   function stopBuildWaiting(attempt:Attempt){
     if(activeAttempt.current?.requestId!==attempt.requestId||!activeOperation.current)return;
@@ -313,7 +316,7 @@ export default function Home() {
     }
     const epoch=interruptRecovery(),operation=crypto.randomUUID(),controller=new AbortController();
     activeOperation.current=operation;activeFetch.current=controller;activeAttempt.current=attempt;setRecoveryPaused(false);
-    operationLock.current = true; setBusy(true); setElapsed(0); setPrompt(current=>draftAfterSend(current,attempt.text,!!retry)); setError(""); setNotice(""); setPane("chat"); followChat.current = true;
+    operationLock.current = true; setBusy(true);setBuildReceiptId(null); setElapsed(0); setPrompt(current=>draftAfterSend(current,attempt.text,!!retry)); setError(""); setNotice(""); setPane("chat"); followChat.current = true;
     const nextAttempts=retry?attempts.map(a=>a.id===attempt.id?attempt:a):[...attempts,attempt];setAttempts(nextAttempts);
     // Record the original ID before sending, even if the tab refreshes before
     // React's outbox effect has run. A retry never consumes the next draft.
@@ -321,6 +324,7 @@ export default function Home() {
     try {
       const result = await api<{ project: Project }>("/api/generate", { prompt: attempt.text, projectId: attempt.projectId, managedProjectId: attempt.managedProjectId, baseVersionId: attempt.baseVersionId, mode: attempt.mode, requestId: attempt.requestId,elementContext:attempt.elementContext },controller.signal);
       if(!mounted.current || epoch!==operationEpoch.current || activeOperation.current!==operation)return;
+      setBuildReceiptId(attempt.requestId);
       const linkNote = await linkAdoptedDiscussion(attempt,result.project,controller.signal);
       if(!mounted.current || epoch!==operationEpoch.current || activeOperation.current!==operation)return;
       remember(result.project); setAttempts(previous=>removeFinishedAttempt(previous,attempt)); setNotice(linkNote || t("新版本已保存，可切换到预览查看"));
@@ -385,13 +389,16 @@ export default function Home() {
   const versionMessage = (v: Version) => <div className="conversation-pair" key={v.id}><div className="user-message">{v.prompt}</div><div className="assistant-message"><span className="assistant-avatar"><Sparkles size={14}/></span><div><div className="message-author">Motes <span>{v.mode === "manual" ? t("手工编辑") : v.mode === "demo" ? t("示例模式") : v.model || "AI"}</span></div><p>{v.summary}</p><button className="version-card" onClick={() => { setViewVersion(v.id === current?.id ? null : v.id); setPane("preview"); }}><span><Code2 size={16}/></span><div>{t("应用已更新")}<small>{t("版本 ")}{v.number}{v.name ? ` · ${v.name}` : ""}{v.important ? " ★" : ""} · {dateLabel(v.createdAt,locale)}</small></div><ArrowUpRight size={14}/></button></div></div></div>;
   const attemptMessage = (a: Attempt) => {
     const status=a.recovered?recovery.stateFor(a):undefined;
-    const saveOnly=status?.phase==="save_pending";
-    const terminal=!!status && ["failed","expired","not-found"].includes(status.phase);
-    const checking=!!a.recovered && !recoveryPaused && (!status || ["checking","running","unavailable"].includes(status.phase));
-    const checkOnly=!!a.recovered && !terminal;
-    return <div className="conversation-pair" key={a.id}><div className="user-message">{a.text}</div><div className={`message-delivery ${a.state==="sending"||checking?"sending":"failed"}`} role={a.state==="sending"||checking||checkOnly?"status":"alert"}>
-      {a.state==="sending"?<><LoaderCircle size={17} className="spin"/><div><strong>{a.mode==="demo"?t("正在准备示例…"):elapsed>=30?t("仍在等待请求结果，请稍候…"):t("正在构建你的应用…")}</strong><small>{preferences.showWaitTimer?t("已等待 {p0} 秒 · ", {p0:elapsed}):""}{t("完成后自动保存")}{displayed?t("，当前预览仍可使用"):""}</small><button className="edit-failed" onClick={()=>stopBuildWaiting(a)}>{t("停止等待此请求")}</button><small>{t("仅停止本页等待，服务端可能继续执行并产生费用。")}</small></div></>:checking?<><LoaderCircle size={17} className="spin"/><div><strong>{status?.phase==="running"?t("正在核对原请求进度…"):t("正在取回原请求结果…")}</strong><small>{homeNotice(locale,status?.message) || t("先核对保存结果，不会重复发起生成。")}</small><button className="edit-failed" disabled={busy||discussionBusy||opening} onClick={pauseRecovery}>{t("暂停核对")}</button></div></>:<><button className="retry-message" aria-label={saveOnly?t("仅重试保存，不调用模型"):checkOnly?t("再次检查原请求状态"):status?.retry==="same"?t("重试原请求（沿用编号）"):t("重试这条消息")} title={checkOnly?t("再次检查原请求状态"):t("重试这条消息")} disabled={busy||opening} onClick={()=>saveOnly?void saveAttempt(a):checkOnly?checkRecovery():void generate(a.text,a)}><RotateCcw size={16}/></button><div><strong>{saveOnly?t("生成结果已暂存 · 仅重试保存"):checkOnly?t("结果尚未确认"):status?.phase==="expired"?t("原请求已超期"):status?.phase==="failed"?t("原请求已确认失败"):t("发送未完成")}</strong><small>{checkOnly&&recoveryPaused?t("核对已暂停，可再次检查。停止等待不保证取消服务端调用或费用。"):homeNotice(locale,status?.message??a.error)}</small>{status?.phase==="not-found"&&a.error&&<small>{homeNotice(locale,a.error)}</small>}<button className="edit-failed" disabled={busy||opening} onClick={()=>{changeIntent("build");if(prompt.trim()&&prompt!==a.text){setTemplateChoice({name:t("未完成的需求"),prompt:a.text});setTemplatesOpen(true);}else{setPrompt(a.text);textarea.current?.focus();}}}>{t("编辑需求")}</button></div></>}
-    </div></div>;
+    const saveOnly=status?.phase==='save_pending',saving=savingAttemptId===a.requestId;
+    const terminal=!!status&&['failed','expired','not-found'].includes(status.phase);
+    const checking=!!a.recovered&&!recoveryPaused&&(!status||['checking','running','unavailable'].includes(status.phase));
+    const checkOnly=!!a.recovered&&!terminal;
+    const sending=a.state==='sending',receipt=buildReceiptId===a.requestId;
+    const phase=sending||saving||checking?'working':saveOnly?'save':checkOnly?'waiting':'failed';
+    const title=saving?t('正在保存原结果'):sending?receipt?t('版本已保存，正在完成记录'):a.mode==='demo'?t('正在准备示例…'):t('正在构建你的应用…'):checking?t('正在核对原请求'):saveOnly?t('结果已返回，等待保存'):checkOnly?t('等待核对原结果'):status?.phase==='not-found'?t('原请求尚未登记'):t('原请求已确认失败');
+    const hint=sending?t('仅停止本页等待，服务端可能继续执行并产生费用。'):saving||saveOnly?t('只保存已返回的结果，不会重新调用模型。'):checking||checkOnly?t('先确认原请求是否已保存，不会用新编号重复生成。'):status?.phase==='not-found'?t('继续时沿用原请求编号，避免重复发送。'):a.mode==='model'?t('再次发送可能占用一次模型额度；当前草稿保留。'):t('重新尝试示例需求，当前草稿保留。');
+    const primaryLabel=saving?t('正在保存…'):sending?t('停止等待此请求'):checking?t('暂停核对'):saveOnly?t('仅重试保存'):checkOnly?t('核对原请求'):status?.phase==='not-found'?t('继续原请求（同编号）'):t('重试这条消息');
+    return <div className="conversation-pair" key={a.id}><div className="user-message"><ExpandableText text={a.text}/></div><BuildAttemptFeedback phase={phase} title={title} hint={hint} requestId={a.requestId} details={homeNotice(locale,status?.message??a.error)} elapsed={sending&&preferences.showWaitTimer?elapsed:undefined} primaryLabel={primaryLabel} disabled={sending?false:busy||discussionBusy||opening} onPrimary={()=>sending?stopBuildWaiting(a):checking?pauseRecovery():saveOnly?void saveAttempt(a):checkOnly?checkRecovery():void generate(a.text,a)} onEdit={sending||checking?undefined:()=>{changeIntent('build');if(prompt.trim()&&prompt!==a.text){setTemplateChoice({name:t('未完成的需求'),prompt:a.text});setTemplatesOpen(true);}else{setPrompt(a.text);textarea.current?.focus();}}}/></div>;
   };
   const composer = (home: boolean) => <div className={`composer ${home ? "home-composer" : "chat-composer"}`}>
     {home&&<ContextPanel intent="build" baseVersion={null}/>}
