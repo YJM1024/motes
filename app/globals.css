@@ -226,3 +226,12 @@ html[data-motes-palette-ready="true"] :is(.forma-app,.manage-shell,.settings-she
 @media(max-width:600px){:root{--motes-control-height:44px}html .composer textarea{font-size:16px}html :is(.workbench-text-button,.export-button){font-size:12px}}
 html[data-motes-motion="reduced"] :is(.forma-app,.manage-shell,.settings-shell,.compare-shell),html[data-motes-motion="reduced"] :is(.forma-app,.manage-shell,.settings-shell,.compare-shell) *{transition-duration:.01ms!important;transition-delay:0ms!important}
 @media(prefers-reduced-motion:reduce){html :is(.forma-app,.manage-shell,.settings-shell,.compare-shell),html :is(.forma-app,.manage-shell,.settings-shell,.compare-shell) *{transition-duration:.01ms!important;transition-delay:0ms!important}}
+
+/* UI4 measured composer follow-up: consistent host actions without touching preview/iframe controls. */
+html .forma-app .composer .composer-footer{align-items:center;flex-wrap:wrap;gap:8px;padding:6px 12px 12px;min-width:0}
+html .forma-app .composer .composer-footer .send-button{width:40px;height:40px;min-width:40px;max-width:40px;min-height:40px;flex:0 0 40px;border-radius:calc(var(--motes-radius) - 4px)}
+html .forma-app .composer .composer-footer>button[type="button"]{min-height:36px;padding:7px 10px!important;margin-right:0!important;border-radius:calc(var(--motes-radius) - 4px)!important;font-size:12px!important;line-height:1.5;color:var(--motes-text)!important;border-color:var(--motes-border)!important;background:var(--motes-surface)!important}
+html .forma-app .suggestion-row{gap:7px}
+html .forma-app .suggestion-row button{min-height:32px;padding:6px 10px;border-radius:calc(var(--motes-radius) - 4px);font-size:12px;line-height:1.5;color:var(--motes-text);border-color:var(--motes-border);background:var(--motes-surface)}
+html .forma-app .message-author>span{font-size:11px;line-height:1.5}
+@media(max-width:600px){html .forma-app .composer .composer-footer .send-button{width:44px;height:44px;min-width:44px;max-width:44px;min-height:44px;flex-basis:44px}html .forma-app .composer .composer-footer>button[type="button"],html .forma-app .suggestion-row button{min-height:44px}}
