@@ -52,4 +52,5 @@ export const uxPanelMessages = {
   '访客、共享空间和全站三层额度中最小的剩余值，是当前有效可用额度。': 'The lowest remaining amount across visitor, shared-workspace, and global limits is the effective quota available now.',
   'AI': 'AI',
   '示例': 'Demo',
-  '编辑共享资料': 'Edit shared profile',  '公开共享 · 勿填私密资料': 'Public shared space · Keep private info out',} as const;
+  '编辑共享资料': 'Edit shared profile',  '公开共享 · 勿填私密资料': 'Public shared space · Keep private info out',  '无需登录。更换浏览器或设备后仍会进入同一个公共演示空间；界面偏好和未发送草稿仅保存在本浏览器，不会自动跟随。显示名称不用于身份认证。': 'No sign-in is required. Other browsers and devices open the same public demo workspace. Interface preferences and unsent drafts stay in this browser and do not follow you automatically. The display name is not used for authentication.',
+} as const;

@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile,readdir,mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join,dirname,resolve,basename} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {DatabaseSync} from 'node:sqlite';
+import ts from 'typescript';
+
+test('navigation hides archived apps and projects, restores them, and retains all records for capacity',async t=>{
+ const sqlite=new DatabaseSync(':memory:');sqlite.exec('PRAGMA foreign_keys=ON');
+ for(const name of(await readdir(new URL('../drizzle/',import.meta.url))).filter(n=>n.endsWith('.sql')).sort())sqlite.exec(await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8'));
+ const temp=await mkdtemp(join(tmpdir(),'motes-navigation-test-')),key=crypto.randomUUID();
+ t.after(async()=>{sqlite.close();delete globalThis[key];const target=resolve(temp);assert.equal(dirname(target),resolve(tmpdir()));assert.ok(basename(target).startsWith('motes-navigation-test-'));await rm(target,{recursive:true,force:true})});
+ function prepare(sql,args=[]){return{bind(...values){return prepare(sql,values)},async first(){return sqlite.prepare(sql).get(...args)??null},async all(){return{results:sqlite.prepare(sql).all(...args)}},run(){return{meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}}}}}
+ globalThis[key]={MOTES_WORKSPACE_VISIBILITY:'shared',DB:{prepare,async batch(statements){sqlite.exec('BEGIN');try{const rows=statements.map(s=>s.run());sqlite.exec('COMMIT');return rows}catch(error){sqlite.exec('ROLLBACK');throw error}}}};
+ const cache=new Map();
+ async function moduleUrl(file){if(cache.has(file))return cache.get(file);let source=await readFile(new URL('../lib/'+file+'.ts',import.meta.url),'utf8');source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);for(const match of[...source.matchAll(/from\s+(['"])(\.[^'"]+)\1/g)]){const target=new URL(match[2]+'.ts',new URL('../lib/'+file+'.ts',import.meta.url));source=source.replaceAll(match[1]+match[2]+match[1],JSON.stringify(await moduleUrl(target.pathname.split('/lib/').at(-1).replace(/\.ts$/,''))))}const output=join(temp,file+'.mjs');await mkdir(dirname(output),{recursive:true});await writeFile(output,ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);const url=pathToFileURL(output).href;cache.set(file,url);return url}
+ const serverUrl=await moduleUrl('forma/server'),securityUrl=await moduleUrl('forma/security'),server=await import(serverUrl),security=await import(securityUrl),management=await import(await moduleUrl('motes/management'));
+ async function route(file){const source=(await readFile(new URL('../app/api/'+file+'/route.ts',import.meta.url),'utf8')).replaceAll("'@/lib/forma/server'",JSON.stringify(serverUrl)).replaceAll("'@/lib/forma/security'",JSON.stringify(securityUrl));const output=join(temp,'route-'+file+'.mjs');await writeFile(output,ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);return import(pathToFileURL(output).href)}
+ const session=await route('session'),projects=await route('projects'),who=security.SHARED_OWNER,wid=await management.initializeWorkspace(who),defaultProject='project:'+who,group=crypto.randomUUID(),now=new Date().toISOString();
+ sqlite.prepare('INSERT INTO motes_projects(id,workspace_id,name,created_at,updated_at) VALUES(?,?,?,?,?)').run(group,wid,'Archive parent',now,now);
+ function seed(owner=who,target,archived=0){const id=crypto.randomUUID(),version=crypto.randomUUID();sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,owner,'App',now,now,version);sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'original','original','<!doctype html><html><body>original</body></html>',now,'manual',null);if(target)sqlite.prepare('INSERT INTO motes_apps(app_id,workspace_id,project_id,archived,updated_at) VALUES(?,?,?,?,?)').run(id,wid,target,archived,now);return id}
+ const active=seed(who,defaultProject),archived=seed(who,defaultProject),inGroup=seed(who,group),legacy=seed(),foreign=seed(await security.digest('f'.repeat(64)));
+ const ids=async()=>new Set((await server.listProjects(who,'active')).map(p=>p.id));
+ assert.deepEqual(await ids(),new Set([active,archived,inGroup,legacy])); // No metadata is a valid legacy app.
+ async function mutate(action){const req=new Request('https://motes.test/api/workspace',{method:'POST',headers:{cookie:'forma_session='+'a'.repeat(64),origin:'https://motes.test','content-type':'application/json'},body:JSON.stringify(action)});const response=await server.route(()=>management.manageWorkspace(req));assert.equal(response.status,200)}
+ await mutate({action:'app.update',appId:archived,archived:true});await mutate({action:'project.update',projectId:group,archived:true});
+ assert.deepEqual(await ids(),new Set([active,legacy]));assert.equal((await server.listProjects(who)).length,4);assert.equal((await server.readProject(who,archived)).versions.length,1);await assert.rejects(server.readProject(who,foreign),{status:404});
+ for(const api of[session,projects]){const response=await api.GET(new Request('https://motes.test/api/session',{headers:{cookie:'forma_session='+'b'.repeat(64)}}));assert.equal(response.status,200);const body=await response.json();assert.deepEqual(new Set(body.projects.map(p=>p.id)),new Set([active,legacy]))}
+ await mutate({action:'app.update',appId:archived,archived:false});assert.deepEqual(await ids(),new Set([active,archived,legacy]));await mutate({action:'project.update',projectId:group,archived:false});assert.deepEqual(await ids(),new Set([active,archived,inGroup,legacy]));
+ while((await server.listProjects(who)).length<100)seed(who,defaultProject,1);
+ assert.equal((await server.listProjects(who)).length,100);assert.equal((await server.listProjects(who,'active')).length,4);
+ const request=new Request('https://motes.test/api/generate',{method:'POST',headers:{cookie:'forma_session='+'a'.repeat(64),origin:'https://motes.test','content-type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),mode:'demo',prompt:'番茄钟'})});const rejected=await server.route(()=>server.generate(request));assert.equal(rejected.status,429);assert.equal(sqlite.prepare('SELECT count(*) AS n FROM forma_projects WHERE owner=?').get(who).n,100);assert.equal(sqlite.prepare("SELECT count(*) AS n FROM forma_requests WHERE mode IN ('model','demo')").get().n,0);assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(),[]);
+});
