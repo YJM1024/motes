@@ -13,6 +13,6 @@ export function parsePalettePreference(value: unknown): PalettePreference {
   return PALETTE_PREFERENCES.includes(value as PalettePreference) ? value as PalettePreference : 'slate';
 }
 
-export function resolvePalette(preference: PalettePreference): PalettePreference {
-  return preference;
+export function resolvePalette(preference: PalettePreference, preview: PalettePreference | null = null): PalettePreference {
+  return preview ?? preference;
 }

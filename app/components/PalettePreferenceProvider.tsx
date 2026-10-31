@@ -5,16 +5,25 @@ import { usePathname } from 'next/navigation';
 import { isWorkbenchPath } from '@/lib/motes/motion-preferences';
 import { PALETTE_PREFERENCE_KEY, parsePalettePreference, resolvePalette, type PalettePreference } from '@/lib/motes/palette-preferences';
 
-type PaletteContextValue = { preference: PalettePreference; setPreference: (value: PalettePreference) => void; storageUnavailable: boolean };
+type PaletteContextValue = {
+  preference: PalettePreference;
+  setPreference: (value: PalettePreference) => void;
+  previewPalette: (value: PalettePreference) => void;
+  clearPreview: () => void;
+  storageUnavailable: boolean;
+};
 const PaletteContext = createContext<PaletteContextValue | null>(null);
 let storedPreference: PalettePreference = 'slate';
+let previewPreference: PalettePreference | null = null;
 let storageFailed = false;
 const listeners = new Set<() => void>();
 function subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); }
 function notify() { listeners.forEach(listener => listener()); }
 function getPreference() { return storedPreference; }
+function getPreviewPreference() { return previewPreference; }
 function getStorageFailure() { return storageFailed; }
 function getServerPreference(): PalettePreference { return 'slate'; }
+function getServerPreviewPreference(): PalettePreference | null { return null; }
 function getServerStorageFailure() { return false; }
 
 export function usePalettePreference() {
@@ -26,6 +35,7 @@ export function usePalettePreference() {
 export default function PalettePreferenceProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const preference = useSyncExternalStore(subscribe, getPreference, getServerPreference);
+  const preview = useSyncExternalStore(subscribe, getPreviewPreference, getServerPreviewPreference);
   const storageUnavailable = useSyncExternalStore(subscribe, getStorageFailure, getServerStorageFailure);
 
   useEffect(() => {
@@ -49,6 +59,7 @@ export default function PalettePreferenceProvider({ children }: { children: Reac
   const setPreference = useCallback((value: PalettePreference) => {
     const safeValue = parsePalettePreference(value);
     storedPreference = safeValue;
+    previewPreference = null;
     try {
       localStorage.setItem(PALETTE_PREFERENCE_KEY, safeValue);
       storageFailed = false;
@@ -58,16 +69,29 @@ export default function PalettePreferenceProvider({ children }: { children: Reac
     notify();
   }, []);
 
+  const previewPalette = useCallback((value: PalettePreference) => {
+    const safeValue = parsePalettePreference(value);
+    if (previewPreference === safeValue) return;
+    previewPreference = safeValue;
+    notify();
+  }, []);
+
+  const clearPreview = useCallback(() => {
+    if (previewPreference === null) return;
+    previewPreference = null;
+    notify();
+  }, []);
+
   useEffect(() => {
     const root = document.documentElement;
     if (!isWorkbenchPath(pathname)) {
       delete root.dataset.motesPalette;
       return;
     }
-    root.dataset.motesPalette = resolvePalette(preference);
+    root.dataset.motesPalette = resolvePalette(preference, preview);
     return () => { delete root.dataset.motesPalette; };
-  }, [pathname, preference]);
+  }, [pathname, preference, preview]);
 
-  const value = useMemo(() => ({ preference, setPreference, storageUnavailable }), [preference, setPreference, storageUnavailable]);
+  const value = useMemo(() => ({ preference, setPreference, previewPalette, clearPreview, storageUnavailable }), [preference, setPreference, previewPalette, clearPreview, storageUnavailable]);
   return <PaletteContext.Provider value={value}>{children}</PaletteContext.Provider>;
 }
