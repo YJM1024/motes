@@ -270,3 +270,12 @@ test('late worker cannot delete a newer worker lease or publish after losing own
   assert.equal(result.project.versions.length,2);
   assert.equal(result.project.versions.at(-1).prompt,'新修改');
 });
+
+test('route diagnostics identify success/errors without logging exception content',async t=>{
+ const h=await serverHarness();t.after(h.close);const logs=[];t.mock.method(console,'error',(...args)=>logs.push(args));
+ const ok=await h.server.route(async()=>h.server.json({ok:true},201,{'Set-Cookie':'forma_session=opaque; HttpOnly'}));
+ assert.equal(ok.status,201);assert.deepEqual(await ok.json(),{ok:true});assert.match(ok.headers.get('server-timing'),/^app;dur=\d+\.\d{2}$/);assert.match(ok.headers.get('x-request-id'),/^[a-f0-9-]{36}$/);assert.equal(ok.headers.get('set-cookie'),'forma_session=opaque; HttpOnly');
+ const failed=await h.server.route(async()=>{throw Error('PRIVATE PROMPT HTML SECRET COOKIE')});assert.equal(failed.status,500);assert.doesNotMatch(JSON.stringify(await failed.json()),/PRIVATE|SECRET|COOKIE/);
+ const log=JSON.parse(logs[0][0]);assert.deepEqual(Object.keys(log).sort(),['code','event','requestId','status']);assert.equal(log.requestId,failed.headers.get('x-request-id'));assert.equal(log.code,'internal_error');assert.equal(log.status,500);assert.doesNotMatch(JSON.stringify(logs),/PRIVATE|SECRET|COOKIE/);
+ assert.notEqual(ok.headers.get('x-request-id'),failed.headers.get('x-request-id'));
+});

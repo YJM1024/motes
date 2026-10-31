@@ -18,7 +18,20 @@ export function modelNames(){return configuredModels(env)}
 export function modelName(){return defaultModel(env)}
 export async function payload(request:Request){assertOrigin(request);const declared=Number(request.headers.get('content-length')??0);if(declared>16000)throw new HttpError(413,'请求过长。');const text=await request.text();if(text.length>16000)throw new HttpError(413,'请求过长。');try {const value=JSON.parse(text);if(!value || typeof value!=='object'||Array.isArray(value))throw 0;return value as Record<string,unknown>}catch{throw new HttpError(400,'请求格式无效。')}}
 export function json(value:unknown,status=200,headers:Record<string,string>={}){return Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}})}
-export async function route(run:()=>Promise<Response>){try{return await run()}catch(error){if(error instanceof HttpError)return json({error:error.message,...error.retry?{retry:error.retry}:{}},error.status);console.error('Motes request failed',error instanceof Error?error.message:'unknown');return json({error:'操作失败，请稍后重试。已有版本仍然保留。'},500)}}
+export async function route(run:()=>Promise<Response>){
+  const started=performance.now(),requestId=crypto.randomUUID();let response:Response;
+  try{response=await run()}catch(error){
+    const known=error instanceof HttpError,status=known?error.status:500;
+    // No exception text, request content, headers or credentials enter diagnostics.
+    console.error(JSON.stringify({event:'motes_request_error',requestId,status,code:known?'http_error':'internal_error'}));
+    response=known?json({error:error.message,...error.retry?{retry:error.retry}:{}},status):json({error:'操作失败，请稍后重试。已有版本仍然保留。'},500);
+  }
+  const headers=new Headers(response.headers);
+  headers.set('Server-Timing','app;dur='+Math.max(0,performance.now()-started).toFixed(2));
+  headers.set('X-Request-Id',requestId);
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
+
 type ProjectRow={id:string;title:string;created_at:string;updated_at:string;current_version_id:string};
 const summary=(r:ProjectRow):Summary=>({id:r.id,title:r.title,createdAt:r.created_at,updatedAt:r.updated_at,currentVersionId:r.current_version_id});
 export async function listProjects(who:string){const {results}=await database().prepare('SELECT id,title,created_at,updated_at,current_version_id FROM forma_projects WHERE owner=? ORDER BY updated_at DESC LIMIT 100').bind(who).all<ProjectRow>();return results.map(summary)}
