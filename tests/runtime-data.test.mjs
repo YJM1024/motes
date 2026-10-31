@@ -187,14 +187,14 @@ test('generated task, budget, and timer demos restore/save actual shared API dat
       };
       return { doc, inputs, created, id };
     };
-    const runDemo = async (kind, visitor) => {
+    const runDemo = async (kind, visitor, override = {}) => {
       const generated = h.demo.generateDemo(kind==='budget'?'旅行预算计算器':kind==='tasks'?'任务看板':'番茄钟');
       const script = generated.html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
       assert.ok(script, `${kind} demo script exists`);
       const ui = fakeDocument(kind), channel = { data: {
         ready: Promise.resolve({available:true}),
         async get(key) { const result=await h.call(h.body('get',app.appId,app.currentVersion,key),{visitor});if(result.status!==200)throw Error(result.data.error);return result.data; },
-        async set(key,value,expectedRevision) { const result=await h.call(h.body('set',app.appId,app.currentVersion,key,{value,expectedRevision}),{visitor});if(result.status!==200){const error=new Error(result.data.error);error.code=result.data.code;throw error;}return result.data; },
+        async set(key,value,expectedRevision) { if(override.set)return override.set(key,value,expectedRevision);const result=await h.call(h.body('set',app.appId,app.currentVersion,key,{value,expectedRevision}),{visitor});if(result.status!==200){const error=new Error(result.data.error);error.code=result.data.code;throw error;}return result.data; },
       }};
       runInNewContext(script,{document:ui.doc,window:{motes:channel},TextEncoder,Number,Array,Math,Date,JSON,Promise,Error,clearTimeout,setTimeout,setInterval(){return 1;}});
       const deadline=Date.now()+1000;while(Date.now()<deadline&&!ui.id('#persistence','p').textContent.includes('共享数据已载入')&&!ui.id('#persistence','p').textContent.includes('已连接共享数据'))await new Promise(resolve=>setTimeout(resolve,5));
@@ -211,6 +211,7 @@ test('generated task, budget, and timer demos restore/save actual shared API dat
     assert.equal(persisted.data.value[0].status,1);
     const tasksSecond=await runDemo('tasks','b');
     assert.ok(tasksSecond.id('#board','div').children[1].children.some(card=>card.children?.some(child=>child.textContent==='整理本周灵感')));
+    const taskRevision=persisted.data.revision,failedSave=await runDemo('tasks','a',{set:async()=>{throw new Error('storage offline')}}),failedNodes=allNodes(failedSave.id('#board','div').children),failedNext=failedNodes.find(node=>node.textContent==='下一步 →');failedNext.onclick();await new Promise(resolve=>setTimeout(resolve,650));assert.match(failedSave.id('#persistence','p').textContent,/请保留当前内容并刷新，再读取最新版共享数据/);assert.equal((await h.call(h.body('get',app.appId,app.currentVersion,'demo.tasks.v1'),{visitor:'b'})).data.revision,taskRevision);
 
     for (const [kind,key,value] of [['budget','demo.budget.v1',{limit:2345,expenses:[1,2,3,4]}],['timer','demo.timer.v1',{duration:300,remaining:240,running:false,endsAt:null}]]) {
       const stored=await h.call(h.body('set',app.appId,app.currentVersion,key,{value,expectedRevision:0}),{visitor:'a'});assert.equal(stored.status,200);
@@ -218,5 +219,6 @@ test('generated task, budget, and timer demos restore/save actual shared API dat
       if(kind==='budget'){assert.equal(ui.inputs[0].value,'2345');assert.deepEqual(ui.inputs.slice(1).map(input=>input.value),['1','2','3','4']);}
       else assert.equal(ui.id('#clock','div').textContent,'04:00');
     }
+    const beforeExpiry=await h.call(h.body('get',app.appId,app.currentVersion,'demo.timer.v1'),{visitor:'a'}),expired={duration:300,remaining:90,running:true,endsAt:Date.now()-1000};assert.equal((await h.call(h.body('set',app.appId,app.currentVersion,'demo.timer.v1',{value:expired,expectedRevision:beforeExpiry.data.revision}),{visitor:'a'})).status,200);const expiredUi=await runDemo('timer','b');assert.equal(expiredUi.id('#clock','div').textContent,'00:00');assert.equal(expiredUi.id('#status','p').textContent,'这一段已完成，给自己一点掌声！');assert.equal((await h.call(h.body('get',app.appId,app.currentVersion,'demo.timer.v1'),{visitor:'a'})).data.revision,beforeExpiry.data.revision+1);
   } finally { h.sqlite.close(); }
 });
