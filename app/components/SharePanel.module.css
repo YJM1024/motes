@@ -7,3 +7,6 @@
 :global(html[data-motes-theme="dark"]) .box .feedback{color:#b5dfc0}
 :global(html[data-motes-theme="dark"]) .box .error{color:#f0b0a6}
 :global(html[data-motes-theme="dark"]) .actions a{color:var(--motes-accent)}
+.box .disclosure{border-color:#dec993;border-radius:var(--motes-radius,12px);font-size:13px}.box .note,.box .error,.feedback{font-size:13px;line-height:1.65}.list{border-color:var(--motes-border)}.list li{border-color:var(--motes-border);color:var(--motes-text);font-size:13px}.list small{color:var(--motes-muted)}.box button{min-height:var(--motes-control-height,40px);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-accent-soft,#eef3fb);color:var(--motes-accent);font-size:13px}.box a{color:var(--motes-accent)}.box :focus-visible,.actions a:focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
+:global(html[data-motes-theme="dark"]) .box .disclosure{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
+@media(max-width:640px){.box button{min-height:var(--motes-control-height,44px);font-size:15px}}

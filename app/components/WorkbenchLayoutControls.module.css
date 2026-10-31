@@ -10,8 +10,14 @@
 @media(max-width:620px){.controls{gap:6px}.modes button,.controls button.sidebar{min-height:40px;padding-inline:9px}.width input{width:88px}}
 @media(prefers-reduced-motion:reduce){.controls *{scroll-behavior:auto}}
 
+.controls{color:var(--motes-text);font-size:12px}.modes{border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface)}.controls button{min-height:var(--motes-control-height,40px);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:transparent;color:var(--motes-muted);font-size:12px}.modes button[aria-pressed=true]{background:var(--motes-accent-soft,#eef3fb);color:var(--motes-accent);box-shadow:none}.controls button.sidebar{background:var(--motes-surface);color:var(--motes-text)}.width input{accent-color:var(--motes-accent)}.width span{color:var(--motes-muted);font-size:12px}.resizeHandle::after{background:var(--motes-border)}.resizeHandle:hover::after,.resizeHandle:focus-visible::after{background:var(--motes-accent)}.controls :focus-visible,.resizeHandle:focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
+:global(html[data-motes-theme="dark"]) .modes button[aria-pressed=true]{background:var(--motes-accent-soft);border-color:var(--motes-border);color:var(--motes-accent)}
+@media(max-width:620px){.modes button,.controls button.sidebar{min-height:var(--motes-control-height,44px);font-size:14px}}
+
 :global(html[data-motes-theme="dark"]) .controls,:global(html[data-motes-theme="dark"]) .modes{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .controls button,:global(html[data-motes-theme="dark"]) .width input{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
 :global(html[data-motes-theme="dark"]) .modes button[aria-pressed="true"]{background:#28364d;border-color:#49658d;color:var(--motes-accent)}
 :global(html[data-motes-theme="dark"]) .width span{color:var(--motes-muted)}
 :global(html[data-motes-theme="dark"]) .resizeHandle::after{background:var(--motes-border)}
+.controls{color:var(--motes-text);font-size:12px}.modes,.sizes{border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface)}.controls button{min-height:var(--motes-control-height,40px);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-surface);color:var(--motes-muted);font-size:12px}.controls button.active{background:var(--motes-accent-soft,#eef3fb);border-color:var(--motes-border);color:var(--motes-accent)}.controls :focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
+@media(max-width:600px){.controls button{min-height:var(--motes-control-height,44px);font-size:14px}}
