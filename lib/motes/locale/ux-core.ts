@@ -48,5 +48,13 @@ export const uxCoreMessages = {
   "继续原请求（同编号）": "Continue original request (same ID)",
   "AI 剩余 {remaining}/{limit}": "AI {remaining}/{limit} remaining",
   "AI 额度未读取": "AI quota not read",
-  "讨论需要服务端连接模型，当前草稿会保留。": "Discussion needs a server-connected model. Your current draft is preserved."
+  "讨论需要服务端连接模型，当前草稿会保留。": "Discussion needs a server-connected model. Your current draft is preserved.",
+  "当前保存 v{number}": "Current saved v{number}",
+  "历史 v{viewed} · 当前 v{current}": "History v{viewed} · current v{current}",
+  "正在预览历史 v{viewed}，当前保存为 v{current}": "Previewing history v{viewed}; current saved is v{current}",
+  "继续构建仍基于当前保存版本；历史预览不会自动还原。": "Builds still use the current saved version. Previewing history does not restore it.",
+  "返回当前保存版本": "Return to current saved version",
+  "切换版本会重新载入预览，临时运行输入不保留；未发送草稿与保存记录保留。": "Switching versions reloads the preview and clears temporary runtime input. Unsent drafts and saved records are preserved.",
+  "当前保存": "Current saved",
+  "正在预览": "Previewing"
 } as const;
