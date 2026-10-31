@@ -66,3 +66,4 @@ html[data-motes-theme="dark"] .manage-card-top .manage-icon,html[data-motes-them
 .manage-search{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-muted);border-radius:var(--motes-radius,12px)}
 .manage-sidebar nav button.selected,.manage-star-filter.selected{background:var(--motes-accent-soft,#eef3fb);border-color:var(--motes-border);color:var(--motes-accent)}
 html[data-motes-theme="dark"] .manage-danger{background:#3a2928;color:#f0b7aa;border-color:#69423d}
+.manage-palette-slot{display:inline-flex;align-items:center;flex:0 0 auto;margin-left:auto}

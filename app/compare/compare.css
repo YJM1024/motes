@@ -50,3 +50,4 @@ html[data-motes-theme="dark"] .compare-grid pre{background:#111318;border-color:
 .compare-shell :focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
 .compare-create>button{background:var(--motes-accent);border-color:var(--motes-accent);color:var(--motes-on-accent,#fff);box-shadow:var(--motes-shadow,0 2px 6px rgb(22 28 45 / 12%))}
 @media(max-width:700px){.compare-shell select,.compare-shell textarea{font-size:16px}}
+.compare-shell>header{gap:10px}.compare-palette-slot{display:inline-flex;align-items:center;flex:0 0 auto;margin-left:auto}@media(max-width:700px){.compare-shell>header{height:auto;min-height:56px;padding:6px 12px;gap:8px;flex-wrap:wrap}.compare-shell>header>a{min-height:40px;max-width:42%;overflow-wrap:anywhere}.compare-shell>header strong{font-size:21px}}

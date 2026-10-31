@@ -58,3 +58,4 @@ html[data-motes-theme="dark"] .settings-actions>button:not(.settings-primary){ba
 .settings-error{background:#fff5f3;color:#995d52;border-color:#ead2cc;border-radius:var(--motes-radius,12px)}
 .settings-notice{background:#edf5f1;color:#527965;border-radius:var(--motes-radius,12px)}
 @media(max-width:700px){.settings-section-title input,.settings-row>select,.settings-scope select{font-size:16px}}
+.settings-top{gap:8px}.settings-palette-slot{display:inline-flex;align-items:center;flex:0 0 auto;margin-left:auto}@media(max-width:700px){.settings-top{min-height:56px;height:auto;padding:6px 12px;gap:8px;flex-wrap:wrap}.settings-top>strong{font-size:21px}.settings-top>a{max-width:42%;font-size:11px}}

@@ -10,6 +10,7 @@ import UsagePanel from '../components/UsagePanel';
 import InterfaceLanguagePreferences from '../components/InterfaceLanguagePreferences';
 import MotionPreferences from '../components/MotionPreferences';
 import ThemePreferences from '../components/ThemePreferences';
+import PalettePicker from '../components/PalettePicker';
 import { useHostLocale, hostText } from '@/app/components/HostLocaleProvider';
 import type { HostMessageKey } from '@/lib/motes/locale';
 
@@ -76,7 +77,7 @@ export default function SettingsPage() {
   }
   const filtered = localizedFields.filter(f => `${f.title}${f.description}${f.group}`.includes(query.trim()));
   function linkGuard(e: React.MouseEvent<HTMLAnchorElement>) { if (!mayLeave()) e.preventDefault(); }
-  return <main className="settings-shell"><header className="settings-top"><a href="/" onClick={linkGuard}><ArrowLeft size={16}/>{t('回到创作')}</a><strong>motes<span>.</span></strong><a href="/manage" onClick={linkGuard}>{t('应用管理')}<ChevronRight size={14}/></a></header>
+  return <main className="settings-shell"><header className="settings-top"><a href="/" onClick={linkGuard}><ArrowLeft size={16}/>{t('回到创作')}</a><strong>motes<span>.</span></strong><a href="/manage" onClick={linkGuard}>{t('应用管理')}<ChevronRight size={14}/></a><span className="settings-palette-slot"><PalettePicker/></span></header>
     <div className="settings-layout"><aside className="settings-sidebar"><p className="settings-kicker">{t('偏好与空间')}</p><h1><Settings2 size={22}/>{t('设置')}</h1><a href="#settings-preferences">{t('创作与工作台')}</a><a href="#settings-usage">{t('用量与任务')}</a><a href="#settings-identity">{t('个人资料')}</a><a href="#settings-security">{t('数据与安全')}</a><p className="settings-side-note">{t('测试模式')}<br/>{t('当前浏览器的独立空间，尚无正式账号和跨设备同步。')}</p></aside>
     <section className="settings-content"><div className="settings-intro"><h2>{t('让工作台更合你的习惯')}</h2><p>{t('只调整今后的默认行为。已有应用代码与历史版本不会被设置变化重写。')}</p></div>
       {error && <div role="alert" className="settings-error"><strong>{t("操作未完成：")}</strong>{error}{!workspace && <button onClick={() => void initial()} disabled={loading}>{t('重新加载')}</button>}</div>}{notice && <p role="status" className="settings-notice"><Check size={15}/>{t(notice)}</p>}

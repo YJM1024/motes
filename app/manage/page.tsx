@@ -8,6 +8,7 @@ import type { ManagedApp, ManagedProject, Tag, WorkspaceAction, WorkspaceSnapsho
 import "./manage.css";
 import { filterApps } from "./filter-apps";
 import BackupPanel from "../components/BackupPanel";
+import PalettePicker from "../components/PalettePicker";
 import { bulkAppAction, MAX_BULK_SELECTION, mergeBulkResult, retryFailedIds, selectVisible, type BulkOperation, type BulkResult } from './bulk-actions';
 import { useHostLocale } from '@/app/components/HostLocaleProvider';
 import type { HostMessageKey } from '@/lib/motes/locale';
@@ -129,7 +130,7 @@ export default function ManagePage() {
   function describeBatch(operation:BulkOperation) { if(operation.kind==='move')return t('移动到「{project}」',{project:snapshot?.projects.find(project=>project.id===operation.projectId)?.name||t('所选项目')});if(operation.kind==='starred')return t(operation.value?'收藏':'取消收藏');return t(operation.value?'归档':'恢复归档'); }
   function describeBatchScope() { return [projectId?snapshot?.projects.find(p=>p.id===projectId)?.name:t('所有项目'),archived==='active'?t('未归档'):archived==='archived'?t('已归档'):t('全部归档状态'),tagId?snapshot?.tags.find(tag=>tag.id===tagId)?.name:t('全部标签'),starred?t('仅收藏应用'):t('全部收藏状态'),query.trim()?t('搜索“{query}”',{query:query.trim()}):'' ].filter(Boolean).join(' · '); }
   return <main className="manage-shell">
-    <header className="manage-top"><a href="/" className="manage-back"><ArrowLeft size={16}/>{t('回到创作')}</a><a href="/" className="manage-wordmark">motes<span>.</span></a><span className="manage-test-badge">{t('测试模式')}</span></header>
+    <header className="manage-top"><a href="/" className="manage-back"><ArrowLeft size={16}/>{t('回到创作')}</a><a href="/" className="manage-wordmark">motes<span>.</span></a><span className="manage-test-badge">{t('测试模式')}</span><span className="manage-palette-slot"><PalettePicker/></span></header>
     <div className="manage-layout"><aside className="manage-sidebar"><div className="manage-space"><span className="manage-avatar">{snapshot?.profile.displayName.slice(0, 1) || "M"}</span><div><strong>{snapshot?.profile.displayName || t('工作空间')}</strong><small>{t('当前浏览器的独立测试空间')}</small></div></div><button className="manage-profile-edit" disabled={!snapshot || busy} onClick={() => edit({ kind: "profile" })}>{t('编辑测试资料')}</button>
       <div className="manage-nav-head"><span>{t('项目')}</span><button className="manage-icon" aria-label={t('新建项目')} disabled={!snapshot || busy || snapshot.projects.length >= snapshot.limits.projects} onClick={() => edit({ kind: "project" })}><Plus size={17}/></button></div>
       <nav aria-label={t('项目筛选')}><button disabled={busy} className={!projectId ? "selected" : ""} onClick={() => {clearBatchScope();setProjectId("");}}><Folder size={16}/>{t('全部项目')}<span>{snapshot ? snapshot.apps.length : '—'}</span></button>{snapshot?.projects.filter(p => !p.archived).map(p => <button disabled={busy} className={projectId === p.id ? "selected" : ""} key={p.id} onClick={() => {clearBatchScope();setProjectId(p.id);}}><Folder size={16}/><span className="manage-nav-name">{p.name}</span><span>{p.appCount}</span></button>)}
