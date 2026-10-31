@@ -1,6 +1,6 @@
 # 本地启动与数据库迁移
 
-本文适用于当前 v14 源码；生产部署与验收状态见 [验收说明](acceptance.md)。
+本文适用于当前工作树源码；生产 v14 状态与本轮待上线增量分别记录在[验收说明](acceptance.md)。
 
 需要 Node.js 24（最低 22.13）与 npm。以下命令在仓库根目录运行，只操作本地数据，不包含 `--remote`。本地数据库与生产 D1 独立。
 
@@ -49,7 +49,7 @@ Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File |
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
 ```
 
-新增迁移只建立结构，旧应用的工作空间元数据由管理接口按当前访客幂等补建，ID、owner、历史和当前指针保留。初始化不会将不同访客合并为共享账号。
+新增迁移只建立结构，旧应用的工作空间元数据由管理接口按当前空间归属幂等补建，ID、历史和当前指针保留。默认旧隔离模式不合并不同访客空间；显式设置 `MOTES_WORKSPACE_VISIBILITY=shared` 时，服务端将新访问映射至公共演示空间，但不会自动迁移旧访客作品。共享模式下所有访客都可查看和修改公共项目、对话、版本及 SDK 运行数据；不要在其中输入私密内容。旧作品须通过备份导入为新 ID 的副本。运行数据和备份细节见[共享运行数据](shared-runtime.md)。
 
 ## 启动与模型
 
