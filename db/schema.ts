@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 
 export const projects = sqliteTable("forma_projects", {
   id: text("id").primaryKey(), owner: text("owner").notNull(), title: text("title").notNull(),
@@ -12,8 +12,8 @@ export const versions = sqliteTable("forma_versions", {
 export const requests = sqliteTable("forma_requests", {
   id: text("id").primaryKey(), owner: text("owner").notNull(), projectId: text("project_id").notNull(),
   fingerprint: text("fingerprint").notNull(), day: text("day").notNull(), mode: text("mode").notNull(),
-  status: text("status").notNull(), createdAt: text("created_at").notNull(), resultVersionId: text("result_version_id"),
-}, t => [index("forma_requests_quota").on(t.day, t.mode, t.owner)]);
+  status: text("status").notNull(), createdAt: text("created_at").notNull(), resultVersionId: text("result_version_id"), visitorId: text("visitor_id"),
+}, t => [index("forma_requests_quota").on(t.day, t.mode, t.owner),index("forma_requests_visitor_quota").on(t.day,t.mode,t.visitorId)]);
 export const locks = sqliteTable("forma_locks", {
   projectId: text("project_id").primaryKey(), requestId: text("request_id").notNull(), expiresAt: integer("expires_at").notNull(),
 });
@@ -133,3 +133,8 @@ export const versionConfig = sqliteTable("motes_version_config", {
 export const discussionResults = sqliteTable("motes_discussion_results", {
  requestId:text("request_id").primaryKey().references(()=>requests.id),owner:text("owner").notNull(),threadId:text("thread_id").notNull().references(()=>discussionThreads.id),contextAppId:text("context_app_id"),contextProjectId:text("context_project_id"),reply:text("reply").notNull(),observationJson:text("observation_json").notNull(),createdAt:text("created_at").notNull(),expiresAt:text("expires_at").notNull(),committedAt:text("committed_at"),
 },t=>[index("motes_discussion_result_owner_expiry").on(t.owner,t.expiresAt)]);
+
+export const appRuntimeData = sqliteTable("motes_app_runtime_data", {
+  appId:text("app_id").notNull().references(()=>projects.id),dataKey:text("data_key").notNull(),valueJson:text("value_json").notNull(),
+  revision:integer("revision").notNull().default(1),updatedAt:text("updated_at").notNull(),
+},t=>[primaryKey({columns:[t.appId,t.dataKey]}),index("motes_runtime_data_updated").on(t.appId,t.updatedAt)]);
