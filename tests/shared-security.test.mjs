@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import ts from 'typescript';
 const source=await readFile(new URL('../lib/forma/security.ts',import.meta.url),'utf8');
-const security=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
+const security=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source.replace("import { env } from 'cloudflare:workers';","const env={MOTES_WORKSPACE_VISIBILITY:'shared'};"),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
 const request=token=>new Request('https://motes.test/api/projects',{headers:token?{cookie:'forma_session='+token}:{}});
 test('anonymous sessions share business namespace while retaining distinct spend actors',async()=>{
  const a=request('a'.repeat(64)),b=request('b'.repeat(64));

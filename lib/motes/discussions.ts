@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { database, json, modelName, modelNames, payload, readProject } from '../forma/server';
-import { digest, HttpError, owner } from '../forma/security';
+import { digest, HttpError, owner, visitor } from '../forma/security';
 import { discussModel } from '../forma/discussion-model';
 import { ModelError, type ModelObservation } from '../forma/model';
 import { initializeWorkspace } from './management';
@@ -109,7 +109,7 @@ export async function sendDiscussion(request: Request) {
   try {
     reserved = await db.batch([
       db.prepare(`INSERT INTO forma_locks(project_id,request_id,expires_at) SELECT ?,?,? WHERE ${reservationFence}`).bind(namespace,requestId,Date.now()+150000,...scopeBindings),
-      budgetReservation(db,{id:requestId,owner:who,projectId:namespace,fingerprint,mode:'model',createdAt:now,fence:{sql:'EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND request_id=?)',bindings:[namespace,requestId]}}),
+      budgetReservation(db,{id:requestId,owner:who,visitorId:await visitor(request),projectId:namespace,fingerprint,mode:'model',createdAt:now,fence:{sql:'EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND request_id=?)',bindings:[namespace,requestId]}}),
       usageReservation(db,requestId,who,model,'discuss',now),
       db.prepare("INSERT INTO motes_discussion_turns(request_id,thread_id,prompt,context_version_id,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=? AND status='running') AND EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND request_id=?)").bind(requestId,threadId,prompt,base?.id || null,now,requestId,who,namespace,requestId),
     ]);

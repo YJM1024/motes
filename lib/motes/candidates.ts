@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { database, json, modelName, modelNames, payload } from '../forma/server';
-import { digest, HttpError, owner } from '../forma/security';
+import { digest, HttpError, owner, visitor } from '../forma/security';
 import { generateDemo } from '../forma/demo';
 import { generateModel, ModelError } from '../forma/model';
 import type { ModelObservation } from '../forma/model';
@@ -57,9 +57,9 @@ export async function createCandidates(request:Request){
   const now=new Date().toISOString(),ids=Array.from({length:count as number},()=>crypto.randomUUID()),requests=ids.map(()=>crypto.randomUUID()),lockIds=requests.map(r=>'candidate:'+r);
   const stateSql="EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND g.workspace_id=? AND w.owner=? AND g.archived=0) AND (SELECT count(*) FROM motes_candidate_groups WHERE owner=?)<?"+(appId?" AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?) AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND expires_at>?) AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60":" AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?");
   const stateBindings:(string|number)[]=[target,wid,who,who,MAX_GROUPS,...appId?[appId,who,baseVersionId!,appId,Date.now(),appId]:[who,LIMITS.apps]];
-  const first=budgetReservation(db,{id:requests[0],owner:who,projectId:lockIds[0],fingerprint:await digest(fingerprint+':0'),mode,createdAt:now,units:count as 2|3|4,fence:{sql:stateSql,bindings:stateBindings}});
+  const first=budgetReservation(db,{id:requests[0],owner:who,visitorId:await visitor(request),projectId:lockIds[0],fingerprint:await digest(fingerprint+':0'),mode,createdAt:now,units:count as 2|3|4,fence:{sql:stateSql,bindings:stateBindings}});
   const statements=[first];
-  for(let slot=1;slot<(count as number);slot++)statements.push(budgetReservation(db,{id:requests[slot],owner:who,projectId:lockIds[slot],fingerprint:await digest(fingerprint+':'+slot),mode,createdAt:now,units:((count as number)-slot) as 1|2|3,fence:{sql:'EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)',bindings:[requests[0],who]}}));
+  for(let slot=1;slot<(count as number);slot++)statements.push(budgetReservation(db,{id:requests[slot],owner:who,visitorId:await visitor(request),projectId:lockIds[slot],fingerprint:await digest(fingerprint+':'+slot),mode,createdAt:now,units:((count as number)-slot) as 1|2|3,fence:{sql:'EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)',bindings:[requests[0],who]}}));
   const context=generationPreferences(prefs.effective,!!source);
   statements.push(db.prepare('INSERT INTO motes_candidate_groups(id,owner,fingerprint,prompt,mode,model,app_id,base_version_id,managed_project_id,created_at,candidate_count,generation_context,generation_settings) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(groupId,who,fingerprint,prompt,mode,model,appId,baseVersionId,target,now,count,context,JSON.stringify(snapshotPreferences(prefs.effective,mode,model)),requests[(count as number)-1],who));
   for(let slot=0;slot<(count as number);slot++){
@@ -96,7 +96,7 @@ export async function retryCandidate(request:Request,groupId:string){
   const now=new Date().toISOString(),lockId='candidate:'+requestId;
   const guard="EXISTS(SELECT 1 FROM motes_candidates c JOIN motes_candidate_groups g ON g.id=c.group_id WHERE c.id=? AND c.group_id=? AND g.owner=? AND c.request_id=? AND c.status='failed' AND c.adopted_app_id IS NULL) AND EXISTS(SELECT 1 FROM motes_projects p JOIN motes_workspaces w ON w.id=p.workspace_id WHERE p.id=? AND p.workspace_id=? AND w.owner=? AND p.archived=0)"+(group.app_id?" AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?) AND NOT EXISTS(SELECT 1 FROM forma_locks WHERE project_id=? AND expires_at>?) AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60":" AND (SELECT count(*) FROM forma_projects WHERE owner=?)<?");
   const bindings:(string|number)[]=[candidateId,groupId,who,previous,group.managed_project_id,wid,who,...group.app_id?[group.app_id,who,group.base_version_id!,group.app_id,Date.now(),group.app_id]:[who,LIMITS.apps]];
-  const reserved=[budgetReservation(db,{id:requestId,owner:who,projectId:lockId,fingerprint,mode:group.mode,createdAt:now,fence:{sql:guard,bindings}}),
+  const reserved=[budgetReservation(db,{id:requestId,owner:who,visitorId:await visitor(request),projectId:lockId,fingerprint,mode:group.mode,createdAt:now,fence:{sql:guard,bindings}}),
     db.prepare('INSERT INTO motes_candidate_attempts(request_id,candidate_id,previous_request_id,fingerprint,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM forma_requests WHERE id=? AND owner=?)').bind(requestId,candidateId,previous,fingerprint,now,requestId,who),
     db.prepare("UPDATE motes_candidates SET request_id=?,status='running',html=NULL,error_code=NULL,updated_at=? WHERE id=? AND group_id=? AND request_id=? AND status='failed' AND EXISTS(SELECT 1 FROM motes_candidate_attempts WHERE request_id=?)").bind(requestId,now,candidateId,groupId,previous,requestId),
     db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM motes_candidate_attempts WHERE request_id=?)').bind(lockId,requestId,Date.now()+210000,requestId),

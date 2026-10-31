@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 // Import pure TS modules through data URLs so Node's tests need no extra runner.
 import ts from 'typescript';
 import { DatabaseSync } from 'node:sqlite';
-async function moduleAt(path){const src=await readFile(new URL(path,import.meta.url),'utf8');const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'))}
+async function moduleAt(path){const src=(await readFile(new URL(path,import.meta.url),'utf8')).replace("import { env } from 'cloudflare:workers';","const env={};");const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'))}
 const {generateDemo}=await moduleAt('../lib/forma/demo.ts');
 const {parseModelOutput,generateModel}=await moduleAt('../lib/forma/model.ts');
 const {owner,assertOrigin}=await moduleAt('../lib/forma/security.ts');
@@ -73,16 +73,16 @@ async function serverHarness() {
   source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);
   for(const file of ['demo','model','security','app-title','model-config']){
     const raw=await readFile(new URL(`../lib/forma/${file}.ts`,import.meta.url),'utf8');
-    const js=ts.transpileModule(raw,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+    const js=ts.transpileModule(raw.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
     source=source.replaceAll(`'./${file}'`,JSON.stringify('data:text/javascript;base64,'+Buffer.from(js).toString('base64')));
   }
   let settingsSource=await readFile(new URL('../lib/motes/settings.ts',import.meta.url),'utf8');
-  const securitySource=await readFile(new URL('../lib/forma/security.ts',import.meta.url),'utf8');
+  const securitySource=(await readFile(new URL('../lib/forma/security.ts',import.meta.url),'utf8')).replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);
   const securityJs=ts.transpileModule(securitySource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   settingsSource=settingsSource.replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64')));
   const settingsJs=ts.transpileModule(settingsSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   source=source.replaceAll("'../motes/settings'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(settingsJs).toString('base64')));
-  const usageSource=await readFile(new URL('../lib/motes/usage.ts',import.meta.url),'utf8');
+  const usageSource=(await readFile(new URL('../lib/motes/usage.ts',import.meta.url),'utf8')).replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64')));
   const usageJs=ts.transpileModule(usageSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
   source=source.replaceAll("'../motes/usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));
   const elementSource=await readFile(new URL('../lib/motes/element-selection.ts',import.meta.url),'utf8');const elementJs=ts.transpileModule(elementSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/element-selection'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(elementJs).toString('base64')));

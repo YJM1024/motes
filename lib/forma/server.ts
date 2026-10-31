@@ -10,7 +10,7 @@ import type { ModelObservation } from './model';
 import { readSettings, generationPreferences } from '../motes/settings';
 import { generateModel, ModelError } from './model';
 import type { Project, Summary, Version } from './types';
-import { HttpError, digest, owner, assertOrigin } from './security';
+import { HttpError, digest, owner, visitor, assertOrigin } from './security';
 export { COOKIE, digest, owner } from './security';
 
 export function database(){if(!env.DB)throw new HttpError(503,'云端存储暂时不可用，请稍后重试。');return env.DB}
@@ -78,7 +78,7 @@ export async function generate(request:Request){
   try{
     const reserved=await db.batch([
       db.prepare('INSERT INTO forma_locks(project_id,request_id,expires_at) VALUES(?,?,?)').bind(id,requestId,Date.now()+210000),
-      budgetReservation(db,{id:requestId,owner:who,projectId:id,fingerprint,mode,createdAt:now,fence:{sql:stateSql,bindings:stateBindings}}),
+      budgetReservation(db,{id:requestId,owner:who,visitorId:await visitor(request),projectId:id,fingerprint,mode,createdAt:now,fence:{sql:stateSql,bindings:stateBindings}}),
       ...mode==='model'?[usageReservation(db,requestId,who,selectedModel!,base?'modify':'generate',now)]:[],
     ]);
     if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();const state=await db.prepare(`SELECT CASE WHEN ${stateSql} THEN 1 ELSE 0 END AS allowed`).bind(...stateBindings).first<{allowed:number}>();if(!state?.allowed)throw new HttpError(409,'应用、创建目标或容量已变化，请刷新核对后重试。','new');throw new HttpError(429,'今日生成额度已用完，请明天再试。')}

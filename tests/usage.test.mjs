@@ -14,14 +14,14 @@ async function harness(config={}){
   async function moduleUrl(file){if(cache.has(file))return cache.get(file);let source=await readFile(new URL('../lib/'+file+'.ts',import.meta.url),'utf8');source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);for(const match of [...source.matchAll(/(?:from\s+)(['"])(\.[^'"]+)\1/g)]){const target=new URL(match[2]+'.ts',new URL('../lib/'+file+'.ts',import.meta.url));source=source.replaceAll(match[1]+match[2]+match[1],JSON.stringify(await moduleUrl(target.pathname.split('/lib/').at(-1).replace(/\.ts$/,''))))}const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,url='data:text/javascript;base64,'+Buffer.from(js).toString('base64');cache.set(file,url);return url}
   const serverUrl=await moduleUrl('forma/server'),usageUrl=await moduleUrl('motes/usage');
   const server=await import(serverUrl),usage=await import(usageUrl),settings=await import(await moduleUrl('motes/settings')),security=await import(await moduleUrl('forma/security')),management=await import(await moduleUrl('motes/management')),demo=await import(await moduleUrl('forma/demo'));delete globalThis[key];
-  const routeSource=(await readFile(new URL('../app/api/usage/route.ts',import.meta.url),'utf8')).replaceAll("'@/lib/forma/server'",JSON.stringify(serverUrl)).replaceAll("'@/lib/motes/usage'",JSON.stringify(usageUrl));
+  const routeSource=(await readFile(new URL('../app/api/usage/route.ts',import.meta.url),'utf8')).replaceAll("'@/lib/forma/server'",JSON.stringify(serverUrl)).replaceAll("'@/lib/motes/usage'",JSON.stringify(usageUrl)).replaceAll("'@/lib/forma/security'",JSON.stringify(await moduleUrl('forma/security')));
   const route=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(routeSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
-  const who=visitor=>security.digest(visitor.repeat(64));
+  const who=visitor=>config.MOTES_WORKSPACE_VISIBILITY==='shared'?security.SHARED_OWNER:security.digest(visitor.repeat(64));
   async function generate(body,visitor='a'){const req=new Request('https://motes.test/api/generate',{method:'POST',headers:{origin:'https://motes.test',cookie:'forma_session='+visitor.repeat(64),'content-type':'application/json'},body:JSON.stringify(body)});const response=await server.route(()=>server.generate(req));return{status:response.status,data:await response.json()}}
-  const snapshot=async(visitor='a')=>usage.readUsage(env.DB,await who(visitor));
+  const snapshot=async(visitor='a')=>usage.readUsage(env.DB,await who(visitor),await security.digest(visitor.repeat(64)));
   const save=async(patch,scope='workspace',selection={})=>settings.saveSettings(env.DB,await who('a'),server.modelName(),{scope,patch,...selection},server.modelNames());
   const success=(model='gpt-6-luna',reported={input_tokens:120,output_tokens:80,total_tokens:200})=>Response.json({status:'completed',model,usage:reported,output:[{content:[{type:'output_text',text:demo.generateDemo('番茄钟').html}]}]});
-  return{sqlite,env,control,server,usage,settings,management,route,who,generate,snapshot,save,success,close:()=>sqlite.close()};
+  return{sqlite,env,control,server,usage,settings,management,route,security,who,generate,snapshot,save,success,close:()=>sqlite.close()};
 }
 
 test('configured model allowlist has no secrets and missing key remains honest demo',async t=>{
@@ -98,4 +98,41 @@ test('legacy model attempts show coverage gaps and manual/fork/import/demo never
   assert.equal((await h.generate({mode:'demo',prompt:'番茄钟',requestId:crypto.randomUUID()})).status,200);
   const result=await h.snapshot();assert.equal(result.quota.model.used,1);assert.equal(result.quota.demo.used,1);assert.equal(result.tokens.recordedCalls,0);assert.equal(result.tokens.total,null);assert.equal(result.tokens.coverage,'unknown');assert.equal(result.items.length,0);
   const migration=await readFile(new URL('../drizzle/0006_model_usage.sql',import.meta.url),'utf8');assert.ok(migration.replace(/--[^\r\n]*/g,'').split(';').map(v=>v.trim()).filter(Boolean).every(s=>/^CREATE (?:TABLE|INDEX)/.test(s)));
+});
+
+test('shared visitors read and modify the same app while legacy private records stay inaccessible',async t=>{
+ const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared',OPENAI_API_KEY:''});t.after(h.close);
+ const body={mode:'demo',prompt:'番茄钟',requestId:crypto.randomUUID()},first=await h.generate(body,'a');assert.equal(first.status,200);
+ const same=await h.generate(body,'b');assert.equal(same.status,200);assert.equal(same.data.project.id,first.data.project.id);
+ const modified=await h.generate({mode:'demo',prompt:'改成蓝色主题',projectId:first.data.project.id,requestId:crypto.randomUUID()},'b');assert.equal(modified.status,200);assert.equal(modified.data.project.versions.length,2);
+ assert.equal((await h.server.listProjects(h.security.SHARED_OWNER)).length,1);
+ const privateOwner=await h.security.digest('c'.repeat(64)),oldId=crypto.randomUUID(),oldVersion=crypto.randomUUID(),now=new Date().toISOString();
+ h.sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(oldId,privateOwner,'OLD PRIVATE',now,now,oldVersion);
+ h.sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(oldVersion,oldId,1,'OLD PRIVATE PROMPT','private','<!doctype html><html><body>old</body></html>',now,'manual',null);
+ await assert.rejects(h.server.readProject(h.security.SHARED_OWNER,oldId),{status:404});
+ assert.equal((await h.generate({mode:'demo',prompt:'改成蓝色主题',projectId:oldId,requestId:crypto.randomUUID()},'c')).status,404);
+ assert.equal((await h.server.listProjects(h.security.SHARED_OWNER)).length,1);
+ assert.equal(h.sqlite.prepare('SELECT owner FROM forma_projects WHERE id=?').get(oldId).owner,privateOwner);
+ const snapshot=await h.snapshot('b');assert.equal(snapshot.limits.visitor.demo.used,1);assert.equal(snapshot.limits.shared.demo.used,2);assert.equal(snapshot.limits.global.demo.used,2);
+});
+test('shared daily model cap cannot be reset by cookie rotation and original request recovery stays free',async t=>{
+ const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared'});t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
+ const original={mode:'model',prompt:'test',requestId:crypto.randomUUID()},first=await h.generate(original,'a');assert.equal(first.status,200);
+ for(let i=1;i<10;i++)assert.equal((await h.generate({mode:'model',prompt:'test',requestId:crypto.randomUUID()},i%2?'b':'a')).status,200);
+ assert.equal((await h.generate({mode:'model',prompt:'denied',requestId:crypto.randomUUID()},'c')).status,429);
+ const recovered=await h.generate(original,'c');assert.equal(recovered.status,200);assert.equal(recovered.data.project.id,first.data.project.id);assert.equal(calls,10);
+ const usage=await h.snapshot('c');assert.equal(usage.limits.visitor.model.used,0);assert.equal(usage.limits.shared.model.used,10);assert.equal(usage.limits.global.model.used,10);assert.equal(usage.quota.model.remaining,0);
+ assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests WHERE visitor_id IS NOT NULL').get().n,10);
+ assert.doesNotMatch(JSON.stringify(usage),/test-secret-never-return|forma_session|PRIVATE/);
+});
+test('shared reservation retains legacy visitor spend, global spend and atomic candidate units',async t=>{
+ const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared'});t.after(h.close);const now=new Date().toISOString(),day=now.slice(0,10),actor=await h.security.digest('a'.repeat(64));
+ const insert=h.sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) VALUES(?,?,?,?,?,?,?,?)');
+ for(let i=0;i<9;i++)insert.run(crypto.randomUUID(),actor,'legacy','legacy',day,'model','failed',now);
+ const reserve=(visitorId,units=1)=>h.usage.budgetReservation(h.env.DB,{id:crypto.randomUUID(),owner:h.security.SHARED_OWNER,visitorId,projectId:crypto.randomUUID(),fingerprint:'x',mode:'model',createdAt:now,units}).run().meta.changes;
+ assert.equal(reserve(actor,2),0);assert.equal(reserve(actor),1);assert.equal(reserve(actor),0);
+ const b=await h.security.digest('b'.repeat(64));assert.equal(reserve(b,4),1);
+ for(let i=10;i<49;i++)insert.run(crypto.randomUUID(),'historical-private','legacy','legacy',day,'model','failed',now);
+ assert.equal(reserve(b,2),0); // 11 actual rows + 39 legacy rows already reach the global cap.
+ const usage=await h.snapshot('a');assert.equal(usage.limits.visitor.model.used,10);assert.equal(usage.limits.shared.model.used,2);assert.equal(usage.limits.global.model.used,50);assert.equal(usage.quota.model.remaining,0);
 });
