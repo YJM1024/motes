@@ -35,3 +35,6 @@
 :global(html[data-motes-theme="dark"]) .newMessages{background:var(--motes-surface);border-color:var(--motes-border);color:var(--motes-accent);box-shadow:0 3px 12px #0006}
 :global(html[data-motes-theme="dark"]) .assistant-avatar{background:var(--motes-muted-surface);color:var(--motes-accent)}
 :global(html[data-motes-theme="dark"]) .message-author>span{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-muted)}
+:global(html[data-motes-theme="dark"]) .switch{background:var(--motes-muted-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+:global(html[data-motes-theme="dark"]) .switch button{background:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+:global(html[data-motes-theme="dark"]) .switch button[aria-pressed="true"]{background:#28364d!important;border-color:#49658d!important;color:var(--motes-accent)!important}

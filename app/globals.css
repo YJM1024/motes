@@ -139,3 +139,25 @@ html[data-motes-theme="dark"] .message-delivery{color:var(--motes-text)}
 html[data-motes-theme="dark"] .message-delivery.failed{background:#382522;border-color:#744b42;color:#ffd2c7}
 html[data-motes-theme="dark"] .message-delivery small{color:var(--motes-muted)}
 html[data-motes-theme="dark"] .retry-message{background:var(--motes-surface);border-color:#744b42;color:#ffd2c7}
+
+/* UX3 contrast follow-up: bind dark colors to the rendered host controls. */
+html[data-motes-theme="dark"] .app-sidebar .forma-logo{color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .app-sidebar .forma-logo>span:not(.brand-mark){color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .app-sidebar .forma-logo .brand-dot{color:var(--motes-accent)!important}
+html[data-motes-theme="dark"] .workbench-layout-controls{background-color:var(--motes-muted-surface)!important;color:var(--motes-text)!important;border-color:var(--motes-border)!important}
+html[data-motes-theme="dark"] .advanced-preview-controls{background-color:var(--motes-muted-surface)!important;color:var(--motes-text)!important;border-color:var(--motes-border)!important}
+html[data-motes-theme="dark"] .advanced-preview-controls button{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .advanced-preview-controls button[aria-pressed="true"]{background-color:#28364d!important;border-color:#49658d!important;color:var(--motes-accent)!important}
+html[data-motes-theme="dark"] .advanced-preview-controls :is(input,select){background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important;color-scheme:dark}
+html[data-motes-theme="dark"] .chat-input-area .chat-composer.composer{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .chat-input-area .chat-composer.composer textarea{background-color:var(--motes-surface)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .chat-input-area .chat-composer.composer .composer-footer{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .chat-input-area .chat-composer.composer .composer-footer :is(.composer-hint,.keyboard-hint){color:var(--motes-muted)!important}
+html[data-motes-theme="dark"] .chat-input-area .chat-composer.composer .composer-footer .send-button{background-color:var(--motes-accent)!important;color:#101827!important}
+html[data-motes-theme="dark"] .assistant-message .version-card{background-color:var(--motes-muted-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .assistant-message .version-card small{color:var(--motes-muted)!important}
+html[data-motes-theme="dark"] .assistant-message .version-card>span{background-color:var(--motes-surface)!important;color:var(--motes-accent)!important}
+html[data-motes-theme="dark"] .mode-notice{background-color:var(--motes-muted-surface)!important;color:var(--motes-text)!important;border-color:var(--motes-border)!important}
+html[data-motes-theme="dark"] .mode-notice button,html[data-motes-theme="dark"] .mode-notice a{color:var(--motes-accent)!important}
+html[data-motes-theme="dark"] .workbench-text-button{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .export-button{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
