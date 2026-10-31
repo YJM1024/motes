@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Archive, Folder, MoreHorizontal, Plus, Search, Star, Tag as TagIcon, X } from "lucide-react";
 import type { ManagedApp, ManagedProject, Tag, WorkspaceAction, WorkspaceSnapshot } from "@/lib/motes/types";
 import "./manage.css";
@@ -48,6 +50,7 @@ function EditorForm({ editor, snapshot, busy, error, onSave, onCancel }: { edito
 
 export default function ManagePage() {
   const { locale, t } = useHostLocale();
+  const router = useRouter();
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -78,6 +81,7 @@ export default function ManagePage() {
     catch (e) { setError(e instanceof Error ? e.message : t('加载失败，请重试。')); }
     finally { setLoading(false); }
   }
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- Bootstrap the workspace once and keep it stable during local filter edits.
   useEffect(() => { void load(); const closeMenus = (event: KeyboardEvent) => { if (event.key === "Escape") document.querySelectorAll(".manage-app-menu[open]").forEach(menu => menu.removeAttribute("open")); }; document.addEventListener("keydown", closeMenus); return () => document.removeEventListener("keydown", closeMenus); }, []);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 4000); return () => clearTimeout(timer); }, [notice]);
   function edit(next: Editor) { setEditorError(""); setTagsOpen(false); setEditor(next); }
@@ -93,7 +97,7 @@ export default function ManagePage() {
   }
   function newApp(event: { preventDefault(): void }) { if (selectedProject?.archived) event.preventDefault(); }
   function openApp(app: ManagedApp) {
-    try { localStorage.setItem("forma-current-project", app.id); window.location.assign("/"); }
+    try { localStorage.setItem("forma-current-project", app.id); router.push("/"); }
     catch { setError(t('无法记录应用选择，请允许此站点使用浏览器存储后重试。')); }
   }
   const apps = useMemo(() => filterApps(snapshot?.apps || [], snapshot?.projects || [], { query, projectId, tagId, starred, archived, sort }), [snapshot, query, projectId, tagId, starred, archived, sort]);
@@ -125,7 +129,7 @@ export default function ManagePage() {
   function describeBatch(operation:BulkOperation) { if(operation.kind==='move')return t('移动到「{project}」',{project:snapshot?.projects.find(project=>project.id===operation.projectId)?.name||t('所选项目')});if(operation.kind==='starred')return t(operation.value?'收藏':'取消收藏');return t(operation.value?'归档':'恢复归档'); }
   function describeBatchScope() { return [projectId?snapshot?.projects.find(p=>p.id===projectId)?.name:t('所有项目'),archived==='active'?t('未归档'):archived==='archived'?t('已归档'):t('全部归档状态'),tagId?snapshot?.tags.find(tag=>tag.id===tagId)?.name:t('全部标签'),starred?t('仅收藏应用'):t('全部收藏状态'),query.trim()?t('搜索“{query}”',{query:query.trim()}):'' ].filter(Boolean).join(' · '); }
   return <main className="manage-shell">
-    <header className="manage-top"><a href="/" className="manage-back"><ArrowLeft size={16}/>{t('回到创作')}</a><a href="/" className="manage-wordmark">motes<span>.</span></a><span className="manage-test-badge">{t('测试模式')}</span></header>
+    <header className="manage-top"><Link href="/" className="manage-back"><ArrowLeft size={16}/>{t('回到创作')}</Link><Link href="/" className="manage-wordmark">motes<span>.</span></Link><span className="manage-test-badge">{t('测试模式')}</span></header>
     <div className="manage-layout"><aside className="manage-sidebar"><div className="manage-space"><span className="manage-avatar">{snapshot?.profile.displayName.slice(0, 1) || "M"}</span><div><strong>{snapshot?.profile.displayName || t('工作空间')}</strong><small>{t('当前浏览器的独立测试空间')}</small></div></div><button className="manage-profile-edit" disabled={!snapshot || busy} onClick={() => edit({ kind: "profile" })}>{t('编辑测试资料')}</button>
       <div className="manage-nav-head"><span>{t('项目')}</span><button className="manage-icon" aria-label={t('新建项目')} disabled={!snapshot || busy || snapshot.projects.length >= snapshot.limits.projects} onClick={() => edit({ kind: "project" })}><Plus size={17}/></button></div>
       <nav aria-label={t('项目筛选')}><button disabled={busy} className={!projectId ? "selected" : ""} onClick={() => {clearBatchScope();setProjectId("");}}><Folder size={16}/>{t('全部项目')}<span>{snapshot?.apps.length || 0}</span></button>{snapshot?.projects.filter(p => !p.archived).map(p => <button disabled={busy} className={projectId === p.id ? "selected" : ""} key={p.id} onClick={() => {clearBatchScope();setProjectId(p.id);}}><Folder size={16}/><span className="manage-nav-name">{p.name}</span><span>{p.appCount}</span></button>)}
@@ -146,6 +150,6 @@ export default function ManagePage() {
     {snapshot && tagsOpen && <Modal title={t("标签管理")} onClose={() => { if (!busy) setTagsOpen(false); }}><div className="manage-tag-manager"><p className="manage-hint" >{t("标签可跨项目使用。删除标签会移除应用上的关联，应用本身保留。")}</p>{error && <p className="manage-error" role="alert">{error}</p>}{snapshot.tags.length ? snapshot.tags.map(tag => <div className="manage-tag-row" key={tag.id}><i style={{ background: tag.color }}/><span>{tag.name}</span><button disabled={busy} onClick={() => edit({ kind: "tag", item: tag })} >{t("编辑")}</button><button disabled={busy} onClick={() => setConfirmDelete(tag)} >{t("删除")}</button></div>) : <p className="manage-hint" >{t("还没有标签，创建一个用于整理应用。")}</p>}<button className="manage-primary" disabled={busy || snapshot.tags.length >= snapshot.limits.tags} onClick={() => edit({ kind: "tag" })}><Plus size={15}/>{t("新建标签")}</button><small className="manage-hint">{t("{count}/{limit} 个标签",{count:snapshot.tags.length,limit:snapshot.limits.tags})}</small></div></Modal>}
     {confirmDelete && <Modal title={t("删除标签")} onClose={() => { if (!busy) setConfirmDelete(null); }}><div className="manage-tag-manager"><p>{t("删除“{tag}”？所有应用上的此标签都会移除，应用和版本保留。",{tag:confirmDelete.name})}</p>{error && <p className="manage-error" role="alert">{error}</p>}<div className="manage-form-actions"><button disabled={busy} onClick={() => setConfirmDelete(null)}>{t("取消")}</button><button className="manage-danger" disabled={busy} onClick={() => void mutate({ action: "tag.delete", tagId: confirmDelete.id })}>{busy ? t("删除中…") : t("删除标签")}</button></div></div></Modal>}
     {confirmBatch&&snapshot&&<Modal title={t("确认批量整理")} onClose={()=>{if(!busy)setConfirmBatch(null);}}><div className="manage-tag-manager"><p >{t("范围：{scope}。将对选中的 {count} 个应用逐项执行“{action}”。每项单独保存；部分失败时仅保留失败项供重试，已成功项不会重复提交。",{scope:describeBatchScope(),count:visibleSelected.length,action:describeBatch(confirmBatch)})}</p>{confirmBatch.kind==='archived'&&<p className="manage-hint" >{t("归档会隐藏应用但保留其内容和版本；之后可在“已归档应用”筛选中恢复。")}</p>}<div className="manage-form-actions"><button type="button" disabled={busy} onClick={()=>setConfirmBatch(null)}>{t("取消")}</button><button type="button" className="manage-primary" disabled={busy||!visibleSelected.length} onClick={()=>void runBatch(confirmBatch,[...selectedAppIds],batchResult)} >{t("确认并逐项保存")}</button></div></div></Modal>}
-    {snapshot && backupOpen && <BackupPanel snapshot={snapshot} onClose={()=>setBackupOpen(false)} onImported={result=>{setProjectId(result.projectId);setArchived("all");void load();}}/>}
+    {snapshot && backupOpen && <BackupPanel snapshot={snapshot} onClose={()=>setBackupOpen(false)} onImported={result=>{clearBatchScope();setQuery("");setTagId("");setStarred(false);setProjectId(result.projectId);setArchived("all");setMoveTargetId("");void load();}}/>}
   </main>;
 }
