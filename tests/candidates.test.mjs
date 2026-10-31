@@ -178,6 +178,6 @@ test('shared candidate API separates spend actor from app access and classifies 
  const denied=await h.create(body({appId:source.id,baseVersionId:source.version}));assert.equal(denied.status,429);assert.equal(calls,0);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_candidate_groups').get().n,0);
  const result=await h.create(body({appId:source.id,baseVersionId:source.version}),'b');assert.equal(result.status,201);assert.equal(calls,2);
  const group=result.data.group;assert.equal((await h.read(group.id,'c')).status,200);
- const adopted=await h.adopt(group.id,group.candidates[0].id,false,'c');assert.equal(adopted.status,200);assert.equal(adopted.data.project.id,source.id);
+ const adopted=await h.adopt(group.id,group.candidates[0].id,false,'c');assert.equal(adopted.status,201);assert.equal(adopted.data.appId,source.id);assert.equal((await h.server.readProject(await h.who('c'),source.id)).versions.length,2);
  const actors=h.sqlite.prepare('SELECT DISTINCT visitor_id FROM forma_requests WHERE owner=?').all(await h.who('a'));assert.deepEqual(actors.map(r=>r.visitor_id),[await h.security.digest('b'.repeat(64))]);
 });
