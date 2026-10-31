@@ -165,3 +165,7 @@ html[data-motes-theme="dark"] .export-button{background-color:var(--motes-surfac
 html[data-motes-theme="dark"] .mobile-workspace-tabs{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important}
 html[data-motes-theme="dark"] .mobile-workspace-tabs>button{background-color:transparent!important;color:var(--motes-muted)!important}
 html[data-motes-theme="dark"] .mobile-workspace-tabs>button.active{color:var(--motes-accent)!important;border-color:var(--motes-accent)!important}
+html[data-motes-theme="dark"] .suggestion-row button{background-color:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
+html[data-motes-theme="dark"] .suggestion-row button:hover{background-color:var(--motes-muted-surface)!important;border-color:var(--motes-accent)!important;color:var(--motes-accent)!important}
+html[data-motes-theme="dark"] .suggestion-row button:focus-visible{outline:2px solid var(--motes-accent);outline-offset:2px}
+html[data-motes-theme="dark"] .message-author>span{background-color:var(--motes-muted-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-accent)!important;font-size:10px}
