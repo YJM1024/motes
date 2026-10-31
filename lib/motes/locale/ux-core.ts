@@ -71,5 +71,6 @@ export const uxCoreMessages = {
   "打开导入的应用": "Open imported app",
   "预览新应用": "Preview new app",
   "查看保存版本 v{number}": "View saved version v{number}",
-  "查看导入的项目": "View imported projects"
+  "查看导入的项目": "View imported projects",
+  "已还原为 v{number}": "Restored to v{number}"
 } as const;
