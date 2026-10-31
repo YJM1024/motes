@@ -156,10 +156,10 @@ test('share HTTP route returns 200 without server DOMParser and uniform 404 afte
 test('runtime bridge metadata is present only for explicitly shared-owner apps',async t=>{
   const h=await harness();t.after(h.close);const legacy=await h.seed(),legacyShare=await h.create(legacy),legacyToken=legacyShare.data.share.path.split('/').at(-1),legacyVersion=await h.sharing.readSharedVersion(legacyToken);
   assert.deepEqual(Object.keys(legacyVersion).sort(),['html','title','versionNumber']);
-  const legacyHtml=h.page.sharedPage(legacyVersion,undefined,'snapshot','https://motes.test');assert.doesNotMatch(legacyHtml,new RegExp(legacy.id+'|'+legacy.versionId));assert.doesNotMatch(legacyHtml,/motes\.runtime-data\.v1|\/api\/runtime-data/);
+  const legacyHtml=h.page.sharedPage(legacyVersion,undefined,'snapshot','https://motes.test');assert.doesNotMatch(legacyHtml,new RegExp(legacy.id+'|'+legacy.versionId));assert.doesNotMatch(legacyHtml,/motes\.runtime-data\.v1|\/api\/runtime-data/);assert.match(legacyHtml,/预览中的输入属于临时状态/);assert.match(legacyHtml,/分享只包含此版本标题和源码/);
   h.env.MOTES_WORKSPACE_VISIBILITY='shared';const shared=await h.seed('b');h.sqlite.prepare('UPDATE forma_projects SET owner=? WHERE id=?').run('motes-public-demo-v1',shared.id);const sharedShare=await h.create(shared,{},'a'),sharedToken=sharedShare.data.share.path.split('/').at(-1),sharedVersion=await h.sharing.readSharedVersion(sharedToken);
   assert.deepEqual({appId:sharedVersion.appId,versionId:sharedVersion.versionId,runtimeData:sharedVersion.runtimeData},{appId:shared.id,versionId:shared.versionId,runtimeData:true});
-  const sharedHtml=h.page.sharedPage(sharedVersion,undefined,'snapshot','https://motes.test');assert.match(sharedHtml,new RegExp(shared.id));assert.match(sharedHtml,new RegExp(shared.versionId));assert.match(sharedHtml,/motes\.runtime-data\.v1|\/api\/runtime-data/);
+  const sharedHtml=h.page.sharedPage(sharedVersion,undefined,'snapshot','https://motes.test');assert.match(sharedHtml,new RegExp(shared.id));assert.match(sharedHtml,new RegExp(shared.versionId));assert.match(sharedHtml,/motes\.runtime-data\.v1|\/api\/runtime-data/);assert.match(sharedHtml,/公共工作空间/);assert.match(sharedHtml,/所有访客读写同一份数据/);assert.match(sharedHtml,/未接入 SDK 的输入仅在当前预览中有效/);assert.doesNotMatch(sharedHtml,/预览中的输入属于临时状态/);
   const publicResponse=await h.sharing.getSharedVersion(sharedToken),publicVersion=await publicResponse.json();assert.deepEqual(Object.keys(publicVersion).sort(),['html','title','versionNumber']);
 });
 
