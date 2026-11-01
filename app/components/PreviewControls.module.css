@@ -1,43 +1,55 @@
-.root{display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:#77736d;font:12px/1.4 var(--font-sans,"Segoe UI",sans-serif)}
-.devices{display:inline-flex;gap:2px;padding:3px;border:1px solid #e7e5e1;border-radius:8px;background:#f7f7f5}
-.root button,.root select,.root input{font:inherit;color:#494640}
-.devices button,.icon,.confirm button{min-height:34px;padding:0 10px;border:0;border-radius:6px;background:transparent;cursor:pointer}
-.devices button[aria-pressed=true]{background:#fff;box-shadow:0 1px 3px #17130d1a;color:#25231f}
-.root button:focus-visible,.root select:focus-visible,.root input:focus-visible{outline:2px solid #8a9bb4;outline-offset:2px}
-.width,.scale{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.width input{width:78px;height:34px;padding:0 7px;border:1px solid #e7e5e1;border-radius:6px;background:#fff}
-.scale select{height:34px;padding:0 7px;border:1px solid #e7e5e1;border-radius:6px;background:#fff}
-.icon{display:inline-grid;place-items:center;border:1px solid #e7e5e1!important;background:#fff!important}
-.confirm{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 9px;border:1px solid #eadfca;border-radius:8px;background:#fcfaf4;color:#655d50}
-.confirm button{border:1px solid #e4ded2;background:#fff}
-.confirm button:last-child{background:#f0e8dc}
-.mobileSettings{display:none}
-@media(max-width:620px){
-  .root{gap:6px;align-items:center}
-  .devices{flex:1 1 auto;min-width:0}
-  .devices button,.icon{min-height:40px;min-width:40px}
-  .desktopCustom,.root>.width,.root>.scale{display:none}
-  .mobileSettings{display:block;position:relative;flex:0 0 auto}
-  .mobileSettings>summary{min-height:40px;display:inline-flex;align-items:center;padding:0 9px;border:1px solid #e7e5e1;border-radius:7px;background:#fff;color:#494640;cursor:pointer;list-style:none;white-space:nowrap}
-  .mobileSettings>summary::-webkit-details-marker{display:none}
-  .mobileSettings>summary:focus-visible,.mobileSettingsBody button:focus-visible{outline:2px solid #8a9bb4;outline-offset:2px}
-  .mobileSettings[open] .mobileSettingsBody{position:absolute;right:0;top:calc(100% + 5px);z-index:20;display:grid;gap:8px;min-width:220px;padding:10px;border:1px solid #e7e5e1;border-radius:9px;background:#fff;color:#494640;box-shadow:0 8px 24px #17130d1f}
-  .mobileSettingsBody button{min-height:40px;padding:0 10px;border:1px solid #e7e5e1;border-radius:6px;background:#fff;color:#494640;text-align:left}
-  .mobileSettingsBody .width,.mobileSettingsBody .scale{justify-content:space-between}
-  .mobileSettingsBody .width input{width:78px}
-  .confirm{width:100%;font-size:11px}
+.root {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--motes-text, #3b4650);
+  font: 12px/1.4 var(--font-sans, "Segoe UI", sans-serif);
 }
-@media(prefers-reduced-motion:reduce){.root *{scroll-behavior:auto}}
 
-:global(html[data-motes-theme="dark"]) .root{background:var(--motes-muted-surface);border-color:var(--motes-border);color:var(--motes-text)}
-:global(html[data-motes-theme="dark"]) .devices,:global(html[data-motes-theme="dark"]) .devices button,:global(html[data-motes-theme="dark"]) .icon,:global(html[data-motes-theme="dark"]) .scale select,:global(html[data-motes-theme="dark"]) .width input,:global(html[data-motes-theme="dark"]) .confirm,:global(html[data-motes-theme="dark"]) .confirm button{background:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}
-:global(html[data-motes-theme="dark"]) .devices button[aria-pressed="true"]{background:var(--motes-accent-soft)!important;border-color:var(--motes-border)!important;color:var(--motes-accent)!important}
-:global(html[data-motes-theme="dark"]) .confirm button:last-child{background:var(--motes-accent)!important;border-color:var(--motes-accent)!important;color:var(--motes-on-accent)!important}
-:global(html[data-motes-theme="dark"]) .root :is(input,select){color-scheme:dark}
-@media(max-width:620px){:global(html[data-motes-theme="dark"]) .mobileSettings>summary,:global(html[data-motes-theme="dark"]) .mobileSettings[open] .mobileSettingsBody,:global(html[data-motes-theme="dark"]) .mobileSettingsBody button{background:var(--motes-surface)!important;border-color:var(--motes-border)!important;color:var(--motes-text)!important}}
-.root{color:var(--motes-text);font-size:12px}.devices,.sizes{border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface)}.root button{min-height:var(--motes-control-height,40px);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-surface);color:var(--motes-muted);font-size:12px}.root button.active{background:var(--motes-accent-soft,#eef3fb);border-color:var(--motes-border);color:var(--motes-accent)}.root :focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
-@media(max-width:600px){.root button{min-height:var(--motes-control-height,44px);font-size:14px}}
+.primaryGroup,.dimensions,.secondaryGroup,.devices { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.primaryGroup { flex-wrap: wrap; }
+.secondaryGroup { flex: 0 0 auto; margin-left: auto; }
+.devices { gap: 2px; padding: 3px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: var(--motes-radius, 12px); background: var(--motes-muted-surface, #f3f5f6); }
+.devices button { flex: 0 0 auto; min-height: var(--motes-control-height, 40px); padding: 0 10px; border: 1px solid transparent; border-radius: calc(var(--motes-radius, 12px) - 3px); background: transparent; color: var(--motes-muted, #5d6871); cursor: pointer; font: inherit; }
+.devices button[aria-pressed="true"] { border-color: var(--motes-border, #dfe4e7); background: var(--motes-surface, #fff); color: var(--motes-accent, #3e6386); box-shadow: 0 1px 3px #14212b12; }
+.devices .desktopCustom { border-color: var(--motes-border, #dfe4e7); background: var(--motes-surface, #fff); }
+.dimensions { flex-wrap: wrap; }
+.root button,.root select,.root input { color: var(--motes-text, #303a42); font: inherit; }
+.width,.scale { display: inline-flex; min-width: 0; align-items: center; gap: 5px; color: var(--motes-muted, #65717a); white-space: nowrap; }
+.width input { width: 78px; min-height: var(--motes-control-height, 40px); padding: 0 8px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: calc(var(--motes-radius, 12px) - 3px); background: var(--motes-surface, #fff); }
+.scale select { min-height: var(--motes-control-height, 40px); padding: 0 8px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: calc(var(--motes-radius, 12px) - 3px); background: var(--motes-surface, #fff); }
+.icon { display: inline-grid; min-width: var(--motes-control-height, 40px); min-height: var(--motes-control-height, 40px); place-items: center; padding: 0 8px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: calc(var(--motes-radius, 12px) - 3px); background: var(--motes-surface, #fff); color: var(--motes-text, #303a42); cursor: pointer; }
+.mobileSettings { display: none; }
+.root button:hover:not(:disabled),.root select:hover,.root input:hover,.mobileSettings>summary:hover { border-color: var(--motes-accent, #50769a); }
+.root button:focus-visible,.root select:focus-visible,.root input:focus-visible,.mobileSettings>summary:focus-visible { outline: 3px solid var(--motes-focus, #50769a); outline-offset: 2px; }
+.root button:disabled { cursor: not-allowed; opacity: .55; }
+.confirm { display: flex; max-width: min(540px,100%); align-items: center; flex-wrap: wrap; gap: 7px; padding: 7px 9px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: var(--motes-radius, 12px); background: var(--motes-muted-surface, #f3f5f6); color: var(--motes-text, #303a42); }
+.confirm>span { min-width: min(220px,100%); flex: 1 1 220px; }
+.confirm button,.mobileSettingsBody button { min-height: 36px; padding: 0 10px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: calc(var(--motes-radius, 12px) - 3px); background: var(--motes-surface, #fff); cursor: pointer; }
+.confirm button:last-child { border-color: var(--motes-accent, #50769a); background: var(--motes-accent, #50769a); color: var(--motes-on-accent, #fff); }
 
-.devices button{min-height:var(--motes-control-height,40px);border-radius:var(--motes-radius,12px);color:var(--motes-muted);font-size:12px}.devices button[aria-pressed=true]{background:var(--motes-accent-soft,#eef3fb);box-shadow:none;color:var(--motes-accent)}.width,.scale{color:var(--motes-muted);font-size:12px}.width input,.scale select,.mobileSettings>summary,.mobileSettingsBody{border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-surface);color:var(--motes-text)}.width input,.scale select{min-height:var(--motes-control-height,40px);font-size:13px}.icon{min-height:var(--motes-control-height,40px);border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-surface);color:var(--motes-text)}.confirm{border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface);color:var(--motes-text)}.confirm button{min-height:36px;border-color:var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-surface);color:var(--motes-text)}.confirm button:last-child{background:var(--motes-accent);color:var(--motes-on-accent,#fff)}.root :focus-visible,.mobileSettings>summary:focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
-:global(html[data-motes-theme="dark"]) .devices button[aria-pressed="true"],:global(html[data-motes-theme="dark"]) .confirm button:last-child{background:var(--motes-accent-soft);border-color:var(--motes-border);color:var(--motes-accent)}
-@media(max-width:620px){.devices button,.icon,.mobileSettings>summary{min-height:var(--motes-control-height,44px)}.width input,.scale select,.mobileSettingsBody button{font-size:16px}.confirm{font-size:12px}}
+@media(max-width:620px) {
+  .root { gap: 6px; }
+  .primaryGroup { flex: 1 1 190px; gap: 0; }
+  .devices { flex: 1 1 auto; min-width: 0; }
+  .devices button { min-width: 0; flex: 1 1 0; padding-inline: 8px; }
+  .devices .desktopCustom,.dimensions { display: none; }
+  .mobileSettings { position: relative; display: block; flex: 0 0 auto; }
+  .mobileSettings>summary { display: inline-flex; min-height: var(--motes-control-height, 44px); align-items: center; padding: 0 10px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: calc(var(--motes-radius, 12px) - 3px); background: var(--motes-surface, #fff); color: var(--motes-text, #303a42); cursor: pointer; list-style: none; white-space: nowrap; }
+  .mobileSettings>summary::-webkit-details-marker { display: none; }
+  .mobileSettings[open] .mobileSettingsBody { position: absolute; top: calc(100% + 5px); right: 0; z-index: 20; display: grid; width: min(260px,calc(100vw - 24px)); gap: 8px; padding: 10px; border: 1px solid var(--motes-border, #dfe4e7); border-radius: var(--motes-radius, 12px); background: var(--motes-surface, #fff); color: var(--motes-text, #303a42); box-shadow: var(--motes-shadow, 0 8px 24px #10182022); }
+  .mobileSettingsBody button { min-height: var(--motes-control-height, 44px); text-align: left; }
+  .mobileSettingsBody .width,.mobileSettingsBody .scale { justify-content: space-between; }
+  .mobileSettingsBody .width input { width: 84px; min-height: var(--motes-control-height, 44px); font-size: 16px; }
+  .mobileSettingsBody .scale select { min-height: var(--motes-control-height, 44px); font-size: 16px; }
+  .secondaryGroup { gap: 6px; }
+  .icon { min-width: var(--motes-control-height, 44px); min-height: var(--motes-control-height, 44px); }
+  .confirm { width: 100%; flex-basis: 100%; font-size: 12px; }
+  .confirm button { min-height: var(--motes-control-height, 44px); }
+}
+
+@media(prefers-reduced-motion:reduce) {
+  .root * { scroll-behavior: auto; transition: none; }
+}

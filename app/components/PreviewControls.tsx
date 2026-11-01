@@ -38,13 +38,17 @@ export default function PreviewControls({ device, onDeviceChange, width, onWidth
   const requestRefresh = () => confirmRefresh ? setConfirming(true) : onRefresh();
   return (
     <div className={styles.root} aria-label={t('预览控件')}>
-      <div className={styles.devices} role="group" aria-label={t('预览尺寸')}>
-        <button type="button" aria-pressed={device === 'desktop'} onClick={() => {onDeviceChange('desktop');onWidthChange(1100);setWidthDraft('1100');}}>{t('桌面')}</button>
-        <button type="button" aria-pressed={device === 'mobile'} onClick={() => { onDeviceChange('mobile'); onWidthChange(390); setWidthDraft('390'); }}>{t('手机')}</button>
-        <button className={styles.desktopCustom} type="button" onClick={() => document.getElementById('preview-custom-width')?.focus()}>{t('自定义')}</button>
+      <div className={styles.primaryGroup} role="group" aria-label={t('预览尺寸')}>
+        <div className={styles.devices}>
+          <button type="button" aria-pressed={device === 'desktop'} onClick={() => {onDeviceChange('desktop');onWidthChange(1100);setWidthDraft('1100');}}>{t('桌面')}</button>
+          <button type="button" aria-pressed={device === 'mobile'} onClick={() => { onDeviceChange('mobile'); onWidthChange(390); setWidthDraft('390'); }}>{t('手机')}</button>
+          <button className={styles.desktopCustom} type="button" onClick={() => document.getElementById('preview-custom-width')?.focus()}>{t('自定义')}</button>
+        </div>
+        <div className={styles.dimensions}>
+          <label className={styles.width}>{t('宽度')} <input id="preview-custom-width" aria-label={t('自定义预览宽度')} type="number" min={280} max={1920} step={1} value={widthDraft} onChange={event => setWidthDraft(event.target.value)} onBlur={commitWidth} onKeyDown={event => { if (event.key === 'Enter') { commitWidth(); event.currentTarget.blur(); } }} /> px</label>
+          <label className={styles.scale}>{t('缩放')} <select aria-label={t('预览缩放')} value={scale} onChange={event => onScaleChange(Number(event.target.value))}>{[0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5].map(value => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
+        </div>
       </div>
-      <label className={styles.width}>{t('宽度')} <input id="preview-custom-width" aria-label={t('自定义预览宽度')} type="number" min={280} max={1920} step={1} value={widthDraft} onChange={event => setWidthDraft(event.target.value)} onBlur={commitWidth} onKeyDown={event => { if (event.key === 'Enter') { commitWidth(); event.currentTarget.blur(); } }} /> px</label>
-      <label className={styles.scale}>{t('缩放')} <select aria-label={t('预览缩放')} value={scale} onChange={event => onScaleChange(Number(event.target.value))}>{[0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5].map(value => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
       <details className={styles.mobileSettings} onKeyDown={event => {
         if (event.key === 'Escape' && event.currentTarget.open) {
           event.preventDefault();
@@ -61,8 +65,10 @@ export default function PreviewControls({ device, onDeviceChange, width, onWidth
           <label className={styles.scale}>{t('缩放')} <select aria-label={t('预览缩放')} value={scale} onChange={event => onScaleChange(Number(event.target.value))}>{[0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5].map(value => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></label>
         </div>
       </details>
-      {fullscreenAvailable && <button className={styles.icon} type="button" onClick={onFullscreen} aria-label={t('全屏预览')} title={t('全屏')}><Maximize2 size={16} /></button>}
-      {!confirming ? <button className={styles.icon} type="button" onClick={requestRefresh} aria-label={t('刷新预览')} title={t('刷新')}><RotateCcw size={16} /></button> : <span className={styles.confirm} role="alert"><span>{t('刷新会清空预览中未保存的临时输入，已保存版本不受影响。')}</span><button type="button" onClick={() => setConfirming(false)}>{t('取消')}</button><button type="button" onClick={() => { setConfirming(false); onRefresh(); }}>{t('刷新')}</button></span>}
+      <div className={styles.secondaryGroup} role="group" aria-label={t('预览控件')}>
+        {fullscreenAvailable && <button className={styles.icon} type="button" onClick={onFullscreen} aria-label={t('全屏预览')} title={t('全屏')}><Maximize2 size={16} /></button>}
+        {!confirming ? <button className={styles.icon} type="button" onClick={requestRefresh} aria-label={t('刷新预览')} title={t('刷新')}><RotateCcw size={16} /></button> : <span className={styles.confirm} role="alert"><span>{t('刷新会清空预览中未保存的临时输入，已保存版本不受影响。')}</span><button type="button" onClick={() => setConfirming(false)}>{t('取消')}</button><button type="button" onClick={() => { setConfirming(false); onRefresh(); }}>{t('刷新')}</button></span>}
+      </div>
     </div>
   );
 }
