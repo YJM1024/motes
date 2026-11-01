@@ -39,3 +39,14 @@ test('disconnected build retains an actionable demo path and states that work is
     assert.match(quotaText,/已保存成果不会被覆盖/);
   }finally{dispose();}
 });
+
+ test('testing mode displays actual calls without stale quota, exhaustion or low-quota preferences',async()=>{
+  const {component:WorkspaceStatus,dispose}=await loadComponent();try{
+   const layer={model:{used:63,remaining:0,limit:10},demo:{used:101,remaining:0,limit:100}};
+   for(const visibility of ['shared','private']){
+    const text=textContent(WorkspaceStatus({visibility,limitsEnforced:false,todayModelAttempts:63,limits:{visitor:layer,shared:layer,global:layer},ready:true,intent:'build',mode:'model',model:'test-model',connected:true,busy:false,remaining:0,limit:10,warning:true,onToggleMode:()=>{},onAlertPreferences:()=>{}}));
+    assert.match(text,/测试期间不限每日请求次数/);assert.match(text,/今日 AI 请求：63 次/);
+    assert.doesNotMatch(text,/三层|剩余|额度已用完|额度未读取|额度日|额度提醒偏好|63\/10/);
+   }
+  }finally{dispose();}
+ });

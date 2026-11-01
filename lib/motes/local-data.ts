@@ -11,4 +11,4 @@ export type UsageAlertPreferences={enabled:boolean;threshold:number};
 export const DEFAULT_USAGE_ALERTS:UsageAlertPreferences={enabled:true,threshold:2};
 export function usageAlertStorageKey(workspaceId:string){return 'motes:usage-alerts:'+encodeURIComponent(scope(workspaceId));}
 export function parseUsageAlerts(value:string|null):UsageAlertPreferences{try{const v=JSON.parse(value??'null');if(v&&v.schemaVersion===1&&typeof v.enabled==='boolean'&&Number.isInteger(v.threshold)&&v.threshold>=0&&v.threshold<=10)return {enabled:v.enabled,threshold:v.threshold};}catch{}return {...DEFAULT_USAGE_ALERTS};}
-export function showUsageAlert(remaining:number|null,preferences:UsageAlertPreferences){return preferences.enabled&&remaining!==null&&Number.isFinite(remaining)&&remaining>=0&&remaining<=preferences.threshold;}
+export function showUsageAlert(remaining:number|null,preferences:UsageAlertPreferences,limitsEnforced=true){return limitsEnforced&&preferences.enabled&&remaining!==null&&Number.isFinite(remaining)&&remaining>=0&&remaining<=preferences.threshold;}
