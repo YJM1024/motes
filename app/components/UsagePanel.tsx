@@ -33,12 +33,19 @@ export default function UsagePanel({ visibility = 'private' }: { visibility?: 's
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  const unlimited = data?.limitsEnforced === false;
+  const testingLabel = locale === 'en' ? 'No daily request limit during testing. Actual usage is recorded; model service charges, balance limits and timeouts still apply.' : '测试期间不限每日请求次数，仍记录真实用量；模型服务费用、账户余额限制和超时仍适用。';
+
   return <section className="settings-section usage-panel" id="settings-usage">
     <div className="settings-section-title"><h3>{t('用量与任务')}</h3><button disabled={loading} onClick={() => void load()}>{loading ? t('正在读取…') : t('刷新用量')}</button></div>
-    <p>{visibility === 'shared' ? t('公共演示空间的使用记录和应用对其他访问者可见；这里显示访客、共享空间和全站三层应用额度，不是模型账户余额。每日额度按 UTC 结算，失败尝试也可能占用额度。') : t('仅当前浏览器身份。每日额度按 UTC 结算，已进入生成流程的失败尝试也占次数；这是应用侧额度，不是模型账户余额。')}</p>
+    <p>{unlimited ? testingLabel : visibility === 'shared' ? t('公共演示空间的使用记录和应用对其他访问者可见；这里显示访客、共享空间和全站三层应用额度，不是模型账户余额。每日额度按 UTC 结算，失败尝试也可能占用额度。') : t('仅当前浏览器身份。每日额度按 UTC 结算，已进入生成流程的失败尝试也占次数；这是应用侧额度，不是模型账户余额。')}</p>
     {error && <p role="alert" className="usage-error">{error}</p>}
     {data && <>
-      {visibility === 'shared' ? <>
+      {unlimited ? <div className="usage-totals">
+        <div><span>{t('今日 AI 请求')}</span><strong>{data.tokens.todayModelAttempts}</strong></div>
+        <div><span>{t('今日示例请求')}</span><strong>{data.limits?.shared.demo.used ?? data.quota.demo.used}</strong></div>
+        <div><span>{t('今日 AI 结果')}</span><strong>{t('{succeeded} 成功 · {failed} 失败', { succeeded: data.outcomes.succeeded, failed: data.outcomes.failed })}</strong><small>{t('{count} 条待完成或核对', { count: data.outcomes.running })}</small></div>
+      </div> : visibility === 'shared' ? <>
         <div className="usage-totals">
           <div><span>{t('AI 有效可用额度')}</span><strong>{data.quota.model.remaining} / {data.quota.model.limit}</strong><small>{t('按三层剩余额度中的最小值计算')}</small></div>
           <div><span>{t('示例有效可用额度')}</span><strong>{data.quota.demo.remaining} / {data.quota.demo.limit}</strong><small>{t('按三层剩余额度中的最小值计算')}</small></div>
@@ -62,7 +69,7 @@ export default function UsagePanel({ visibility = 'private' }: { visibility?: 's
         <p>{new Date(item.startedAt).toLocaleString(locale === 'en' ? 'en-US' : 'zh-CN')} · {item.elapsedMs === null ? t('耗时未知') : `${(item.elapsedMs / 1000).toFixed(1)} ${t('秒')}`}{item.responseModel && item.responseModel !== item.requestedModel ? ` · ${t('实际回执')} ${item.responseModel}` : ''}</p>
         <p>{t('输入')} {count(item.inputTokens)} · {t('输出')} {count(item.outputTokens)} · {t('总计')} {count(item.totalTokens)}{item.errorCode ? ` · ${errorKeys[item.errorCode] ? t(errorKeys[item.errorCode]) : t('操作未完成')}` : ''}</p>
       </article>)}</div>}
-      <small>{t('不显示估算余额或精确费用。服务端全站额度也可能先用完；个人剩余次数不保证全站仍可接受请求。')}</small>
+      <small>{unlimited ? (locale === 'en' ? 'No estimated account balance or exact cost is shown.' : '不显示估算账户余额或精确费用。') : t('不显示估算余额或精确费用。服务端全站额度也可能先用完；个人剩余次数不保证全站仍可接受请求。')}</small>
     </>}
   </section>;
 }

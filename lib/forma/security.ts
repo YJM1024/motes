@@ -11,3 +11,6 @@ export async function visitor(request:Request){const token=request.headers.get('
 export function sharedWorkspaceEnabled(){return env.MOTES_WORKSPACE_VISIBILITY==='shared'}
 export async function owner(request:Request){const actor=await visitor(request);return sharedWorkspaceEnabled()?sharedWorkspaceOwner():actor}
 export function assertOrigin(request:Request){const origin=request.headers.get('origin');if(!origin || origin!==new URL(request.url).origin)throw new HttpError(403,'请求来源无效，请在本站操作。')}
+
+/** Only literal false disables daily caps; accounting and state fences stay active. */
+export function requestLimitsEnabled(){return (env as {MOTES_REQUEST_LIMITS_ENABLED?:string}).MOTES_REQUEST_LIMITS_ENABLED!=='false'}

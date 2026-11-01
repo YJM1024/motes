@@ -241,3 +241,4 @@ html .forma-app .message-author>span{font-size:11px;line-height:1.5}
 /* Shared spacing for host UI surfaces; generated applications stay isolated. */
 :root{--motes-space-control:8px;--motes-space-inset:16px;--motes-space-section:24px}
 .composer > details{margin-inline:var(--motes-space-inset);margin-bottom:8px}
+.composer .composer-footer{border-radius:0 0 calc(var(--motes-radius,12px) - 1px) calc(var(--motes-radius,12px) - 1px)}
