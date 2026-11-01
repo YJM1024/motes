@@ -42,6 +42,7 @@ async function harness(t, { syncByWorkspace = {}, operations = [] } = {}) {
     OfflineChangesPanel: props => props,
     discardOfflineOperation: async (workspaceId, id) => { calls.discard.push([workspaceId, id]); },
     listOfflineOperations: async workspaceId => { calls.list.push(workspaceId); return operations; },
+    readOfflineProject: async (_workspaceId,id) => ({id,title:'本地验收应用'}),
   };
   globalThis[key] = stubs;
   const descriptors = new Map(['fetch'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
@@ -53,7 +54,7 @@ async function harness(t, { syncByWorkspace = {}, operations = [] } = {}) {
     .replace("import {useOfflineWorkspace} from './OfflineProvider';", `const useOfflineWorkspace=globalThis['${key}'].useOfflineWorkspace;`)
     .replace("import OfflineSyncStatus from './OfflineSyncStatus';", `const OfflineSyncStatus=globalThis['${key}'].OfflineSyncStatus;`)
     .replace("import OfflineChangesPanel,{type OfflineChangeItem} from './OfflineChangesPanel';", `const OfflineChangesPanel=globalThis['${key}'].OfflineChangesPanel;`)
-    .replace("import {discardOfflineOperation,listOfflineOperations} from '@/lib/motes/offline-engine';", `const {discardOfflineOperation,listOfflineOperations}=globalThis['${key}'];`);
+    .replace("import {discardOfflineOperation,listOfflineOperations,readOfflineProject} from '@/lib/motes/offline-engine';", `const {discardOfflineOperation,listOfflineOperations,readOfflineProject}=globalThis['${key}'];`);
   const js = ts.transpileModule(`const React={Fragment:'fragment',createElement:(type,props,...children)=>({type,props:props??{},children})};\n${source}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
   }).outputText;
@@ -118,7 +119,7 @@ test('discard only calls the local operation engine and refreshes local state', 
   h.nodes().find(node => node.type === h.stubs.OfflineSyncStatus).props.onOpenConflicts(); await h.settle();
   h.render(props());
   const panel = h.nodes().find(node => node.type === h.stubs.OfflineChangesPanel);
-  assert.ok(panel); panel.props.onDiscard('op-1'); await h.settle();
+  assert.ok(panel); assert.equal(panel.props.items[0].appName,'本地验收应用'); panel.props.onDiscard('op-1'); await h.settle();
   assert.deepEqual(h.calls.discard, [['workspace-a','op-1']]);
   assert.deepEqual(h.calls.refresh, ['workspace-a']);
   assert.equal(h.calls.fetch, 0);

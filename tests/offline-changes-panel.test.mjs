@@ -59,3 +59,25 @@ test('runtime export is a user-triggered local JSON download with no platform se
     assert.equal('token' in payload,false);
   }finally{URL.createObjectURL=oldCreate;URL.revokeObjectURL=oldRevoke;dispose();}
 });
+
+test('offline change rows show the app name and tuck diagnostic IDs into local details',async()=>{
+  const {component,render,dispose}=await loadComponent();
+  try{
+    const item={id:'runtime-3',kind:'runtime',state:'pending',appId:'local-app-abc',appName:'Budget Buddy',createdAt:'2026-10-31T10:00:00Z',key:'budget.v1',value:{limit:5000}};
+    const tree=render({items:[item],onDiscard:()=>{},onClose:()=>{}});
+    const details=collect(tree).find(node=>node.type==='details');
+    assert.ok(details);
+    assert.match(textContent(tree),/Budget Buddy/);
+    assert.match(textContent(details),/local-app-abc/);
+    assert.match(textContent(details),/budget\.v1/);
+    function visibleText(value){
+      if(Array.isArray(value))return value.map(visibleText).join(' ');
+      if(typeof value==='string')return value;
+      if(!value||typeof value!=='object'||value.type==='details')return '';
+      return visibleText(value.children);
+    }
+    assert.doesNotMatch(visibleText(tree),/local-app-abc|budget\.v1/);
+    const unnamed=render({items:[{...item,appName:'   '}],onDiscard:()=>{},onClose:()=>{}});
+    assert.match(textContent(unnamed),/未命名应用/);
+  }finally{dispose();}
+});

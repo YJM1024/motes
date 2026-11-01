@@ -207,7 +207,7 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- This mutable operation token intentionally invalidates every outstanding callback at teardown.
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;operationEpoch.current++;activeFetch.current?.abort();};},[]);
   function checkRecovery() {interruptRecovery();setRecoveryPaused(false);recovery.checkAgain();}
-  function pauseRecovery() {interruptRecovery();setRecoveryPaused(true);setNotice(t("已暂停本页核对；不会取消已经开始的服务端调用或费用。"));}
+  function pauseRecovery(attempt:Attempt) {interruptRecovery();setRecoveryPaused(true);setNotice(attempt.mode==='demo'?t('已暂停本页示例核对；示例使用已有模板，不调用模型。'):t("已暂停本页核对；不会取消已经开始的服务端调用或费用。"));}
 
   async function initialize() {
     const epoch=interruptRecovery();setRecoveryPaused(false);
@@ -291,7 +291,7 @@ export default function Home() {
     catch (e) { if(mounted.current && epoch===operationEpoch.current)setError(e instanceof Error ? e.message : t("项目加载失败。")); }
     finally { if(mounted.current && epoch===operationEpoch.current)setOpening(false); }
   }
-  function newProject() { if (busy || discussionBusy || opening || sessionLoading) return; interruptRecovery();setRecoveryPaused(false);const nextContext=crypto.randomUUID();setCreationContextId(nextContext);setNotice(visibleAttempts.some(a=>a.recovered)?t("已切换到新建应用；停止本页等待不会取消服务端调用或费用。"):"");setProject(null);setOpening(false);setPreDiscussionActive(false);setDiscussionReset(value=>value+1);setIntent("build");setOutcome(null);try{if(workspaceId){localStorage.setItem("motes-pre-active:"+workspaceId,"false");localStorage.setItem("motes-intent:"+workspaceId,"build")}}catch{}setError("");setViewVersion(null);setHistory(false);setSidebar(false);try{localStorage.removeItem("forma-current-project");sessionStorage.setItem("motes-new-context:" + workspaceRef.current,JSON.stringify({managedProjectId:creationTarget?.id??null,contextId:nextContext}));}catch{} }
+  function newProject() { if (busy || discussionBusy || opening || sessionLoading) return; interruptRecovery();setRecoveryPaused(false);const nextContext=crypto.randomUUID();setCreationContextId(nextContext);const recovered=visibleAttempts.filter(a=>a.recovered);setNotice(recovered.some(a=>a.mode==='model')?t("已切换到新建应用；停止本页等待不会取消服务端调用或费用。"):recovered.length?t('已切换到新建应用；原示例可继续按编号核对，不调用模型。'):"");setProject(null);setOpening(false);setPreDiscussionActive(false);setDiscussionReset(value=>value+1);setIntent("build");setOutcome(null);try{if(workspaceId){localStorage.setItem("motes-pre-active:"+workspaceId,"false");localStorage.setItem("motes-intent:"+workspaceId,"build")}}catch{}setError("");setViewVersion(null);setHistory(false);setSidebar(false);try{localStorage.removeItem("forma-current-project");sessionStorage.setItem("motes-new-context:" + workspaceRef.current,JSON.stringify({managedProjectId:creationTarget?.id??null,contextId:nextContext}));}catch{} }
   async function createNewPrivateApp(kind:'empty'|'budget'|'kanban'|'timer'){
     if(operationLock.current||busy||discussionBusy||opening||!workspaceId)throw new Error(t("请等待当前操作完成，再创建新副本。"));
     const fingerprint=JSON.stringify([kind,creationTarget?.id??null]);if(seedAttempt.current?.fingerprint!==fingerprint)seedAttempt.current={fingerprint,requestId:crypto.randomUUID()};
@@ -326,7 +326,9 @@ export default function Home() {
   function stopBuildWaiting(attempt:Attempt){
     if(activeAttempt.current?.requestId!==attempt.requestId||!activeOperation.current)return;
     interruptRecovery();setRecoveryPaused(true);const controller=activeFetch.current;activeFetch.current=null;activeAttempt.current=null;activeOperation.current=null;operationLock.current=false;controller?.abort();
-    setAttempts(previous=>failOriginalAttempt(previous,attempt,t("已停止本页等待；服务端执行及费用是否停止尚未确认，请仅核对原请求。")));setBusy(false);setNotice(t("已停止本页等待，原请求和草稿已保留。服务端可能继续执行并收费；核对原结果前不会重复生成。"));
+    const stopCopy=attempt.mode==='demo'?t('已停止本页示例等待；示例使用已有模板，不调用模型。原需求和草稿已保留。'):t("已停止本页等待；服务端执行及费用是否停止尚未确认，请仅核对原请求。");
+    const noticeCopy=attempt.mode==='demo'?t('示例使用已有模板，不调用模型。原请求和草稿已保留；请仅核对原请求。'):t("已停止本页等待，原请求和草稿已保留。服务端可能继续执行并收费；核对原结果前不会重复生成。");
+    setAttempts(previous=>failOriginalAttempt(previous,attempt,stopCopy));setBusy(false);setNotice(noticeCopy);
   }
   async function generate(value = prompt, retry?: Attempt, confirmedQuestion = false) {
     if (!retry && candidateMode === 'race') return;
@@ -430,9 +432,9 @@ export default function Home() {
     const sending=a.state==='sending',receipt=buildReceiptId===a.requestId;
     const phase=sending||saving||checking?'working':saveOnly?'save':checkOnly?'waiting':'failed';
     const title=saving?t('正在保存原结果'):sending?receipt?t('版本已保存，正在完成记录'):a.mode==='demo'?t('正在准备示例…'):t('正在构建你的应用…'):checking?t('正在核对原请求'):saveOnly?t('结果已返回，等待保存'):checkOnly?t('等待核对原结果'):status?.phase==='not-found'?t('原请求尚未登记'):t('原请求已确认失败');
-    const hint=sending?t('仅停止本页等待，服务端可能继续执行并产生费用。'):saving||saveOnly?t('只保存已返回的结果，不会重新调用模型。'):checking||checkOnly?t('先确认原请求是否已保存，不会用新编号重复生成。'):status?.phase==='not-found'?t('继续时沿用原请求编号，避免重复发送。'):a.mode==='model'?t('再次发送可能占用一次模型额度；当前草稿保留。'):t('重新尝试示例需求，当前草稿保留。');
+    const hint=sending?(a.mode==='demo'?t('示例使用已有模板，不调用模型。'):t('仅停止本页等待，服务端可能继续执行并产生费用。')):saving||saveOnly?t('只保存已返回的结果，不会重新调用模型。'):checking||checkOnly?t('先确认原请求是否已保存，不会用新编号重复生成。'):status?.phase==='not-found'?t('继续时沿用原请求编号，避免重复发送。'):a.mode==='model'?t('再次发送可能占用一次模型额度；当前草稿保留。'):t('重新尝试示例需求，当前草稿保留。');
     const primaryLabel=saving?t('正在保存…'):sending?t('停止等待此请求'):checking?t('暂停核对'):saveOnly?t('仅重试保存'):checkOnly?t('核对原请求'):status?.phase==='not-found'?t('继续原请求（同编号）'):t('重试这条消息');
-    return <div className="conversation-pair" key={a.id}><div className="user-message"><ExpandableText text={a.text}/></div><BuildAttemptFeedback phase={phase} title={title} hint={hint} requestId={a.requestId} details={homeNotice(locale,status?.message??a.error)} elapsed={sending&&preferences.showWaitTimer?elapsed:undefined} primaryLabel={primaryLabel} disabled={sending?false:busy||discussionBusy||opening} onPrimary={()=>sending?stopBuildWaiting(a):checking?pauseRecovery():saveOnly?void saveAttempt(a):checkOnly?checkRecovery():void generate(a.text,a)} onEdit={sending||checking?undefined:()=>{changeIntent('build');if(prompt.trim()&&prompt!==a.text){setTemplateChoice({name:t('未完成的需求'),prompt:a.text});setTemplatesOpen(true);}else{setPrompt(a.text);textarea.current?.focus();}}}/></div>;
+    return <div className="conversation-pair" key={a.id}><div className="user-message"><ExpandableText text={a.text}/></div><BuildAttemptFeedback phase={phase} title={title} hint={hint} requestId={a.requestId} details={homeNotice(locale,status?.message??a.error)} elapsed={sending&&preferences.showWaitTimer?elapsed:undefined} primaryLabel={primaryLabel} disabled={sending?false:busy||discussionBusy||opening} onPrimary={()=>sending?stopBuildWaiting(a):checking?pauseRecovery(a):saveOnly?void saveAttempt(a):checkOnly?checkRecovery():void generate(a.text,a)} onEdit={sending||checking?undefined:()=>{changeIntent('build');if(prompt.trim()&&prompt!==a.text){setTemplateChoice({name:t('未完成的需求'),prompt:a.text});setTemplatesOpen(true);}else{setPrompt(a.text);textarea.current?.focus();}}}/></div>;
   };
   const composer = (home: boolean) => <div className={`composer ${home ? "home-composer" : "chat-composer"}`}>
     {intent==='build'&&workspaceId&&<CandidateModeEntry workspaceId={workspaceId} prompt={prompt} appId={project?.id} baseVersionId={project?.currentVersionId} managedProjectId={project?undefined:creationTarget?.id} mode={candidateMode} count={candidateCount} disabled={busy||discussionBusy||opening||!connection.ready||unresolvedRecovery} onModeChange={setCandidateMode} onCountChange={setCandidateCount}/>}

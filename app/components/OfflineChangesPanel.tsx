@@ -9,6 +9,7 @@ export type OfflineChangeItem = {
   kind: 'source' | 'import' | 'runtime';
   state: 'pending' | 'conflict' | 'saved' | 'discarded';
   appId: string;
+  appName?: string;
   createdAt: string;
   html?: string;
   value?: unknown;
@@ -94,8 +95,8 @@ export default function OfflineChangesPanel({ items, busy = false, onDiscard, on
         const fileAvailable = exportable(item);
         return <li key={item.id} className={styles.card}>
           <div className={styles.cardHead}><div><span className={styles.kind}>{t(kindLabels[item.kind])}</span><span className={`${styles.state} ${styles[item.state]}`}>{t(stateLabels[item.state])}</span></div><time dateTime={item.createdAt}>{dateLabel(item.createdAt, locale)}</time></div>
-          <dl className={styles.metadata}><div><dt>{t('应用编号')}</dt><dd><code>{item.appId}</code></dd></div>{item.key && <div><dt>{t('数据键')}</dt><dd><code>{item.key}</code></dd></div>}</dl>
-          {(item.html !== undefined || item.value !== undefined) && <details className={styles.payload}><summary>{t('查看本地内容')}</summary><pre>{typeof item.html === 'string' ? item.html : (() => { try { return JSON.stringify(item.value, null, 2) ?? ''; } catch { return t('无法显示此项内容。'); } })()}</pre></details>}
+          <dl className={styles.metadata}><div><dt>{t('应用')}</dt><dd className={styles.appName}>{item.appName?.trim() || t('未命名应用')}</dd></div></dl>
+          <details className={styles.payload}><summary>{t('查看本地内容')}</summary><dl className={styles.metadata}><div><dt>{t('应用编号')}</dt><dd><code>{item.appId}</code></dd></div>{item.key && <div><dt>{t('数据键')}</dt><dd><code>{item.key}</code></dd></div>}</dl>{(item.html !== undefined || item.value !== undefined) && <pre>{typeof item.html === 'string' ? item.html : (() => { try { return JSON.stringify(item.value, null, 2) ?? ''; } catch { return t('无法显示此项内容。'); } })()}</pre>}</details>
           <div className={styles.actions}>
             {fileAvailable && <button type="button" onClick={() => exportItem(item)}>{t(item.kind === 'source' || (item.kind === 'import' && item.value === undefined) ? '导出 HTML' : '导出 JSON')}</button>}
             {item.state !== 'discarded' && item.state !== 'saved' && <button type="button" className={styles.remove} disabled={busy} onClick={() => { setConfirmId(confirmId === item.id ? null : item.id); setExportError(false); }}>{t('放弃此更改')}</button>}
