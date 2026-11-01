@@ -16,6 +16,7 @@ import {outcomeIsCurrent,transferCreationDraft,finishRecoveredView,workspaceCall
 import PreviewVersionStatus from "./components/PreviewVersionStatus";
 import previewVersionStyles from "./components/PreviewVersionStatus.module.css";
 import BuildAttemptFeedback from "./components/BuildAttemptFeedback";
+import ArtifactCard from "./components/ArtifactCard";
 import ExpandableText from "./components/ExpandableText";
 import PalettePicker from "./components/PalettePicker";
 import WorkspaceTools,{type WorkspaceToolGroup} from "./components/WorkspaceTools";
@@ -404,12 +405,12 @@ export default function Home() {
   function chooseInspiration(item: { title: string; prompt: string }) {
     if (prompt.trim()) { setTemplateChoice({ name: item.title, prompt: item.prompt }); setTemplatesOpen(true); } else fillTemplate(item.prompt, "replace");
   }
-  function download() {
-    if (!displayed) return;
-    const url = URL.createObjectURL(new Blob([displayed.html], { type: "text/html;charset=utf-8" }));
+  function exportVersion(version: Version) {
+    const url = URL.createObjectURL(new Blob([version.html], { type: "text/html;charset=utf-8" }));
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${project?.title.replace(/[\\/:*?"<>|]/g, "_") || "forma-app"}.html`; anchor.click(); setNotice(t("HTML 已导出")); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const versionMessage = (v: Version) => <div className="conversation-pair" key={v.id}><div className="user-message">{v.prompt}</div><div className="assistant-message"><span className="assistant-avatar"><Sparkles size={14}/></span><div><div className="message-author">Motes <span>{v.mode === "manual" ? t("手工编辑") : v.mode === "demo" ? t("示例模式") : v.model || "AI"}</span></div><p>{v.summary}</p><button className="version-card" onClick={() => { setViewVersion(v.id === current?.id ? null : v.id); setPane("preview"); }}><span><Code2 size={16}/></span><div>{t("应用已更新")}<small>{t("版本 ")}{v.number}{v.name ? ` · ${v.name}` : ""}{v.important ? " ★" : ""} · {dateLabel(v.createdAt,locale)}</small></div><ArrowUpRight size={14}/></button></div></div></div>;
+  function download() { if (displayed) exportVersion(displayed); }
+  const versionMessage = (v: Version) => <div className="conversation-pair" key={v.id}><div className="user-message">{v.prompt}</div><div className="assistant-message"><span className="assistant-avatar"><Sparkles size={14}/></span><div><div className="message-author">Motes <span>{v.mode === "manual" ? t("手工编辑") : v.mode === "demo" ? t("示例模式") : v.model || "AI"}</span></div><p>{v.summary}</p><ArtifactCard versionNumber={v.number} name={v.name || t("应用已更新")} important={!!v.important} current={v.id===current?.id} viewing={displayed?.id===v.id} historical={v.id!==current?.id} mode={v.mode} date={v.createdAt} disabled={opening} onPreview={()=>{setViewVersion(v.id===current?.id?null:v.id);setPane("preview");}} onSource={()=>{setSource(false);setHistory(false);setEditorVersionId(v.id);}} onHistory={()=>{setHistory(true);setPane("preview");}} onExport={()=>exportVersion(v)}/></div></div></div>;
   const attemptMessage = (a: Attempt) => {
     const status=a.recovered?recovery.stateFor(a):undefined;
     const saveOnly=status?.phase==='save_pending',saving=savingAttemptId===a.requestId;
