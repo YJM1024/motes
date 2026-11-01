@@ -7,6 +7,8 @@ html[data-motes-theme="dark"] .compare-grid pre{background:#111318;border-color:
 
 /* UX3: prevent long localized labels and errors from widening the comparison workspace. */
 .compare-content,.compare-content section,.compare-grid article,.compare-fields>label{min-width:0}
+.compare-handoff-notice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface);color:var(--motes-text);line-height:1.55}
+.compare-handoff-notice button{background:var(--motes-accent-soft,#eef3fb);color:var(--motes-text);border-color:var(--motes-border)}
 .compare-shell :is(h1,h2,h3,p,small,label,button,a){overflow-wrap:anywhere}
 .compare-shell :is(textarea,select){max-width:100%;min-width:0}
 .compare-shell textarea{line-height:1.6}
