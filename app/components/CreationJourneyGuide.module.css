@@ -1,4 +1,4 @@
-.guide{min-width:0;color:var(--motes-text);font-size:13px}
+.guide{min-width:0;margin-top:20px;color:var(--motes-text);font-size:13px}
 .guide ol{display:flex;align-items:center;gap:8px;list-style:none;margin:0;padding:0;flex-wrap:wrap}
 .guide li{display:flex;align-items:center;gap:8px;color:var(--motes-text);font-weight:600}
 .guide li+li:before{content:'›';color:var(--motes-muted);font-weight:400}

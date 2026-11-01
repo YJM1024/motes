@@ -1,4 +1,4 @@
-.root{padding:14px 16px;border:1px solid var(--motes-border,#dce5ef);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface,#f6f8fc);color:var(--motes-text,#52647b);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.root{margin-top:16px;padding:14px 16px;border:1px solid var(--motes-border,#dce5ef);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface,#f6f8fc);color:var(--motes-text,#52647b);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
 .title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .stateLabel{color:var(--motes-muted,#74839a);font-size:11px}
 .title strong{font-size:13px;min-width:0}

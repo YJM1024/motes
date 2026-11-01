@@ -59,3 +59,19 @@ html[data-motes-theme="dark"] .settings-actions>button:not(.settings-primary){ba
 .settings-notice{background:#edf5f1;color:#527965;border-radius:var(--motes-radius,12px)}
 @media(max-width:700px){.settings-section-title input,.settings-row>select,.settings-scope select{font-size:16px}}
 .settings-top{gap:8px}.settings-palette-slot{display:inline-flex;align-items:center;flex:0 0 auto;margin-left:auto}@media(max-width:700px){.settings-top{min-height:56px;height:auto;padding:6px 12px;gap:8px;flex-wrap:wrap}.settings-top>strong{font-size:21px}.settings-top>a{max-width:42%;font-size:11px}}
+/* Shared inset groups: legends are content headings rather than border cutouts. */
+.settings-shell :is(.theme-preferences,.motion-preferences) fieldset{display:block;min-width:0;margin:0;padding:var(--motes-space-inset,16px);border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px)}
+.settings-shell :is(.theme-preferences,.motion-preferences) legend{float:left;width:100%;padding:0;margin:0 0 10px;font-size:12px;line-height:1.5;font-weight:600;color:var(--motes-text)}
+.settings-shell .theme-choice-options{clear:both;display:flex;gap:8px 24px;flex-wrap:wrap;min-width:0}
+.settings-shell .palette-grid{clear:both;gap:12px}
+.settings-shell .theme-choice-options label{font-size:13px;min-height:40px}
+.settings-shell .theme-choice-options input{margin:0;flex-shrink:0}
+.settings-shell .settings-model{padding:var(--motes-space-inset,16px);border:1px solid var(--motes-border);margin:16px 0;gap:8px 16px}
+.settings-shell .settings-model>small{font-size:12px;line-height:1.65}
+@media(max-width:600px){.settings-shell .theme-choice-options{gap:8px 16px}.settings-shell .palette-grid{grid-template-columns:1fr}.settings-shell .palette-card{min-height:60px}.settings-shell .theme-choice-options label{min-height:44px}}
+.interface-language-preferences>p{font-size:12px;line-height:1.7;color:var(--motes-muted);margin:12px 0 16px}
+.language-preference-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:var(--motes-space-inset,16px);background:var(--motes-muted-surface);border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px)}
+.language-preference-controls label{font-size:13px}
+.language-preference-controls :is(select,button){min-height:40px;padding:8px 12px;border:1px solid var(--motes-border);border-radius:8px;background:var(--motes-surface);color:var(--motes-text);font:inherit;font-size:13px}
+.language-preference-controls button{margin-left:auto}
+@media(max-width:600px){.language-preference-controls :is(select,button){min-height:44px}.language-preference-controls select{flex:1;font-size:16px}.language-preference-controls button{width:100%;margin-left:0}}

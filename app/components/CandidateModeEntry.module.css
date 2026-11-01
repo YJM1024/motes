@@ -1,4 +1,4 @@
-.root{display:grid;gap:8px;min-width:0;color:var(--motes-text);font-size:13px}
+.root{display:grid;gap:12px;min-width:0;padding:var(--motes-space-inset,16px);color:var(--motes-text);font-size:13px}
 .modes{display:flex;gap:8px;flex-wrap:wrap}
 .root button,.root select{min-height:var(--motes-control-height,40px);max-width:100%;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);padding:8px 12px;background:var(--motes-accent-soft,#eef3fb);color:var(--motes-text);font:inherit;cursor:pointer}
 .modes button[aria-pressed="true"],.open{background:var(--motes-accent)!important;color:var(--motes-on-accent,#fff)!important;border-color:var(--motes-accent)!important}

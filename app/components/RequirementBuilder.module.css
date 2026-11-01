@@ -1,4 +1,4 @@
-.root{container:requirement-builder / inline-size;border:1px solid var(--motes-border,#d7e0eb);border-radius:var(--motes-radius,12px);background:var(--motes-surface,#fff);color:var(--motes-text,#334155);font:13px/1.6 var(--font-sans,"Segoe UI",sans-serif);min-width:0}
+.root{container:requirement-builder / inline-size;margin:0 var(--motes-space-inset,16px) 8px;border:1px solid var(--motes-border,#d7e0eb);border-radius:var(--motes-radius,12px);background:var(--motes-surface,#fff);color:var(--motes-text,#334155);font:13px/1.6 var(--font-sans,"Segoe UI",sans-serif);min-width:0}
 .root *{box-sizing:border-box}
 .disclosure{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:12px 14px;border:0;border-radius:inherit;background:transparent;color:var(--motes-text,#334155);text-align:left;cursor:pointer}
 .disclosure>span:first-child{display:grid;gap:3px;min-width:0}.disclosure strong{font-size:13px;font-weight:600}.disclosure small,.disclosure>span:last-child{font-size:11px;color:var(--motes-muted,#64748b)}.disclosure>span:last-child{flex-shrink:0}

@@ -12,8 +12,8 @@ export default function MotionPreferences() {
     <p className="motion-description">{t('这是本浏览器的界面偏好，只影响工作台页面，不改变你创建的应用。界面语言只影响工作台；生成语言用于新应用内容，两项设置彼此独立。')}</p>
     <fieldset>
       <legend>{t('动效偏好')}</legend>
-      <label><input type="radio" name="motion-preference" value="system" checked={preference === 'system'} onChange={() => setPreference('system')}/>{t('跟随系统')}</label>
-      <label><input type="radio" name="motion-preference" value="reduced" checked={preference === 'reduced'} onChange={() => setPreference('reduced')}/>{t('减少过渡')}</label>
+      <div className="theme-choice-options"><label><input type="radio" name="motion-preference" value="system" checked={preference === 'system'} onChange={() => setPreference('system')}/>{t('跟随系统')}</label>
+      <label><input type="radio" name="motion-preference" value="reduced" checked={preference === 'reduced'} onChange={() => setPreference('reduced')}/>{t('减少过渡')}</label></div>
     </fieldset>
     <p className="motion-description">{t('跟随系统时遵从设备的“减少动态效果”设置。减少过渡会缩短装饰性动画与滚动过渡，不会关闭功能；系统级减少动态效果仍然生效。')}</p>
     {storageUnavailable && <p className="motion-storage-warning" role="status">{t('浏览器本地存储不可用，此偏好仅在当前页面会话中生效。')}</p>}
