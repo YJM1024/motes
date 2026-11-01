@@ -1,16 +1,16 @@
 # Motes · 微粒
 
-最终生产为 v16（2026-10-31），源提交 `ee85e024579173d484e739d707705c9b02326830`，native 部署 `appgdep_6ae5f17430908191acf46e0577d7a48e` 已成功，环境修订 3。继承 v15 的共享数据功能，补齐侧栏归档筛选与共享身份说明；286 项测试、TypeScript 与构建全部通过。最终发布后持久数据复核 3/3 通过。
+最终生产为 v17（2026-11-01），源提交 `92832ebcbacb9b0f3bb77b4fc0d7d2650d2f484d`，native 部署 `appgdep_6ae755035c0481919fdfd7ff85c5d3e4` 已成功，环境修订 3。332 项测试、TypeScript 与构建通过；6 个原应用和 17 个旧版本发布后保留复核通过。本轮生产检查无模型调用；详细线上证据见[验收说明](docs/acceptance.md)。
 
 用对话讨论想法，创建、预览、迭代和保存单文件网页应用的轻量工作台。
 
-[在线体验](https://forma-junmin.warmgrove10.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地运行补充](docs/local-setup.md) · [架构与取舍](docs/architecture.md) · [验收与上线状态](docs/acceptance.md)
+[在线体验](https://motes-yangjunmin.warmgrove10.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地运行补充](docs/local-setup.md) · [架构与取舍](docs/architecture.md) · [验收与上线状态](docs/acceptance.md)
 
 v15 共享功能上线记录（2026-10-31，source 与 deployment ID 见[验收记录](docs/acceptance.md)）；native 部署和生产迁移已通过，线上计数器保存、刷新恢复及新访客读取复核已通过。v15 延续 v14 的 UI4 全站配色与中英文界面，并启用共享运行数据 SDK 和可选运行数据备份。生产复核状态以验收记录为准；本地与自动测试不代表长期负载或 SLA 验证。
 
-本轮已在本地验证运行数据写入、冲突处理和备份恢复；v15 生产迁移已通过，线上计数器保存、刷新恢复及新访客读取复核已通过。286 项测试、TypeScript 与构建通过；本轮未进行额外模型调用。详见[共享运行数据](docs/shared-runtime.md)与[非功能验收](docs/nonfunctional-verification.md)。
+v15 历史验收：运行数据写入、冲突处理和备份恢复已在本地验证；v15 生产迁移、线上计数器保存/刷新恢复及新访客读取通过。该版本 286 项测试、TypeScript 与构建通过。v17 当前状态和本轮核对见[验收说明](docs/acceptance.md)及[非功能验收](docs/nonfunctional-verification.md)。
 
-本页描述当前源码能力。线上部署与实际验证范围以[验收状态表](docs/acceptance.md#当前验收状态)为准。项目原名 Forma，沿用原地址和存储标识以保留已有作品。
+本页描述当前源码能力。v17 包含首屏创建流程、真实工作记录、明确成果卡动作、2/3/4 方案入口、无模型连接时的示例降级和已缓存工作台离线操作。线上部署与实际验证范围以[验收状态表](docs/acceptance.md#当前验收状态)为准。项目原名 Forma，沿用存储标识以保留已有作品。
 
 ## 当前源码功能
 
