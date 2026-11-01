@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import ts from 'typescript';
+const source=await readFile(new URL('../app/components/RaceWorkspace.tsx',import.meta.url),'utf8');
+const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace(/^import .*?;\r?\n/gm,'').replace('export default function RaceWorkspace','function RaceWorkspace');
+const jsx=(type,props)=>({type,props});
+const Component=new Function('useMemo','useState','useHostLocale','styles','PREVIEW_POLICY','safeDocument','_jsx','_jsxs',js+';return RaceWorkspace;')(fn=>fn(),initial=>[initial,()=>{}],()=>({locale:'zh-CN'}),{},'',value=>value,jsx,jsx);
+function nodes(value){if(Array.isArray(value))return value.flatMap(nodes);if(!value||typeof value!=='object')return[];return[value,...nodes(value.props?.children)]}
+function text(value){if(Array.isArray(value))return value.map(text).join('');if(value&&typeof value==='object')return text(value.props?.children);return value??''}
+function state(overrides={}){return{group:null,pending:null,retry:null,error:'',notice:'',restoring:false,busy:false,paused:false,submitted:null,...overrides}}
+
+test('rejected prompt is visible and editable without a dead reconciliation button',()=>{const edits=[],original='接入支付宝和 CRM';const tree=Component({controller:{blocked:false},state:state({submitted:{prompt:original},error:'示例暂不支持此需求'}),disabled:false,onOpen:()=>{},onEdit:value=>edits.push(value)});assert.match(text(tree),new RegExp(original));assert.equal(nodes(tree).some(n=>n.type==='button'&&text(n).includes('核对原结果')),false);nodes(tree).find(n=>n.type==='button'&&text(n)==='编辑原需求').props.onClick();assert.deepEqual(edits,[original])});
+test('pending request offers only explicit exact replay and checking, with no request on render',()=>{let posts=0,reads=0;const tree=Component({controller:{blocked:true,continueOriginal(){posts++},resume(){reads++}},state:state({pending:{requestId:'same-id',prompt:'番茄钟'}}),disabled:false,onOpen:()=>{},onEdit:()=>{}});assert.equal(posts,0);nodes(tree).find(n=>n.type==='button'&&text(n).includes('继续原请求')).props.onClick();assert.equal(posts,1);assert.equal(reads,0)});
+test('candidate preview keeps opaque iframe isolation and states application data is enabled only after adoption',()=>{const group={prompt:'番茄钟',mode:'demo',count:2,candidates:[{id:'a',slot:0,status:'ready',html:'<html>preview</html>',strategy:'A'}]};const tree=Component({controller:{blocked:false},state:state({group}),disabled:false,onOpen:()=>{},onEdit:()=>{}});const preview=nodes(tree).find(n=>typeof n.type==='function');assert.ok(preview);const iframe=nodes(preview.type(preview.props)).find(n=>n.type==='iframe');assert.equal(iframe.props.sandbox,'allow-scripts allow-forms');assert.equal(iframe.props.referrerPolicy,'no-referrer');assert.match(text(tree),/采用后才接入应用数据保存/);assert.doesNotMatch(text(tree),/占.*额度/)});

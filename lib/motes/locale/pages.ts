@@ -86,4 +86,9 @@ export const pageMessages = {
   '{count} 次模型调用额度': '{count} model call quota units', '已预留 {count} 次模型调用额度': '{count} model call quota units reserved',
   '其他成功方案仍可采用。': 'Other successful options remain available.', '方案': 'Option', '示例': 'Demo',
   '操作失败，请重试。': 'Action failed. Please try again.',
+  "仅重新生成这一失败方案；AI模式可能产生1次模型费用。其他方案保持不变。": "Regenerate only this failed option. AI mode may incur one model call fee; other options remain unchanged.",
+  "我确认调用同一模型 {count} 次并产生对应模型费用；失败调用也可能收费。": "I confirm {count} calls to the same model and the corresponding provider fees; failed calls may also be charged.",
+  "示例为预设主题方案，0 次真实模型调用。": "These are preset demo themes, with 0 real model calls.",
+  "本组 {count} 次模型调用": "{count} model calls in this group",
+  "仅重试此方案（AI可能产生费用）": "Retry this option only (AI fees may apply)",
 } as const;

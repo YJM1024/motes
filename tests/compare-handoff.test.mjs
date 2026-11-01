@@ -56,31 +56,13 @@ function elementTree(node) {
 }
 function text(node){if(Array.isArray(node))return node.map(text).join(' ');if(node&&typeof node==='object'&&'type'in node)return text(node.props?.children);return node==null?'':String(node)}
 
-test('race entry only stores and navigates after explicit click; failed storage does not navigate', async()=>{
-  const componentSource=await readFile(new URL('../app/components/CandidateModeEntry.tsx',import.meta.url),'utf8');
-  const compiled=ts.transpileModule(componentSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace(/^import .*?;\r?\n/gm,'').replace('export default function CandidateModeEntry','function CandidateModeEntry');
-  const factory=new Function('useState','useHostLocale','p0EntryText','writeCompareHandoff','styles','_jsx','_jsxs',`${compiled};return CandidateModeEntry;`);
-  const {p0EntryText}=await loadTs('../lib/motes/locale/p0-entry.ts');
-  let cursor=0,state=[];const useState=initial=>{const i=cursor++;if(!(i in state))state[i]=initial;return[state[i],next=>{state[i]=typeof next==='function'?next(state[i]):next}];};
-  const useHostLocale=()=>({locale:'zh-CN'}),styles=new Proxy({}, {get:(_,key)=>String(key)}),jsx=(type,props)=>({type,props});
-  const store=storage(),navigated=[],changes={mode:[],count:[]};const Component=factory(useState,useHostLocale,p0EntryText,api.writeCompareHandoff,styles,jsx,jsx);
-  const props={workspaceId:'workspace-a',prompt:'Need a timer',managedProjectId:'project-a',mode:'race',count:4,onModeChange:value=>changes.mode.push(value),onCountChange:value=>changes.count.push(value),storage:store,navigate:path=>navigated.push(path)};
-  cursor=0;let tree=Component(props);assert.deepEqual(navigated,[]);assert.equal(elementTree(tree).find(n=>n.type==='select')?.props.value,4);
-  elementTree(tree).find(n=>n.type==='select').props.onChange({target:{value:'2'}});assert.deepEqual(changes.count,[2]);
-  elementTree(tree).find(n=>n.type==='button'&&text(n).includes('单次创作')).props.onClick();assert.deepEqual(changes.mode,['single']);
-  cursor=0;tree=Component({...props,mode:'single'});assert.equal(text(tree).includes('仅准备需求并打开比较页'),false);
-  cursor=0;tree=Component(props);
-  elementTree(tree).find(n=>n.type==='button'&&text(n).includes('查看比较设置')).props.onClick();
-  assert.deepEqual(navigated,['/compare']);assert.equal(JSON.parse(store.values.get(api.COMPARE_HANDOFF_KEY)).count,4);
-  const noTargetStore=storage();cursor=0;tree=Component({...props,managedProjectId:undefined,storage:noTargetStore});
-  const handoffButton=elementTree(tree).find(n=>n.type==='button'&&text(n).includes('查看比较设置'));
-  assert.equal(handoffButton.props.disabled,false);handoffButton.props.onClick();
-  const noTargetValue=JSON.parse(noTargetStore.values.get(api.COMPARE_HANDOFF_KEY));
-  assert.equal(noTargetValue.prompt,'Need a timer');assert.equal(noTargetValue.count,4);assert.equal(noTargetValue.appId,undefined);assert.equal(noTargetValue.managedProjectId,undefined);
-  assert.deepEqual(navigated,['/compare','/compare']);
-  const badStorage={getItem(){return null},removeItem(){},setItem(){throw new Error('blocked')}};
-  cursor=0;tree=Component({...props,managedProjectId:undefined,storage:badStorage,navigate:path=>navigated.push(path)});
-  elementTree(tree).find(n=>n.type==='button'&&text(n).includes('查看比较设置')).props.onClick();
-  cursor=0;tree=Component({...props,managedProjectId:undefined,storage:badStorage});
-  assert.deepEqual(navigated,['/compare','/compare']);assert.match(text(tree),/无法安全保存/);
+test('inline entry changes only mode/count and does not navigate or call a model',async()=>{
+  const source=await readFile(new URL('../app/components/CandidateModeEntry.tsx',import.meta.url),'utf8');
+  const compiled=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace(/^import .*?;\r?\n/gm,'').replace('export default function CandidateModeEntry','function CandidateModeEntry');
+  const jsx=(type,props)=>({type,props}),styles=new Proxy({}, {get:(_,key)=>String(key)});
+  const Component=new Function('useHostLocale','styles','_jsx','_jsxs',compiled+';return CandidateModeEntry;')(()=>({locale:'zh-CN'}),styles,jsx,jsx);
+  const changes=[];const props={workspaceId:'space',prompt:'番茄钟',mode:'single',count:2,creationMode:'demo',confirmed:false,confirmationOpen:false,onModeChange:mode=>changes.push(['mode',mode]),onCountChange:count=>changes.push(['count',count]),onConfirmedChange:()=>{}};
+  for(const count of [2,3,4]){const tree=Component(props);elementTree(tree).find(n=>n.type==='button'&&text(n)===count+' 路赛马').props.onClick();assert.deepEqual(changes.splice(0),[['count',count],['mode','race']]);}
+  const demo=Component({...props,mode:'race'});assert.match(text(demo),/0 次真实模型调用/);assert.equal(elementTree(demo).some(n=>n.type==='a'),false);
+  const ai=Component({...props,mode:'race',creationMode:'model',confirmationOpen:true});assert.match(text(ai),/真实模型调用并产生相应费用/);assert.ok(elementTree(ai).some(n=>n.type==='input'&&n.props.type==='checkbox'));
 });

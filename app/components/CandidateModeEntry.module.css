@@ -1,12 +1,11 @@
-.root{display:grid;gap:12px;min-width:0;padding:var(--motes-space-inset,16px);color:var(--motes-text);font-size:13px}
+.root{display:grid;gap:8px;min-width:0;padding:16px 16px 0;color:var(--motes-text);font-size:12px}
 .modes{display:flex;gap:8px;flex-wrap:wrap}
-.root button,.root select{min-height:var(--motes-control-height,40px);max-width:100%;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);padding:8px 12px;background:var(--motes-accent-soft,#eef3fb);color:var(--motes-text);font:inherit;cursor:pointer}
-.modes button[aria-pressed="true"],.open{background:var(--motes-accent)!important;color:var(--motes-on-accent,#fff)!important;border-color:var(--motes-accent)!important}
-.root button:disabled,.root select:disabled{opacity:.55;cursor:not-allowed}
+.root button{min-height:36px;max-width:100%;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);padding:8px 12px;background:var(--motes-surface);color:var(--motes-text);font:inherit;cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--motes-accent-soft);color:var(--motes-accent);border-color:var(--motes-accent)}
+.root button:disabled{opacity:.55;cursor:not-allowed}
 .root :focus-visible{outline:3px solid var(--motes-focus);outline-offset:2px}
-.race{display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr) auto;align-items:end;gap:8px;padding:10px;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface)}
-.race label{display:grid;gap:4px;color:var(--motes-muted);font-size:12px}
-.race select{width:100%;background:var(--motes-surface)}
-.race p,.note,.error{margin:0;color:var(--motes-muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
-.error{padding:8px 10px;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface);color:var(--motes-text)}
-@media(max-width:600px){.modes button,.race button,.race select{min-height:44px}.race{grid-template-columns:minmax(0,1fr);align-items:stretch}.race p{grid-row:2}}
+.note,.confirmation p{margin:0;color:var(--motes-muted);line-height:1.6;overflow-wrap:anywhere}
+.confirmation{display:grid;gap:8px;padding:16px;border:1px solid var(--motes-border);border-radius:var(--motes-radius,12px);background:var(--motes-muted-surface)}
+.confirmation label{display:flex;align-items:flex-start;gap:8px;line-height:1.6}
+.confirmation input{margin-top:4px;flex-shrink:0}
+@media(max-width:600px){.modes{gap:8px}.root button{min-height:44px;padding:8px 10px}}
