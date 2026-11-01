@@ -1,4 +1,5 @@
 "use client";
+import {offlineFetch,offlineRuntimeRequest} from '@/lib/motes/offline-fetch';
 
 import { useLayoutEffect } from 'react';
 import type { RefObject } from 'react';
@@ -20,7 +21,7 @@ export default function RuntimeDataBridge({ frameRef, appId, versionId, channel,
   useLayoutEffect(() => {
     const frame = frameRef.current;
     const frameWindow = frame?.contentWindow;
-    if (!enabled || !frame || !frameWindow || !appId || !versionId || !channel || !uuid.test(appId) || !uuid.test(versionId) || !/^[a-f0-9]{32}$/.test(channel)) return;
+    if (!enabled || !frame || !frameWindow || !appId || !versionId || !channel || (!uuid.test(appId)&&!/^local-app:[a-f0-9-]{36}$/i.test(appId)) || (!uuid.test(versionId)&&!/^local-version:[a-f0-9-]{36}$/i.test(versionId)) || !/^[a-f0-9]{32}$/.test(channel)) return;
     let active = true;
     let ready = false;
     let highestSequence = 0;
@@ -31,7 +32,7 @@ export default function RuntimeDataBridge({ frameRef, appId, versionId, channel,
     const respond = (payload: Record<string, unknown>) => { if (active) frameWindow.postMessage({ protocol: RUNTIME_DATA_PROTOCOL, channel, ...payload }, '*'); };
     const initialize = async () => {
       try {
-        const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal: sessionController.signal });
+        const response = await offlineFetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal: sessionController.signal });
         const session = await response.json() as { visibility?: unknown };
         if (!response.ok || session.visibility !== 'shared') throw new Error('共享运行数据不可用。');
         if (active) ready = true;
@@ -70,14 +71,10 @@ export default function RuntimeDataBridge({ frameRef, appId, versionId, channel,
       const timeout = setTimeout(() => requestController.abort(), 15_000);
       activeRequests.set(request.requestId, { controller: requestController, timeout });
       try {
-        const response = await fetch('/api/runtime-data', {
-          method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: requestController.signal,
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action: request.action, appId, versionId, key: request.key, ...(request.action === 'set' ? { value: request.value, expectedRevision: request.expectedRevision } : {}) }),
-        });
+        const response = await offlineRuntimeRequest({action:request.action,appId,versionId,key:request.key,...request.action==='set'?{value:request.value,expectedRevision:request.expectedRevision}:{}},requestController.signal);
         const result = await response.json() as Record<string, unknown>;
         if (!active) return;
-        if (response.ok) respond({ kind: 'result', requestId: request.requestId, ok: true, result: request.action === 'get' ? { key: result.key, value: result.value, revision: result.revision, updatedAt: result.updatedAt } : { key: result.key, revision: result.revision, updatedAt: result.updatedAt } });
+        if (response.ok) respond({ kind: 'result', requestId: request.requestId, ok: true, result: request.action === 'get' ? { key: result.key, value: result.value, revision: result.revision, updatedAt: result.updatedAt,offline:result.offline===true } : { key: result.key, revision: result.revision, updatedAt: result.updatedAt,offline:result.offline===true } });
         else respond({ kind: 'result', requestId: request.requestId, ok: false, error: { code: typeof result.code === 'string' ? result.code : `http_${response.status}`, message: typeof result.error === 'string' ? result.error : '共享数据暂时无法保存。', ...(Number.isSafeInteger(result.revision) ? { revision: result.revision } : {}) } });
       } catch {
         if (active) respond({ kind: 'result', requestId: request.requestId, ok: false, error: { code: requestController.signal.aborted ? 'timeout' : 'unavailable', message: requestController.signal.aborted ? '请求等待超时，写入结果可能尚未确认；请先重新读取数据。' : '共享数据暂时无法连接，请保留当前内容后重试。' } });

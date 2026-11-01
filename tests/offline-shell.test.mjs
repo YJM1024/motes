@@ -1,0 +1,19 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
+const source=await readFile(new URL('../public/motes-offline-sw.js',import.meta.url),'utf8');
+function fixture({missing=false}={}){
+ const entries=new Map(),listeners={},posts=[];let down=false;
+ const url=value=>typeof value==='string'?new URL(value,'https://motes.test').href:value.url??value.href;
+ const cache={async put(key,value){entries.set(url(key),await value.text())},async match(key){const value=entries.get(url(key));return value===undefined?undefined:new Response(value)}};
+ const fetch=async request=>{if(down)throw Error('network unavailable');const path=new URL(url(request)).pathname;if(path==='/assets/main.js'){if(missing)return new Response('missing',{status:404});return new Response('import "./dependency.js";',{headers:{'Content-Type':'application/javascript'}})}if(path==='/assets/dependency.js')return new Response('export const ready=true',{headers:{'Content-Type':'application/javascript'}});if(path==='/assets/style.css')return new Response('body{color:black}',{headers:{'Content-Type':'text/css'}});return new Response('<!doctype html><html><head><script src="/assets/main.js"></script><link href="/assets/style.css" rel="stylesheet"></head><body>workbench</body></html>',{headers:{'Content-Type':'text/html'}})};
+ const self={location:{origin:'https://motes.test'},skipWaiting(){},clients:{claim(){}},addEventListener(name,fn){listeners[name]=fn}};
+ runInNewContext(source,{self,caches:{open:async()=>cache},fetch,URL,Response,Set,Array,Boolean});
+ return{entries,posts,setDown(){down=true},async warm(){let pending;listeners.message({source:{url:'https://motes.test/',postMessage(value){posts.push(value)}},data:{type:'MOTES_CACHE_WORKBENCH',assets:[]},waitUntil(promise){pending=promise}});await pending},async request(path,method='GET',mode='navigate'){let response;listeners.fetch({request:{url:'https://motes.test'+path,method,mode},respondWith(promise){response=promise}});return response}};
+}
+test('verified shell and dependency graph reopen after network loss while APIs and model POST remain uncached',async()=>{const f=fixture();await f.warm();assert.equal(f.posts[0].type,'MOTES_OFFLINE_SHELL_READY');assert.equal(f.posts[0].ok,true);assert.ok(f.entries.has('https://motes.test/assets/dependency.js'));f.setDown();const page=await f.request('/?new=1');assert.match(await page.text(),/workbench/);const script=await f.request('/assets/dependency.js','GET','cors');assert.match(await script.text(),/ready=true/);assert.equal(await f.request('/api/session','GET','cors'),undefined);assert.equal(await f.request('/api/generate','POST','cors'),undefined);assert.equal(await f.request('/published/token'),undefined)});
+test('incomplete shell never reports ready or replaces a prior usable navigation document',async()=>{const f=fixture({missing:true});f.entries.set('https://motes.test/','old verified shell');await f.warm();assert.equal(f.posts[0].type,'MOTES_OFFLINE_SHELL_ERROR');assert.equal(f.posts[0].ok,false);assert.equal(f.entries.get('https://motes.test/'),'old verified shell');f.setDown();assert.equal(await(await f.request('/')).text(),'old verified shell')});
+
+test('offline re-registration recognizes a complete existing shell without rewriting it',async()=>{const f=fixture();await f.warm();const before=new Map(f.entries);f.setDown();await f.warm();assert.equal(f.posts.at(-1).type,'MOTES_OFFLINE_SHELL_READY');assert.equal(f.posts.at(-1).ok,true);assert.deepEqual(f.entries,before)});
+test('offline ready verification rejects a missing transitive cached dependency',async()=>{const f=fixture();await f.warm();f.entries.delete('https://motes.test/assets/dependency.js');f.setDown();await f.warm();assert.equal(f.posts.at(-1).type,'MOTES_OFFLINE_SHELL_ERROR');assert.equal(f.posts.at(-1).ok,false)});

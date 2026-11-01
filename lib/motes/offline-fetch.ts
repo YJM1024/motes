@@ -1,3 +1,4 @@
+import {offlineCoreText} from './locale/offline-core';
 /** Shared-workspace boundary adapter; never queues a model call or arbitrary API write. */
 import type {Project,Summary} from '../forma/types';
 import {generateDemo} from '../forma/demo';
@@ -23,7 +24,7 @@ export async function cacheOfflineResponse(path:string,data:Record<string,unknow
 const defaults={creationMode:'demo',previewDevice:'desktop',autoFollow:true,showWaitTimer:true,language:'zh-CN',visualStyle:'minimal'};
 export async function createOfflineDemo(body:Record<string,unknown>){
  const wid=await activeWorkspace(),requestId=typeof body.requestId==='string'?body.requestId:crypto.randomUUID(),old=typeof body.projectId==='string'?await readOfflineProject(wid,body.projectId):undefined;
- if(body.mode==='model')throw new OfflineError('offline_ai_unavailable');
+ if(body.mode==='model')throw new OfflineError('offline_ai_unavailable');if(typeof body.projectId==='string'&&!old)throw new OfflineError('app_not_cached');
  const base=old?.versions.find(v=>v.id===(body.baseVersionId??old.currentVersionId)),kind=String(body.kind??''),prompt=typeof body.prompt==='string'?body.prompt:kind==='timer'?'番茄钟':kind==='kanban'?'任务看板':kind==='budget'?'旅行预算计算器':'新建空白应用';
  const generated=kind==='empty'?{title:'空白应用',html:'<!doctype html><html><head><meta charset="utf-8"><title>离线空白应用</title></head><body><main><h1>离线空白应用</h1><p>内容仅保存在本浏览器，联网后需明确同步。</p></main></body></html>'}:generateDemo(prompt,base?.html);
  if(old)return saveLocalVersion({workspaceId:wid,appId:old.id,requestId,baseVersionId:base?.id??old.currentVersionId,expectedCurrentVersionId:old.currentVersionId,html:generated.html,name:'离线示例修改'});
@@ -46,18 +47,18 @@ async function offlineRead(url:URL){
   if(!value)throw new OfflineError('workspace_not_cached');const apps=await summaries(wid,[]),known=Array.isArray(value.apps)?value.apps as Record<string,unknown>[]:[],local=apps.filter(a=>a.id.startsWith('local-app:')).map(a=>({...a,workspaceId:wid,projectId:(value!.workspace as {defaultProjectId:string}).defaultProjectId,name:a.title,description:'离线作品',archived:false,starred:false,tagIds:[]}));return response({...value,apps:[...known,...local],offline:true},200,true);
  }
  // Quotas, tasks and unknown requests must not become fictitious offline success.
- if(url.pathname==='/api/usage')return response({error:'离线时无法核对实时用量。',code:'offline_usage_unknown',offline:true},503,true);
+ if(url.pathname==='/api/usage')return response({error:offlineCoreText('离线时无法核对实时用量。'),code:'offline_usage_unknown',offline:true},503,true);
  if(!value)throw new OfflineError('not_cached');return response({...value,offline:true},200,true);
 }
 let warming=false;
 async function warmBasics(){if(warming)return;warming=true;try{for(const path of['/api/settings','/api/workspace?archived=all']){const r=await fetch(path,{credentials:'same-origin',cache:'no-store'});if(r.ok)await cacheOfflineResponse(path,await r.json())}}catch{}finally{warming=false}}
 const readAllowed=(path:string)=>path==='/api/session'||path==='/api/projects'||/^\/api\/projects\/[^/]+$/.test(path)||['/api/settings','/api/workspace','/api/usage'].includes(path);
 /** SDK scope is supplied only by the authenticated host, never by child messages. */
-export async function offlineRuntimeRequest(body:{action:'get'|'set';appId:string;versionId:string;key:string;value?:unknown;expectedRevision?:number},signal?:AbortSignal){
+async function runtimeRequest(body:{action:'get'|'set';appId:string;versionId:string;key:string;value?:unknown;expectedRevision?:number},signal?:AbortSignal){
  const wid=await activeWorkspace(),scope={appId:body.appId,versionId:body.versionId,key:body.key},existing=await getLocalRuntime(wid,scope);
  if(body.action==='get'){
   if(offlineNetworkUnavailable()||existing.dirty||body.appId.startsWith('local-app:'))return response({...existing,updatedAt:null,offline:true},200,true);
-  try{const r=await fetch('/api/runtime-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});if(!r.ok)return r;const data=await r.json() as Record<string,unknown>,record=await cacheRuntime(wid,scope,data.value,Number(data.revision));networkState(false);return response({key:body.key,value:record.value,revision:record.revision,updatedAt:data.updatedAt})}catch(error){if(signal&&userAborted(signal))throw error;networkState(true);return response({...existing,updatedAt:null,offline:true},200,true)}
+  try{const r=await fetch('/api/runtime-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});if(!r.ok)return r;const data=await r.json() as Record<string,unknown>,record=await cacheRuntime(wid,scope,data.value,Number(data.revision));networkState(false);return response({key:body.key,value:record.value,revision:record.revision,updatedAt:data.updatedAt})}catch(error){if(signal&&userAborted(signal)||error instanceof OfflineError)throw error;networkState(true);return response({...existing,updatedAt:null,offline:true},200,true)}
  }
  const record=await setLocalRuntime(wid,scope,body.value,Number(body.expectedRevision)),operation=(await listOfflineOperations(wid)).find(o=>o.id===record.operationId)!;
  if(offlineNetworkUnavailable()||existing.dirty||body.appId.startsWith('local-app:'))return response({key:body.key,revision:record.revision,updatedAt:null,offline:true},200,true);
@@ -70,7 +71,7 @@ export async function offlineFetch(input:RequestInfo|URL,init?:RequestInit):Prom
  try{
   if(method==='GET'&&readAllowed(url.pathname)){
    const localMatch=/^\/api\/projects\/(local-app:[^/]+)$/.exec(decodeURIComponent(url.pathname));if(localMatch)return offlineRead(url);
-   if(!offlineNetworkUnavailable()||url.pathname==='/api/session'&&navigator.onLine)try{const r=await fetch(request);if(r.status<500){networkState(false);if(r.ok)try{const data=await r.clone().json() as Record<string,unknown>;await cacheOfflineResponse(cachePath(url),data);if(url.pathname==='/api/session'){void warmBasics();return response({...data,projects:await summaries(OFFLINE_WORKSPACE,data.projects)})}const match=/^\/api\/projects\/([^/]+)$/.exec(url.pathname);if(match){const local=await readOfflineProject(OFFLINE_WORKSPACE,decodeURIComponent(match[1]));if(local)return response({...data,project:local})}}catch{}return r}}catch(error){if(userAborted(request.signal))throw error;networkState(true)}
+   if(!offlineNetworkUnavailable()||url.pathname==='/api/session'&&navigator.onLine)try{const r=await fetch(request);if(r.status<500){networkState(false);if(r.ok)try{const data=await r.clone().json() as Record<string,unknown>;await cacheOfflineResponse(cachePath(url),data);if(url.pathname==='/api/session'){void warmBasics();return response({...data,projects:await summaries(OFFLINE_WORKSPACE,data.projects)})}const match=/^\/api\/projects\/([^/]+)$/.exec(url.pathname);if(match){const local=await readOfflineProject(OFFLINE_WORKSPACE,decodeURIComponent(match[1]));if(local)return response({...data,project:local})}}catch{}return r}networkState(true)}catch(error){if(userAborted(request.signal))throw error;networkState(true)}
    return offlineRead(url);
   }
   if(method!=='POST')return fetch(request);
@@ -84,10 +85,12 @@ export async function offlineFetch(input:RequestInfo|URL,init?:RequestInit):Prom
   if(offlineNetworkUnavailable()){
    if(url.pathname==='/api/generate'&&body.mode==='demo'||url.pathname==='/api/apps/seed')return response({project:await createOfflineDemo(body),offline:true},201,true);
    const restore=/^\/api\/projects\/([^/]+)\/restore$/.exec(url.pathname);if(restore){const p=await readOfflineProject(wid,decodeURIComponent(restore[1])),v=p?.versions.find(v=>v.id===body.versionId);if(!p||!v)throw new OfflineError('app_not_cached');const project=await saveLocalVersion({workspaceId:wid,appId:p.id,requestId:crypto.randomUUID(),baseVersionId:v.id,expectedCurrentVersionId:p.currentVersionId,html:v.html,name:'离线还原副本'});return response({project,offline:true,restoreAsBranch:true},200,true)}
-   return response({error:'离线时此操作不可用；真实 AI 不会被离线执行或排队。',code:'offline_operation_unavailable',offline:true},503,true);
+   return response({error:offlineCoreText('离线时此操作不可用；真实 AI 不会被离线执行或排队。'),code:'offline_operation_unavailable',offline:true},503,true);
   }
   return fetch(request);
- }catch(error){if(userAborted(request.signal))throw error;const code=error instanceof OfflineError?error.code:'offline_storage_unavailable';if(!offlineNetworkUnavailable()&&['storage_unavailable','storage_blocked','workspace_not_cached','app_not_cached','offline_storage_unavailable'].includes(code))return fetch(request);return response({error:code==='local_conflict'?'本地版本已变化，请保留内容并重新核对。':'离线副本不可用或尚未缓存；请联网读取后再试。',code,offline:true},code==='local_conflict'?409:503,true)}
+ }catch(error){if(userAborted(request.signal))throw error;const code=error instanceof OfflineError?error.code:'offline_storage_unavailable';if(!offlineNetworkUnavailable()&&['storage_unavailable','storage_blocked','workspace_not_cached','app_not_cached','offline_storage_unavailable'].includes(code))return fetch(request);return response({error:code==='local_conflict'?offlineCoreText('本地版本已变化，请保留内容并重新核对。'):offlineCoreText('离线副本不可用或尚未缓存；请联网读取后再试。'),code,offline:true},code==='local_conflict'?409:503,true)}
 }
 
 export async function probeOfflineNetwork(){try{const r=await fetch('/api/session',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(12000)});if(!r.ok)return false;const data=await r.json() as Record<string,unknown>;await cacheOfflineResponse('/api/session',data);if(data.visibility!=='shared'||data.workspaceId!==OFFLINE_WORKSPACE)return false;networkState(false);return true}catch{networkState(true);return false}}
+
+export const offlineRuntimeRequest:typeof runtimeRequest=async(body,signal)=>{try{return await runtimeRequest(body,signal)}catch(error){if(!offlineNetworkUnavailable()&&error instanceof OfflineError&&['storage_unavailable','storage_blocked','workspace_not_cached','local_capacity'].includes(error.code))return fetch('/api/runtime-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});throw error}};
