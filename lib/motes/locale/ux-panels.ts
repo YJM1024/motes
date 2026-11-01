@@ -36,6 +36,7 @@ export const uxPanelMessages = {
   '这是公共演示空间；所有访问者可查看和修改应用、需求、代码、讨论和设置。请勿输入私密内容或密钥。': 'This is a public demo workspace. All visitors can view and change apps, requests, code, discussions, and settings. Do not enter private information or keys.',
   '当前运行在公共演示空间，不同访客会访问同一空间。这里的匿名标识不代表个人私有隔离；每次服务端操作仍执行对应的空间权限检查。': 'You are in a public demo workspace shared by visitors. The anonymous identifier does not provide personal isolation; server operations still check workspace permissions.',
   '项目、需求、代码版本、讨论、任务结果和设置保存在共享服务端空间，其他访问者可查看和修改。预览中的计时、表单输入等运行状态不持久化。': 'Projects, requests, code versions, discussions, task results, and settings are saved in a shared server workspace that other visitors can view and change. Preview runtime state such as timers and form input is not persisted.',
+  '项目、需求、代码版本、讨论、任务结果和设置保存在共享服务端空间。应用显式保存的业务数据也会共享保存；其他临时预览输入不会自动保存。离线更改先保存在本机，手动同步后才对其他访客可见。': 'Projects, requests, code versions, discussions, task results, and settings are saved in the shared server workspace. Business data explicitly saved by an app is also shared; other temporary preview input is not saved automatically. Offline changes are first saved on this device and become visible to other visitors only after manual sync.',
   'AI 有效可用额度': 'Effective AI quota remaining',
   '示例有效可用额度': 'Effective demo quota remaining',
   '按三层剩余额度中的最小值计算': 'The minimum remaining amount across all three limits',
