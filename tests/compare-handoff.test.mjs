@@ -68,6 +68,8 @@ test('race entry only stores and navigates after explicit click; failed storage 
   cursor=0;let tree=Component(props);assert.deepEqual(navigated,[]);assert.equal(elementTree(tree).find(n=>n.type==='select')?.props.value,4);
   elementTree(tree).find(n=>n.type==='select').props.onChange({target:{value:'2'}});assert.deepEqual(changes.count,[2]);
   elementTree(tree).find(n=>n.type==='button'&&text(n).includes('单次创作')).props.onClick();assert.deepEqual(changes.mode,['single']);
+  cursor=0;tree=Component({...props,mode:'single'});assert.equal(text(tree).includes('仅准备需求并打开比较页'),false);
+  cursor=0;tree=Component(props);
   elementTree(tree).find(n=>n.type==='button'&&text(n).includes('查看比较设置')).props.onClick();
   assert.deepEqual(navigated,['/compare']);assert.equal(JSON.parse(store.values.get(api.COMPARE_HANDOFF_KEY)).count,4);
   const noTargetStore=storage();cursor=0;tree=Component({...props,managedProjectId:undefined,storage:noTargetStore});

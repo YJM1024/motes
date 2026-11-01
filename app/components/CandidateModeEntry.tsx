@@ -31,7 +31,7 @@ export default function CandidateModeEntry(props:Props){
       <p>{text('本次跳转已填入需求；选择比较模式并确认费用后，才会发送请求。')}</p>
       <button type="button" className={styles.open} disabled={props.disabled||!props.workspaceId||!props.prompt.trim()||props.prompt.length>4000||(!!props.appId&&!!props.managedProjectId)||(!!props.appId&&!props.baseVersionId)} onClick={openCompare}>{text('查看比较设置')}</button>
     </div>}
-    <p className={styles.note}>{text('仅准备需求并打开比较页；不会在此发送或调用模型。')}</p>
+    {props.mode==='race'&&<p className={styles.note}>{text('仅准备需求并打开比较页；不会在此发送或调用模型。')}</p>}
     {error&&<p className={styles.error} role="alert">{error}</p>}
   </section>;
 }
