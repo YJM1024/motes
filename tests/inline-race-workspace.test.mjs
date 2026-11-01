@@ -5,7 +5,7 @@ import ts from 'typescript';
 const source=await readFile(new URL('../app/components/RaceWorkspace.tsx',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace(/^import .*?;\r?\n/gm,'').replace('export default function RaceWorkspace','function RaceWorkspace');
 const jsx=(type,props)=>({type,props});
-const Component=new Function('useMemo','useState','useHostLocale','styles','PREVIEW_POLICY','safeDocument','_jsx','_jsxs',js+';return RaceWorkspace;')(fn=>fn(),initial=>[initial,()=>{}],()=>({locale:'zh-CN'}),{},'',value=>value,jsx,jsx);
+const Component=new Function('useMemo','useState','useHostLocale','styles','PREVIEW_POLICY','safeDocument','_jsx','_jsxs','_Fragment',js+';return RaceWorkspace;')(fn=>fn(),initial=>[initial,()=>{}],()=>({locale:'zh-CN'}),{},'',value=>value,jsx,jsx,'fragment');
 function nodes(value){if(Array.isArray(value))return value.flatMap(nodes);if(!value||typeof value!=='object')return[];return[value,...nodes(value.props?.children)]}
 function text(value){if(Array.isArray(value))return value.map(text).join('');if(value&&typeof value==='object')return text(value.props?.children);return value??''}
 function state(overrides={}){return{group:null,pending:null,retry:null,error:'',notice:'',restoring:false,busy:false,paused:false,submitted:null,...overrides}}
