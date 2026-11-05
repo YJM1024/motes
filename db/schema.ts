@@ -17,6 +17,9 @@ export const requests = sqliteTable("forma_requests", {
 export const locks = sqliteTable("forma_locks", {
   projectId: text("project_id").primaryKey(), requestId: text("request_id").notNull(), expiresAt: integer("expires_at").notNull(),
 });
+export const generationProgress = sqliteTable("motes_generation_progress", {
+  requestId:text("request_id").primaryKey().references(()=>requests.id),progressJson:text("progress_json").notNull(),
+});
 
 export const profiles = sqliteTable("motes_profiles", {
   owner: text("owner").primaryKey(), displayName: text("display_name").notNull().default("测试用户"),
@@ -90,7 +93,7 @@ export const modelUsage = sqliteTable("motes_model_usage", {
   requestId: text("request_id").primaryKey().references(() => requests.id), owner: text("owner").notNull(),
   operation: text("operation").notNull(), requestedModel: text("requested_model").notNull(), responseModel: text("response_model"),
   status: text("status").notNull().default("running"), startedAt: text("started_at").notNull(), finishedAt: text("finished_at"),
-  elapsedMs: integer("elapsed_ms"), httpStatus: integer("http_status"), inputTokens: integer("input_tokens"), outputTokens: integer("output_tokens"), totalTokens: integer("total_tokens"), errorCode: text("error_code"),
+  elapsedMs: integer("elapsed_ms"), httpStatus: integer("http_status"), inputTokens: integer("input_tokens"), outputTokens: integer("output_tokens"), totalTokens: integer("total_tokens"), errorCode: text("error_code"),callCount:integer("call_count").notNull().default(1),usageComplete:integer("usage_complete").notNull().default(1),
 }, t => [index("motes_usage_owner_started").on(t.owner, t.startedAt)]);
 
 export const candidateGroups = sqliteTable("motes_candidate_groups", {

@@ -1,6 +1,6 @@
 # Lite 本地启动与验收
 
-当前生产是 Motes Lite v24：[正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)，runtime source `f7fb42db030f06e725b28075ba2664580c65e46b`。本地运行不会修改生产 D1。Lite 需要网络，不提供完整版的完整离线工作台；完整版源码仍在[`full-product` branch](https://github.com/YJM1024/motes/tree/full-product)（`51a315f`）。
+访问[正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)。本地运行不会修改生产 D1。Lite 需要网络，不提供完整版的完整离线工作台；完整版源码仍在[`full-product` branch](https://github.com/YJM1024/motes/tree/full-product)（`51a315f`）。历史发布验收信息见[验收记录](acceptance.md)。
 
 ## 安装与本地数据库
 
@@ -21,6 +21,8 @@ Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | 
 ```
 
 此命令只用于全新本地库。已有库先备份 `.wrangler/state`，只补尚未执行的迁移；不要清空数据库或对生产执行 `--remote`。数据库 schema/API 与完整版兼容，lite 是界面缩减，不是新数据模型。
+
+本轮新增迁移为 `0017_stale_millenium_guard.sql` 和 `0018_strong_leech.sql`。若已有本地库已应用至 `0016`，按顺序只应用 `0017`、`0018` 及其后的尚未执行迁移；不要覆盖、重跑或改写已应用的旧迁移。确认迁移状态后再启动服务。
 
 ## 启动
 

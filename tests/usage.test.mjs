@@ -1,3 +1,4 @@
+import {executionMock} from './helpers/workflow-model-mock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
@@ -61,7 +62,7 @@ test('workspace/project/app model inheritance and explicit allowed request choos
   const h=await harness();t.after(h.close);const who=await h.who('a'),wid=await h.management.initializeWorkspace(who),now=new Date().toISOString(),group=crypto.randomUUID();
   h.sqlite.prepare('INSERT INTO motes_projects(id,workspace_id,name,created_at,updated_at) VALUES(?,?,?,?,?)').run(group,wid,'模型项目',now,now);
   await h.save({model:'gpt-5.4-mini'});await h.save({model:'gpt-6-luna'},'project',{projectId:group});
-  const calls=[];t.mock.method(globalThis,'fetch',async(_url,options)=>{const body=JSON.parse(options.body);calls.push(body);assert.equal(options.headers.Authorization,'Bearer test-secret-never-return');return h.success(body.model)});
+  const calls=[];t.mock.method(globalThis,'fetch',executionMock(async(_url,options)=>{const body=JSON.parse(options.body);calls.push(body);assert.equal(options.headers.Authorization,'Bearer test-secret-never-return');return h.success(body.model)}));
   const first=await h.generate({mode:'model',prompt:'new',managedProjectId:group,requestId:crypto.randomUUID()});assert.equal(first.status,200);assert.equal(calls[0].model,'gpt-6-luna');
   await h.save({model:'gpt-5.4-mini'},'app',{appId:first.data.project.id});
   const second=await h.generate({mode:'model',prompt:'edit',projectId:first.data.project.id,requestId:crypto.randomUUID()});assert.equal(second.status,200);assert.equal(calls[1].model,'gpt-5.4-mini');assert.equal(second.data.project.versions.at(-1).model,'gpt-5.4-mini');
@@ -75,23 +76,23 @@ test('removed model preference falls back visibly and legacy request fingerprint
   const h=await harness();t.after(h.close);await h.management.initializeWorkspace(await h.who('a'));await h.save({model:'gpt-5.4-mini'});
   h.env.OPENAI_MODELS='gpt-6-luna';
   const prefs=await h.settings.readSettings(h.env.DB,await h.who('a'),h.server.modelName(),{},h.server.modelNames());assert.equal(prefs.effective.model,'gpt-6-luna');assert.equal(prefs.sources.model,'server');
-  let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
+  let calls=0;t.mock.method(globalThis,'fetch',executionMock(async()=>{calls++;return h.success()}));
   const body={mode:'model',prompt:'legacy prompt',requestId:crypto.randomUUID()},result=await h.generate(body);assert.equal(result.status,200);
   const expected=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([body.prompt,body.mode,null,null])));assert.equal(h.sqlite.prepare('SELECT fingerprint FROM forma_requests WHERE id=?').get(body.requestId).fingerprint,Buffer.from(expected).toString('hex'));
   const retry=await h.generate(body);assert.equal(retry.data.project.id,result.data.project.id);assert.equal(calls,1);assert.equal((await h.snapshot()).items.length,1);
   assert.equal((await h.generate({...body,model:'gpt-6-luna'})).status,409);
 });
 
-test('timeout/error usage stays unknown while failed attempts consume the same daily budget',async t=>{
-  const h=await harness();t.after(h.close);t.mock.method(globalThis,'fetch',async()=>{throw new DOMException('timeout','TimeoutError')});
+test('execution timeout retains reported planning zeros and marks incomplete usage while attempts consume budget',async t=>{
+  const h=await harness();t.after(h.close);t.mock.method(globalThis,'fetch',executionMock(async()=>{throw new DOMException('timeout','TimeoutError')}));
   for(let n=0;n<10;n++)assert.equal((await h.generate({mode:'model',prompt:'failed',requestId:crypto.randomUUID()})).status,504);
   const denied=await h.generate({mode:'model',prompt:'eleventh',requestId:crypto.randomUUID()});assert.equal(denied.status,429);
-  const data=await h.snapshot();assert.equal(data.limitsEnforced,true);assert.equal(data.quota.model.used,10);assert.equal(data.quota.model.remaining,0);assert.equal(data.outcomes.failed,10);assert.equal(data.tokens.total,null);assert.equal(data.tokens.coverage,'unknown');assert.ok(data.items.every(r=>r.inputTokens===null&&r.errorCode==='timeout'));
-  assert.equal(data.tokens.recordedCalls,10);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_model_usage').get().n,10);
+  const data=await h.snapshot();assert.equal(data.limitsEnforced,true);assert.equal(data.quota.model.used,10);assert.equal(data.quota.model.remaining,0);assert.equal(data.outcomes.failed,10);assert.equal(data.tokens.total,0);assert.equal(data.tokens.coverage,'partial');assert.ok(data.items.every(r=>r.inputTokens===0&&r.errorCode==='timeout'));
+  assert.equal(data.tokens.recordedCalls,20);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_model_usage').get().n,10);
 });
 
 test('incomplete output retains actual usage, explicit zero counts stay known, and owner scope excludes other activity',async t=>{
-  const h=await harness();t.after(h.close);let count=0;t.mock.method(globalThis,'fetch',async()=>{count++;if(count===1)return Response.json({status:'incomplete',model:'gpt-6-luna',usage:{input_tokens:5,output_tokens:7,total_tokens:12}});return h.success('gpt-6-luna',{input_tokens:0,output_tokens:0,total_tokens:0})});
+  const h=await harness();t.after(h.close);let count=0;t.mock.method(globalThis,'fetch',executionMock(async()=>{count++;if(count===1)return Response.json({status:'incomplete',model:'gpt-6-luna',usage:{input_tokens:5,output_tokens:7,total_tokens:12}});return h.success('gpt-6-luna',{input_tokens:0,output_tokens:0,total_tokens:0})}));
   assert.equal((await h.generate({mode:'model',prompt:'incomplete',requestId:crypto.randomUUID()})).status,502);
   assert.equal((await h.generate({mode:'model',prompt:'zero',requestId:crypto.randomUUID()})).status,200);
   assert.equal((await h.generate({mode:'model',prompt:'other',requestId:crypto.randomUUID()},'b')).status,200);
@@ -102,14 +103,14 @@ test('incomplete output retains actual usage, explicit zero counts stay known, a
 
 test('partial or malformed reported counts stay nullable and provider errors expose only safe status',async t=>{
   const h=await harness();t.after(h.close);let n=0;
-  t.mock.method(globalThis,'fetch',async()=>{n++;return n===1?h.success('gpt-6-luna',{input_tokens:9,output_tokens:-2,total_tokens:null}):Response.json({error:{code:'insufficient_quota',message:'NEVER_EXPOSE_PROVIDER_DETAIL'}},{status:429})});
+  t.mock.method(globalThis,'fetch',executionMock(async()=>{n++;return n===1?h.success('gpt-6-luna',{input_tokens:9,output_tokens:-2,total_tokens:null}):Response.json({error:{code:'insufficient_quota',message:'NEVER_EXPOSE_PROVIDER_DETAIL'}},{status:429})}));
   assert.equal((await h.generate({mode:'model',prompt:'PRIVATE_PROMPT',requestId:crypto.randomUUID()})).status,200);
   const failed=await h.generate({mode:'model',prompt:'PRIVATE_PROMPT',requestId:crypto.randomUUID()});assert.equal(failed.status,429);assert.doesNotMatch(JSON.stringify(failed),/NEVER_EXPOSE|test-secret/);
-  const data=await h.snapshot();assert.equal(data.tokens.input,9);assert.equal(data.tokens.output,null);assert.equal(data.tokens.total,null);assert.equal(data.tokens.coverage,'partial');assert.equal(data.tokens.knownRecords,0);assert.equal(data.items.find(i=>i.status==='failed').errorCode,'quota');assert.doesNotMatch(JSON.stringify(data),/PRIVATE_PROMPT|NEVER_EXPOSE|test-secret|Bearer/);
+  const data=await h.snapshot();assert.equal(data.tokens.input,9);assert.equal(data.tokens.output,0);assert.equal(data.tokens.total,0);assert.equal(data.tokens.coverage,'partial');assert.equal(data.tokens.knownRecords,0);assert.equal(data.items.find(i=>i.status==='failed').errorCode,'quota');assert.doesNotMatch(JSON.stringify(data),/PRIVATE_PROMPT|NEVER_EXPOSE|test-secret|Bearer/);
 });
 
 test('post-commit read failure preserves succeeded usage and retry does not consume another call',async t=>{
-  const h=await harness();t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;h.control.failRead=true;return h.success()});
+  const h=await harness();t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',executionMock(async()=>{calls++;h.control.failRead=true;return h.success()}));
   const body={mode:'model',prompt:'save then read fails',requestId:crypto.randomUUID()};assert.equal((await h.generate(body)).status,500);
   assert.equal((await h.snapshot()).items[0].status,'succeeded');assert.equal((await h.snapshot()).tokens.total,200);
   assert.equal((await h.generate(body)).status,200);assert.equal(calls,1);assert.equal((await h.snapshot()).quota.model.used,1);
@@ -139,7 +140,7 @@ test('shared visitors read and modify the same app while legacy private records 
  const snapshot=await h.snapshot('b');assert.equal(snapshot.limits.visitor.demo.used,1);assert.equal(snapshot.limits.shared.demo.used,2);assert.equal(snapshot.limits.global.demo.used,2);
 });
 test('shared daily model cap cannot be reset by cookie rotation and original request recovery stays free',async t=>{
- const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared'});t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return h.success()});
+ const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared'});t.after(h.close);let calls=0;t.mock.method(globalThis,'fetch',executionMock(async()=>{calls++;return h.success()}));
  const original={mode:'model',prompt:'test',requestId:crypto.randomUUID()},first=await h.generate(original,'a');assert.equal(first.status,200);
  for(let i=1;i<10;i++)assert.equal((await h.generate({mode:'model',prompt:'test',requestId:crypto.randomUUID()},i%2?'b':'a')).status,200);
  assert.equal((await h.generate({mode:'model',prompt:'denied',requestId:crypto.randomUUID()},'c')).status,429);
@@ -178,10 +179,10 @@ test('testing switch bypasses all daily caps while recording actual counts and r
    const who=await h.who('a'),now=new Date().toISOString(),day=now.slice(0,10);
    const insert=h.sqlite.prepare('INSERT INTO forma_requests(id,owner,visitor_id,project_id,fingerprint,day,mode,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)');
    for(const mode of ['model','demo'])for(let i=0;i<2001;i++)insert.run(crypto.randomUUID(),who,await h.security.digest('a'.repeat(64)),'old','old',day,mode,'failed',now);
-   const mock=t.mock.method(globalThis,'fetch',async()=>h.success());
+   const mock=t.mock.method(globalThis,'fetch',executionMock(async()=>h.success()));
    assert.equal((await h.generate({mode:'model',prompt:'above old cap',requestId:crypto.randomUUID()})).status,200);
    assert.equal((await h.generate({mode:'demo',prompt:'番茄钟',requestId:crypto.randomUUID()})).status,200);
-   const snapshot=await h.snapshot();assert.equal(snapshot.limitsEnforced,false);assert.equal(snapshot.quota.model.used,2002);assert.equal(snapshot.quota.demo.used,2002);assert.equal(snapshot.tokens.todayModelAttempts,2002);assert.equal(snapshot.tokens.recordedCalls,1);
+   const snapshot=await h.snapshot();assert.equal(snapshot.limitsEnforced,false);assert.equal(snapshot.quota.model.used,2002);assert.equal(snapshot.quota.demo.used,2002);assert.equal(snapshot.tokens.todayModelAttempts,2002);assert.equal(snapshot.tokens.recordedCalls,2);
    const response=await h.route.GET(new Request('https://motes.test/api/usage',{headers:{cookie:'forma_session='+'a'.repeat(64)}}));assert.equal((await response.json()).limitsEnforced,false);
    const blocked=h.usage.budgetReservation(h.env.DB,{id:crypto.randomUUID(),owner:who,projectId:'blocked',fingerprint:'x',mode:'model',createdAt:now,fence:{sql:'?=1',bindings:[0]}}).run();assert.equal(blocked.meta.changes,0);
    mock.mock.restore();
@@ -191,7 +192,7 @@ test('testing switch bypasses all daily caps while recording actual counts and r
 
 test('testing switch preserves concurrent idempotency, application locks, CAS and provider quota errors',async t=>{
  const h=await harness({MOTES_REQUEST_LIMITS_ENABLED:'false'});t.after(h.close);let calls=0,release;
- t.mock.method(globalThis,'fetch',()=>{calls++;return new Promise(resolve=>{release=()=>resolve(h.success())})});
+ t.mock.method(globalThis,'fetch',executionMock(()=>{calls++;return new Promise(resolve=>{release=()=>resolve(h.success())})}));
  const body={mode:'model',prompt:'concurrent',requestId:crypto.randomUUID()},pending=h.generate(body);
  for(let n=0;!release&&n<500;n++)await new Promise(r=>setImmediate(r));assert.ok(release);
  assert.equal((await h.generate(body)).status,409);assert.equal(calls,1);release();const done=await pending;assert.equal(done.status,200);
@@ -204,7 +205,7 @@ test('testing switch preserves concurrent idempotency, application locks, CAS an
  const newer=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_versions(id,project_id,number,prompt,summary,html,created_at,mode,model) SELECT ?,project_id,2,prompt,summary,html,created_at,mode,model FROM forma_versions WHERE id=?').run(newer,base);
  h.control.beforeBatch=()=>h.sqlite.prepare('UPDATE forma_projects SET current_version_id=? WHERE id=?').run(newer,app.id);
  assert.equal((await h.generate({mode:'model',prompt:'changed during reserve',projectId:app.id,baseVersionId:base,requestId:crypto.randomUUID()})).status,409);assert.equal(calls,1);
- t.mock.method(globalThis,'fetch',async()=>Response.json({error:{code:'insufficient_quota'}},{status:429}));
+ t.mock.method(globalThis,'fetch',executionMock(async()=>Response.json({error:{code:'insufficient_quota'}},{status:429})));
  assert.equal((await h.generate({mode:'model',prompt:'provider quota',requestId:crypto.randomUUID()})).status,429);assert.equal((await h.snapshot()).items.find(i=>i.status==='failed').errorCode,'quota');
 });
 
@@ -212,7 +213,7 @@ test('testing switch covers discussion, repair generation, candidate batches and
  const h=await harness({MOTES_WORKSPACE_VISIBILITY:'shared',MOTES_REQUEST_LIMITS_ENABLED:'false'});t.after(h.close);
  const who=await h.who('a'),now=new Date().toISOString();
  for(let i=0;i<51;i++)h.sqlite.prepare('INSERT INTO forma_requests(id,owner,visitor_id,project_id,fingerprint,day,mode,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),who,await h.security.digest('a'.repeat(64)),'old','old',now.slice(0,10),'model','failed',now);
- let calls=0,failCandidate=false;t.mock.method(globalThis,'fetch',async()=>{calls++;if(failCandidate){failCandidate=false;throw new DOMException('timeout','TimeoutError')}return h.success()});
+ let calls=0,failCandidate=false;t.mock.method(globalThis,'fetch',executionMock(async()=>{calls++;if(failCandidate){failCandidate=false;throw new DOMException('timeout','TimeoutError')}return h.success()}));
  const app=(await h.generate({mode:'model',prompt:'base',requestId:crypto.randomUUID()})).data.project;
  assert.equal((await h.generate({mode:'model',projectId:app.id,prompt:'请排查并修复当前应用在隔离预览中出现的以下运行问题：错误',requestId:crypto.randomUUID()})).status,200);
  const threadId=crypto.randomUUID();assert.equal((await h.call(r=>h.discussions.createDiscussionThread(r),{threadId})).status,201);
@@ -223,7 +224,7 @@ test('testing switch covers discussion, repair generation, candidate batches and
  const retry={candidateId:failed.id,previousAttemptId:failed.attemptId,requestId:crypto.randomUUID(),confirmOneCall:true};
  assert.equal((await h.call(r=>h.candidates.retryCandidate(r,result.data.group.id),retry)).status,201);
  assert.equal((await h.call(r=>h.candidates.retryCandidate(r,result.data.group.id),retry)).status,200);
- assert.equal(calls,8);assert.equal((await h.snapshot()).tokens.recordedCalls,8);assert.equal((await h.snapshot()).tokens.todayModelAttempts,59);
+ assert.equal(calls,8);assert.equal((await h.snapshot()).tokens.recordedCalls,10);assert.equal((await h.snapshot()).tokens.todayModelAttempts,59);
  h.control.beforeBatch=()=>h.sqlite.prepare('UPDATE motes_projects SET archived=1 WHERE workspace_id=?').run('workspace:'+who);
  assert.equal((await h.call(r=>h.candidates.createCandidates(r),{...input,requestId:crypto.randomUUID()})).status,409);assert.equal(calls,8);
 });

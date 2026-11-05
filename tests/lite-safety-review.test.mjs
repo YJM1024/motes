@@ -19,14 +19,15 @@ const recovery = await import(await load('../lib/motes/recovery-state.ts'));
 const state = await import(await load('../app/lite/state.ts'));
 const api = await import(await load('../app/lite/api.ts'));
 const source = await readFile(new URL('../app/lite/useLiteGeneration.ts', import.meta.url), 'utf8');
-const factory = compile(source.replace(/^import .*;\r?$/gm, '').replace('export function useLiteGeneration', 'function useLiteGeneration'));
+const factory = compile(source.replace(/^import .*;\r?$/gm, '').replace(/^export type .*;\r?$/gm, '').replace('export function useLiteGeneration', 'function useLiteGeneration'));
 const appId = 'app-a', workspaceId = 'workspace-a';
 const attempt = () => ({ id: crypto.randomUUID(), requestId: crypto.randomUUID(), projectId: appId, baseVersionId: 'v2', text: '改成深色主题', mode: 'demo', state: 'failed', recovered: true, startedAt: Date.now() });
 const project = { id: appId, title: 'QA', currentVersionId: 'v3', versions: ['v2', 'v3'].map((id, index) => ({ id, number: index + 2, mode: 'demo', prompt: 'QA request', summary: 'QA saved', html: '<!doctype html><html><head><title>QA</title></head><body>saved</body></html>' })) };
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
-function harness({ transport, recovered = [], retryState } = {}) {
-  const cells = [], effects = [], values = new Map(), saved = [], navigation = { current: 0 };
+function harness({ transport, recovered = [], retryState, draft: initialDraft = '' } = {}) {
+  const cells = [], effects = [], values = new Map(), saved = [], accepted = [], rejected = [], navigation = { current: 0 };
+  let draft = initialDraft;
   if (recovered.length) values.set('motes-lite-outbox:' + workspaceId, JSON.stringify(recovered));
   let cursor = 0, dirty = false, pending = [], current, recoveryProps;
   const react = {
@@ -35,12 +36,12 @@ function harness({ transport, recovered = [], retryState } = {}) {
     useEffect(callback, deps) { const id = cursor++, previous = effects[id]; if (!previous || deps.some((value, index) => !Object.is(value, previous.deps[index]))) { effects[id] = { deps, cleanup: previous?.cleanup }; pending.push({ id, callback }); } },
   };
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
-  const bindings = { ...react, useLayoutEffect: react.useEffect, ...recovery, ...state, ...api, liteApi: transport, crypto, sessionStorage: storage, useAttemptRecovery: props => { recoveryProps = props; return { stateFor: () => retryState, checkAgain() {} }; } };
+  const bindings = { ...react, useLayoutEffect: react.useEffect, ...recovery, ...state, ...api, pollGenerationProgress: async () => {}, liteApi: transport, crypto, sessionStorage: storage, useAttemptRecovery: props => { recoveryProps = props; return { stateFor: () => retryState, checkAgain() {} }; } };
   const useHook = new Function(...Object.keys(bindings), factory + '\nreturn useLiteGeneration;')(...Object.values(bindings));
-  function render() { cursor = 0; dirty = false; current = useHook({ workspaceId, context: { projectId: appId }, baseVersionId: 'v2', navigation, enabled: true, onSaved: (...args) => saved.push(args) }); const queue = pending; pending = []; for (const item of queue) { effects[item.id].cleanup?.(); effects[item.id].cleanup = item.callback(); } }
+  function render() { cursor = 0; dirty = false; current = useHook({ workspaceId, context: { projectId: appId }, baseVersionId: 'v2', navigation, enabled: true, onAcceptedSend: attempt => { accepted.push(attempt); if (draft.trim() === attempt.text.trim()) draft = ''; }, onExplicitRejection: attempt => { rejected.push(attempt); if (!draft.trim()) draft = attempt.text; }, onSaved: (...args) => saved.push(args) }); const queue = pending; pending = []; for (const item of queue) { effects[item.id].cleanup?.(); effects[item.id].cleanup = item.callback(); } }
   function flush() { for (let count = 0; dirty && count < 15; count++) render(); assert.equal(dirty, false, 'Hook settles without an update loop'); }
   render(); flush();
-  return { get current() { return current; }, get recoveryProps() { return recoveryProps; }, values, saved, navigation, flush, rerender: () => { render(); flush(); }, close: () => effects.forEach(effect => effect?.cleanup?.()) };
+  return { get current() { return current; }, get recoveryProps() { return recoveryProps; }, get draft() { return draft; }, set draft(value) { draft = value; }, values, saved, accepted, rejected, navigation, flush, rerender: () => { render(); flush(); }, close: () => effects.forEach(effect => effect?.cleanup?.()) };
 }
 
 test('navigation begins before React rerenders: late generation cannot steal the requested app', async t => {
@@ -61,6 +62,31 @@ test('save_pending retries only the original generation payload and request ID',
   await h.current.send('a later unrelated draft', 'model', h.current.attempts[0]); h.flush();
   assert.deepEqual(sent, [{ path: '/api/generate', body: { requestId: original.requestId, prompt: original.text, mode: 'demo', projectId: appId, baseVersionId: 'v2' } }]);
   assert.equal(h.saved.length, 1); assert.equal(h.current.attempts.length, 0);
+  assert.equal(h.current.completed.versionId, 'v3');
+});
+
+test('accepted new sends clear immediately, and successful completion stays attached to its saved version', async t => {
+  const gate = deferred(), h = harness({ draft: '改成深色主题', transport: async () => gate.promise }); t.after(h.close);
+  const sending = h.current.send('改成深色主题', 'demo');
+  assert.equal(h.draft, '', 'Accepted send clears input before the POST resolves');
+  h.flush();
+  assert.equal(h.current.attempts.length, 1, 'Original prompt is immediately visible as a request message');
+  assert.equal(h.accepted.length, 1);
+  h.draft = '随后再做一项'; gate.resolve({ project }); await sending; h.flush();
+  assert.equal(h.draft, '随后再做一项', 'A draft typed while busy is preserved');
+  assert.equal(h.current.completed.projectId, appId);
+  assert.equal(h.current.completed.versionId, 'v3');
+  assert.equal(h.current.completed.progress.steps.every(step => step.state === 'completed'), true);
+});
+
+test('explicit demo rejection restores the submitted draft only when no newer draft exists', async t => {
+  const h = harness({ draft: '增加多用户注册', transport: async () => { throw new api.LiteApiError('示例暂不支持。', 422); } }); t.after(h.close);
+  await h.current.send('增加多用户注册', 'demo'); h.flush();
+  assert.equal(h.draft, '增加多用户注册');
+  assert.equal(h.rejected.length, 1);
+  const next = harness({ draft: '增加多用户注册', transport: async () => { throw new api.LiteApiError('示例暂不支持。', 422); } }); t.after(next.close);
+  const sending = next.current.send('增加多用户注册', 'demo'); next.draft = '这是新草稿'; await sending; next.flush();
+  assert.equal(next.draft, '这是新草稿', 'Explicit rejection does not overwrite text entered after submission');
 });
 
 test('stop preserves the original request and rejects its late response without starting another POST', async t => {
@@ -85,6 +111,15 @@ test('read-only recovery also invalidates immediately when navigation starts', a
   h.navigation.current++; gate.resolve({ project }); await reading;
   assert.equal(h.saved.length, 0);
   assert.equal(h.current.attempts[0].requestId, original.requestId);
+});
+
+test('recovery completion uses the receipt version even when a later version is current', async t => {
+  const original = attempt(), h = harness({ recovered: [original], transport: async () => ({ project }) }); t.after(h.close);
+  const props = h.recoveryProps, guard = { signal: new AbortController().signal, isCurrent: () => true };
+  await props.onRecovered(original, { requestId: original.requestId, status: 'done', projectId: appId, resultVersionId: 'v2' }, guard);
+  h.flush();
+  assert.equal(h.current.completed.projectId, appId);
+  assert.equal(h.current.completed.versionId, 'v2', 'The receipt version is used instead of currentVersionId v3');
 });
 
 async function declaration(file, name) {
@@ -138,8 +173,9 @@ test('confirmed demo capability rejection allows editing without a nonexistent r
 test('network and timeout ambiguity never use the confirmed demo rejection shortcut', async t => {
   for (const error of [new Error('这项修改超出示例模式能力。'), new DOMException('timeout', 'TimeoutError'), new api.LiteApiError('temporary gateway', 502)]) {
     let calls = 0;
-    const h = harness({ transport: async () => { calls++; throw error; } }); t.after(h.close);
+    const h = harness({ draft: 'original request', transport: async () => { calls++; throw error; } }); t.after(h.close);
     await h.current.send('original request', 'demo'); h.flush();
+    assert.equal(h.draft, '', 'Unknown transport outcomes do not restore or overwrite the cleared input');
     assert.equal(h.current.attempts.length, 1);
     assert.equal(h.current.attempts[0].recovered, true);
     assert.equal(h.current.attempts[0].retryConfirmed, false);

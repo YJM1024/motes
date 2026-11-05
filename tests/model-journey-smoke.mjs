@@ -1,4 +1,4 @@
-// Explicit opt-in: at most two model POSTs, never retried. Uses only the existing app API.
+// Explicit opt-in: two generation rounds (plan + execute each; at most four provider calls), never retried. Uses only the existing app API.
 // node tests/model-journey-smoke.mjs --run-two-calls D:/gpt/output/motes/stable-model-http.json
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -10,7 +10,7 @@ assert.equal(process.argv[2], '--run-two-calls', 'Explicit --run-two-calls is re
 const origin = 'https://motes-yangjunmin.yjm1024.chatgpt.site';
 const output = resolve(process.argv[3] || 'outputs/stable-model-http.json');
 const marker = 'QA model journey ' + new Date().toISOString();
-const report = { passed: false, origin, marker, startedAt: new Date().toISOString(), modelPostLimit: 2, modelPosts: 0, requests: [], checks: [], modelRequests: [], cleanup: {}, browserInteraction: 'NOT TESTED: this script performs HTTP checks only', runtimeSource: 'Not inferred by this script; record the native deployment identity separately.' };
+const report = { passed: false, origin, marker, startedAt: new Date().toISOString(), modelPostLimit: 2, modelPosts: 0, providerCallLimit: 4, modelCallsPerRound: 2, requests: [], checks: [], modelRequests: [], cleanup: {}, browserInteraction: 'NOT TESTED: this script performs HTTP checks only', runtimeSource: 'Not inferred by this script; record the native deployment identity separately.' };
 const cookies = new Map();
 let appId, publication;
 await mkdir(dirname(output), { recursive: true });
@@ -51,6 +51,7 @@ try {
   const a = await call('a', '/api/session'), b = await call('b', '/api/session');
   assert.equal(a.visibility, 'shared'); assert.equal(a.workspaceId, b.workspaceId); assert.notEqual(cookies.get('a'), cookies.get('b'));
   assert.equal(a.mode, 'model', 'Existing service must expose a configured model; no key setup is attempted');
+  const usageBefore = await call('a', '/api/usage');
   const prompt = `创建一个精简中文计数器，页面title和h1必须为“${marker}”。只需显示计数、加一按钮、保存状态。业务数据必须仅通过window.motes.data SDK持久化，共享key固定qa.counter.v1，值格式{count:number}；await ready，get后使用revision调用set。加载未完成不能保存，冲突或失败须保留输入并显示真实错误。无SDK时显示仅临时预览。界面白底蓝色，390px可用，保持HTML短小。`;
   const first = (await call('a', '/api/generate', { mode: 'model', prompt, requestId: randomUUID() })).project;
   appId = first.id; report.appId = appId;
@@ -62,7 +63,7 @@ try {
   assert.equal((await runtime('a', 'get', v1.id)).revision, 0);
   assert.equal((await runtime('a', 'set', v1.id, { value: { count: 7 }, expectedRevision: 0 })).revision, 1);
   assert.deepEqual((await runtime('b', 'get', v1.id)).value, { count: 7 });
-  const second = (await call('a', '/api/generate', { mode: 'model', prompt: '保留完整计数器与qa.counter.v1共享数据结构、SDK读取及revision冲突保护。增加“减一”按钮，主色改为紫色。保持原标题与其余功能，输出短小完整HTML。', projectId: appId, baseVersionId: v1.id, requestId: randomUUID() })).project;
+  const second = (await call('a', '/api/generate', { mode: 'model', prompt: '保留完整计数器与qa.counter.v1共享数据结构、SDK读取及revision冲突保护。增加“减一”按钮，主色改为紫色。保持原标题与其余功能；只做局部精确替换补丁，禁止重写整页。', projectId: appId, baseVersionId: v1.id, requestId: randomUUID() })).project;
   assert.equal(second.versions.length, 2); assert.deepEqual(second.versions[0], v1);
   const v2 = second.versions.find(v => v.id === second.currentVersionId); assert.equal(v2.mode, 'model'); assert.notEqual(v2.html, v1.html);
   await exportVersion(v2);
@@ -70,7 +71,7 @@ try {
   assert.deepEqual(refreshed.versions, second.versions); assert.equal(refreshed.currentVersionId, v2.id);
   assert.deepEqual((await runtime('b', 'get', v2.id)).value, { count: 7 });
   await runtime('b', 'set', v2.id, { value: { count: 999 }, expectedRevision: 0 }, 409);
-  report.checks.push('second model call saved distinct v2; fresh visitor reads both immutable versions and same business data; stale writer rejected');
+  report.checks.push('second generation round (separate plan and patch execution) saved distinct v2; fresh visitor reads both immutable versions and same business data; stale writer rejected');
   const restored = (await call('a', path() + '/restore', { versionId: v1.id })).project;
   assert.equal(restored.currentVersionId, v1.id); assert.deepEqual(restored.versions, second.versions);
   assert.deepEqual((await runtime('b', 'get', v1.id)).value, { count: 7 });
@@ -82,12 +83,16 @@ try {
   publication = (await call('a', path() + '/publication', { action: 'publish', versionId: v2.id, expectedRevision: publication.revision, requestId: randomUUID() })).publication;
   assert.equal((await call('anonymous', publicApi)).html, v2.html);
   report.checks.push('publication receipts and anonymous exact HTML for pinned v1 then explicit v2 update');
+  const usageAfter = await call('a', '/api/usage');
+  assert.equal(usageAfter.tokens.recordedCalls - usageBefore.tokens.recordedCalls, 4, 'Two rounds each make separate planning and execution calls');
+  report.providerCallsObserved = usageAfter.tokens.recordedCalls - usageBefore.tokens.recordedCalls;
+  report.checks.push('usage records four provider calls across two generation rounds; no automatic retries');
   report.passed = true;
 } catch (error) { report.error = error.message; process.exitCode = 1; }
 finally {
   // Failed or ambiguous model POSTs are never reissued. Only read their receipt.
   for (const item of report.modelRequests) {
-    try { const state = await call('a', '/api/requests/' + item.requestId); item.receipt = { status: state.status, projectId: state.projectId ?? null, resultVersionId: state.resultVersionId ?? null }; if (!appId && state.projectId) { appId = state.projectId; report.appId = appId; } }
+    try { const state = await call('a', '/api/requests/' + item.requestId); item.receipt = { status: state.status, projectId: state.projectId ?? null, resultVersionId: state.resultVersionId ?? null, progress: state.progress ?? null }; if (state.status === 'done') assert.ok(state.progress?.steps?.every(step => step.state === 'completed'), 'Saved workflow receipt has all real phases completed'); if (!appId && state.projectId) { appId = state.projectId; report.appId = appId; } }
     catch (error) { item.receiptError = error.message; }
   }
   try { const usage = await call('a', '/api/usage'); report.usage = report.modelRequests.map(r => usage.items.find(item => item.requestId === r.requestId) ?? { requestId: r.requestId, usage: 'unknown' }); }

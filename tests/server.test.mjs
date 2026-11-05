@@ -1,10 +1,12 @@
+import {executionMock} from './helpers/workflow-model-mock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 // Import pure TS modules through data URLs so Node's tests need no extra runner.
 import ts from 'typescript';
 import { DatabaseSync } from 'node:sqlite';
-async function moduleAt(path){const src=(await readFile(new URL(path,import.meta.url),'utf8')).replace("import { env } from 'cloudflare:workers';","const env={};");const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'))}
+async function moduleUrl(path){let src=(await readFile(new URL(path,import.meta.url),'utf8')).replace("import { env } from 'cloudflare:workers';","const env={};");for(const match of [...src.matchAll(/(?:from\s+)(['"])(\.[^'"]+)\1/g)])src=src.replaceAll(match[1]+match[2]+match[1],JSON.stringify(await moduleUrl(new URL(match[2]+'.ts',new URL(path,import.meta.url)).href)));const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;return 'data:text/javascript;base64,'+Buffer.from(js).toString('base64')}
+async function moduleAt(path){return import(await moduleUrl(path))}
 const {generateDemo}=await moduleAt('../lib/forma/demo.ts');
 const {parseModelOutput,generateModel}=await moduleAt('../lib/forma/model.ts');
 const {owner,assertOrigin}=await moduleAt('../lib/forma/security.ts');
@@ -48,10 +50,12 @@ test('model failures distinguish timeout, quota and authentication',async(t)=>{
 async function serverHarness() {
   const sqlite=new DatabaseSync(':memory:');
   sqlite.exec(await readFile(new URL('../drizzle/0000_great_roland_deschain.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0017_stale_millenium_guard.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0001_first_wind_dancer.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0002_workspace_settings.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0004_version_annotations.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0006_model_usage.sql',import.meta.url),'utf8'));
+  sqlite.exec(await readFile(new URL('../drizzle/0018_strong_leech.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0011_generation_results.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0007_generation_candidates.sql',import.meta.url),'utf8'));
   sqlite.exec(await readFile(new URL('../drizzle/0014_version_config.sql',import.meta.url),'utf8'));
@@ -69,27 +73,9 @@ async function serverHarness() {
   }
   harness.env={DB:{prepare,async batch(statements){sqlite.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());sqlite.exec('COMMIT');return results}catch(e){sqlite.exec('ROLLBACK');throw e}}},OPENAI_API_KEY:'fake-test-key',OPENAI_MODEL:'fake-model'};
   const key=crypto.randomUUID();globalThis[key]=harness.env;
-  let source=await readFile(new URL('../lib/forma/server.ts',import.meta.url),'utf8');
-  source=source.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);
-  for(const file of ['demo','model','security','app-title','model-config']){
-    const raw=await readFile(new URL(`../lib/forma/${file}.ts`,import.meta.url),'utf8');
-    const js=ts.transpileModule(raw.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
-    source=source.replaceAll(`'./${file}'`,JSON.stringify('data:text/javascript;base64,'+Buffer.from(js).toString('base64')));
-  }
-  let settingsSource=await readFile(new URL('../lib/motes/settings.ts',import.meta.url),'utf8');
-  const securitySource=(await readFile(new URL('../lib/forma/security.ts',import.meta.url),'utf8')).replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);
-  const securityJs=ts.transpileModule(securitySource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
-  settingsSource=settingsSource.replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64')));
-  const settingsJs=ts.transpileModule(settingsSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
-  source=source.replaceAll("'../motes/settings'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(settingsJs).toString('base64')));
-  const usageSource=(await readFile(new URL('../lib/motes/usage.ts',import.meta.url),'utf8')).replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64')));
-  const usageJs=ts.transpileModule(usageSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
-  source=source.replaceAll("'../motes/usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));
-  const elementSource=await readFile(new URL('../lib/motes/element-selection.ts',import.meta.url),'utf8');const elementJs=ts.transpileModule(elementSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/element-selection'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(elementJs).toString('base64')));
-  const configSource=await readFile(new URL('../lib/motes/version-config.ts',import.meta.url),'utf8');const configJs=ts.transpileModule(configSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/version-config'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(configJs).toString('base64')));
-  let resultSource=await readFile(new URL('../lib/motes/results.ts',import.meta.url),'utf8');resultSource=resultSource.replaceAll("'../forma/security'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(securityJs).toString('base64'))).replaceAll("'./usage'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(usageJs).toString('base64')));const resultJs=ts.transpileModule(resultSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;source=source.replaceAll("'../motes/results'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(resultJs).toString('base64')));
-  const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
-  const server=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+  const cache=new Map();
+  async function load(file){if(cache.has(file))return cache.get(file);let src=await readFile(new URL('../lib/'+file+'.ts',import.meta.url),'utf8');src=src.replace("import { env } from 'cloudflare:workers';",`const env=globalThis[${JSON.stringify(key)}];`);for(const match of [...src.matchAll(/(?:from\s+)(['"])(\.[^'"]+)\1/g)]){const target=new URL(match[2]+'.ts',new URL('../lib/'+file+'.ts',import.meta.url));src=src.replaceAll(match[1]+match[2]+match[1],JSON.stringify(await load(target.pathname.split('/lib/').at(-1).replace(/\.ts$/,''))));}const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;const url='data:text/javascript;base64,'+Buffer.from(js).toString('base64');cache.set(file,url);return url;}
+  const server=await import(await load('forma/server'));
   delete globalThis[key];
   const request=body=>new Request('https://forma.test/api/generate',{method:'POST',headers:{origin:'https://forma.test','content-type':'application/json',cookie:'forma_session='+'a'.repeat(64)},body:JSON.stringify(body)});
   return {...harness,server,request,close:()=>sqlite.close(),setFailRead:()=>{harness.failRead=true}};
@@ -98,7 +84,7 @@ async function serverHarness() {
 test('committed generation survives read failure and same request retries without a model call',async(t)=>{
   const h=await serverHarness();t.after(h.close);
   let calls=0;
-  t.mock.method(globalThis,'fetch',async()=>{calls++;h.setFailRead();return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})});
+  t.mock.method(globalThis,'fetch',executionMock(async()=>{calls++;h.setFailRead();return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})}));
   const body={prompt:'番茄钟',mode:'model',requestId:crypto.randomUUID()};
   const first=await h.server.route(()=>h.server.generate(h.request(body)));
   assert.equal(first.status,500);
@@ -164,7 +150,7 @@ test('target changes during model generation reject the entire application/versi
     const h=await serverHarness();const who=await owner(h.request({})),target=await targetProject(h,who);
     const foreign=await targetProject(h,'b'.repeat(64));
     let release,entered;const waiting=new Promise(resolve=>{release=resolve}),started=new Promise(resolve=>{entered=resolve});
-    const mocked=t.mock.method(globalThis,'fetch',async()=>{entered();await waiting;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})});
+    const mocked=t.mock.method(globalThis,'fetch',executionMock(async()=>{entered();await waiting;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})}));
     try{
       const body={prompt:'生成计时器',mode:'model',managedProjectId:target,requestId:crypto.randomUUID()};
       const pending=h.server.generate(h.request(body));await started;
@@ -181,7 +167,7 @@ test('AI title naming uses safe text, inherits selected project defaults and pre
   const h=await serverHarness();t.after(h.close);const who=await owner(h.request({})),target=await targetProject(h,who);
   h.sqlite.prepare('INSERT INTO motes_settings VALUES(?,?,?,?,?,?)').run(`workspace:${who}`,'project',target,'language','"en"',new Date().toISOString());
   const inputs=[];let calls=0;
-  t.mock.method(globalThis,'fetch',async(_url,options)=>{inputs.push(JSON.parse(options.body));calls++;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html.replace(/<title>[\s\S]*?<\/title>/i,`<title>${calls===1?'专注 &amp; 计时':'不应覆盖手动名称'}</title>`)}]}]})});
+  t.mock.method(globalThis,'fetch',executionMock(async(_url,options)=>{inputs.push(JSON.parse(options.body));calls++;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html.replace(/<title>[\s\S]*?<\/title>/i,`<title>${calls===1?'专注 &amp; 计时':'不应覆盖手动名称'}</title>`)}]}]})}));
   const first=await (await h.server.generate(h.request({prompt:'请以中文做一个好用的计时工具',mode:'model',managedProjectId:target,requestId:crypto.randomUUID()}))).json();
   assert.equal(first.project.title,'专注 & 计时');
   assert.match(inputs[0].instructions,/UI language English/);assert.match(inputs[0].instructions,/Explicit requirements.*take priority/);
@@ -205,11 +191,11 @@ test('confirmed model failure explicitly permits one-click retry with a new ID',
   for(const failure of ['timeout','unavailable']){
     const h=await serverHarness();
     let calls=0;
-    const mocked=t.mock.method(globalThis,'fetch',async()=>{
+    const mocked=t.mock.method(globalThis,'fetch',executionMock(async()=>{
       calls++;
       if(calls===1){if(failure==='timeout')throw new DOMException('timed out','TimeoutError');return new Response('',{status:503})}
       return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]});
-    });
+    }));
     try{
       const body={prompt:'番茄钟',mode:'model',requestId:crypto.randomUUID()};
       const first=await h.server.route(()=>h.server.generate(h.request(body)));
@@ -232,7 +218,7 @@ test('expired running request can be reissued and its old worker cannot commit o
   const initial=await (await h.server.generate(h.request({prompt:'番茄钟',mode:'demo',requestId:crypto.randomUUID()}))).json();
   const projectId=initial.project.id;
   let release;const waiting=new Promise(resolve=>{release=resolve});let entered;const started=new Promise(resolve=>{entered=resolve});
-  t.mock.method(globalThis,'fetch',async()=>{entered();await waiting;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})});
+  t.mock.method(globalThis,'fetch',executionMock(async()=>{entered();await waiting;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})}));
   const old={prompt:'调整页面',mode:'model',projectId,requestId:crypto.randomUUID()};
   const pending=h.server.generate(h.request(old));await started;
   h.sqlite.prepare('UPDATE forma_locks SET expires_at=0 WHERE request_id=?').run(old.requestId);
@@ -252,7 +238,7 @@ test('late worker cannot delete a newer worker lease or publish after losing own
   const initial=await (await h.server.generate(h.request({prompt:'番茄钟',mode:'demo',requestId:crypto.randomUUID()}))).json();
   const projectId=initial.project.id;
   const gates=[];
-  t.mock.method(globalThis,'fetch',()=>new Promise(resolve=>gates.push(()=>resolve(Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]})))));
+  t.mock.method(globalThis,'fetch',executionMock(()=>new Promise(resolve=>gates.push(()=>resolve(Response.json({status:'completed',output:[{content:[{type:'output_text',text:generateDemo('番茄钟').html}]}]}))))));
   const old={prompt:'旧修改',mode:'model',projectId,requestId:crypto.randomUUID()};
   const pendingOld=h.server.generate(h.request(old));
   while(gates.length<1)await new Promise(resolve=>setImmediate(resolve));

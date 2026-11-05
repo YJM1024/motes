@@ -47,6 +47,7 @@ export async function commitGenerationResult(db:D1Database,who:string,requestId:
   ...value.config?[db.prepare('INSERT INTO motes_version_config(version_id,operation,base_version_id,settings_json,created_at) SELECT ?,?,?,?,? WHERE '+gate).bind(version.id,value.config.operation,value.config.baseVersionId,value.config.settings?JSON.stringify(value.config.settings):null,version.createdAt,...gateBindings)]:[],
   ...value.isNew&&value.managedProjectId?[db.prepare('INSERT INTO motes_apps(app_id,workspace_id,project_id,updated_at) SELECT ?,g.workspace_id,g.id,? FROM motes_projects g WHERE g.id=? AND '+gate).bind(projectId,version.createdAt,value.managedProjectId,...gateBindings)]:[],
   ...version.mode==='model'?[usageCompletion(db,requestId,who,'succeeded',value.observation,null,{sql:gate,bindings:gateBindings})]:[],
+  db.prepare("UPDATE motes_generation_progress SET progress_json=json_set(progress_json,'$.steps[0].state','completed','$.steps[1].state','completed','$.steps[2].state','completed','$.steps[3].state','completed','$.updatedAt',?) WHERE request_id=? AND "+gate).bind(now,requestId,...gateBindings),
   db.prepare("UPDATE forma_requests SET status='done',result_version_id=? WHERE id=? AND owner=? AND "+gate).bind(version.id,requestId,who,...gateBindings),
   db.prepare('UPDATE motes_generation_results SET committed_at=? WHERE request_id=? AND owner=? AND '+gate).bind(now,requestId,who,...gateBindings),
   db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(projectId,requestId),

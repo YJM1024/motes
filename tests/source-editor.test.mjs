@@ -1,3 +1,4 @@
+import {executionMock} from './helpers/workflow-model-mock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -6,7 +7,7 @@ import ts from 'typescript';
 
 async function harness() {
   const sqlite = new DatabaseSync(':memory:'); sqlite.exec('PRAGMA foreign_keys=ON');
-  for (const file of ['0000_great_roland_deschain', '0001_first_wind_dancer', '0002_workspace_settings', '0004_version_annotations', '0006_model_usage', '0007_generation_candidates', '0014_version_config', '0011_generation_results']) sqlite.exec(await readFile(new URL(`../drizzle/${file}.sql`, import.meta.url), 'utf8'));
+  for (const file of ['0000_great_roland_deschain', '0001_first_wind_dancer', '0002_workspace_settings', '0004_version_annotations', '0006_model_usage', '0007_generation_candidates', '0014_version_config', '0011_generation_results', '0017_stale_millenium_guard', '0018_strong_leech']) sqlite.exec(await readFile(new URL(`../drizzle/${file}.sql`, import.meta.url), 'utf8'));
   const control = { beforeBatch: null };
   function prepare(sql, args = []) { return { bind(...values) { return prepare(sql, values); }, async first() { return sqlite.prepare(sql).get(...args) ?? null; }, async all() { return { results: sqlite.prepare(sql).all(...args) }; }, run() { return { meta: { changes: Number(sqlite.prepare(sql).run(...args).changes) } }; } }; }
   const key = crypto.randomUUID(); globalThis[key] = { OPENAI_API_KEY: 'fake-test-key', OPENAI_MODEL: 'fake-model', DB: { prepare, async batch(statements) { if (control.beforeBatch) { const run = control.beforeBatch; control.beforeBatch = null; run(); } sqlite.exec('BEGIN'); try { const result = statements.map(s => s.run()); sqlite.exec('COMMIT'); return result; } catch (e) { sqlite.exec('ROLLBACK'); throw e; } } } };
@@ -40,7 +41,7 @@ async function harness() {
 
 test('manual save creates an immutable complete version without model calls or model quota', async t => {
   const h = await harness(); t.after(h.close); const app = await h.seed();
-  t.mock.method(globalThis, 'fetch', () => { throw new Error('Manual saves must never call fetch'); });
+  t.mock.method(globalThis, 'fetch',executionMock( () => { throw new Error('Manual saves must never call fetch'); }));
   const before = h.sqlite.prepare('SELECT * FROM forma_versions ORDER BY number').all();
   const saved = await h.save(app, { name: 'First manual' }); assert.equal(saved.status, 201);
   const version = saved.data.project.versions.at(-1); assert.equal(version.number, 3); assert.equal(version.mode, 'manual'); assert.equal(version.model, undefined); assert.equal(version.name, 'First manual'); assert.equal(version.important, false);
@@ -125,6 +126,6 @@ test('manual versions can be copied; subsequent real-generation path uses demo/m
   const h = await harness(); t.after(h.close); const app = await h.seed();
   const manual = await h.save(app); assert.equal(manual.status, 201); const version = manual.data.project.versions.at(-1);
   const copyResponse = await h.server.route(() => h.tools.forkVersion(h.request({ versionId: version.id, requestId: crypto.randomUUID() }), app.id)); assert.equal(copyResponse.status, 201); assert.equal((await copyResponse.json()).project.versions[0].mode, 'manual');
-  let modelCalls = 0; t.mock.method(globalThis, 'fetch', async (_url, options) => { modelCalls++; assert.match(JSON.parse(options.body).input, /手工专注/); return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: h.demo.generateDemo('番茄钟').html }] }] }); });
+  let modelCalls = 0; t.mock.method(globalThis, 'fetch',executionMock( async (_url, options) => { modelCalls++; assert.match(JSON.parse(options.body).input, /手工专注/); return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: h.demo.generateDemo('番茄钟').html }] }] }); }));
   const generated = await h.server.generate(h.request({ mode: 'model', prompt: 'Add a button', projectId: app.id, baseVersionId: version.id, requestId: crypto.randomUUID() })); assert.equal(generated.status, 200); assert.equal((await generated.json()).project.versions.at(-1).mode, 'model'); assert.equal(modelCalls, 1);
 });

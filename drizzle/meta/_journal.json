@@ -120,6 +120,20 @@
       "when": 1793450558539,
       "tag": "0016_common_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1793902105493,
+      "tag": "0017_stale_millenium_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793902173566,
+      "tag": "0018_strong_leech",
+      "breakpoints": true
     }
   ]
 }

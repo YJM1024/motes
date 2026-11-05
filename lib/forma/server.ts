@@ -5,10 +5,12 @@ import { stageResult, stagedResult, commitGenerationResult } from '../motes/resu
 import { generateDemo } from './demo';
 import { initialAppTitle } from './app-title';
 import { configuredModels, defaultModel } from './model-config';
-import { budgetReservation, usageReservation, usageCompletion } from '../motes/usage';
+import { budgetReservation, usageReservation, usageCompletion, usageCheckpoint } from '../motes/usage';
 import type { ModelObservation } from './model';
 import { readSettings, generationPreferences } from '../motes/settings';
-import { generateModel, ModelError } from './model';
+import { generateWorkflowModel, ModelError } from './model';
+import {generationProgress} from '../motes/generation-progress';
+import {applyHtmlPatch,demoPatch,checkGeneratedHtml} from '../motes/html-patch';
 import type { Project, Summary, Version } from './types';
 import { HttpError, digest, owner, visitor, assertOrigin } from './security';
 export { COOKIE, digest, owner } from './security';
@@ -104,14 +106,29 @@ export async function generate(request:Request){
     if(!reserved[1].meta.changes){await db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId).run();const state=await db.prepare(`SELECT CASE WHEN ${stateSql} THEN 1 ELSE 0 END AS allowed`).bind(...stateBindings).first<{allowed:number}>();if(!state?.allowed)throw new HttpError(409,'应用、创建目标或容量已变化，请刷新核对后重试。','new');throw new HttpError(429,'今日生成额度已用完，请明天再试。')}
   }catch(error){if(error instanceof HttpError)throw error;throw new HttpError(409,'项目正在处理其他请求，请稍后重试。')}
   let observation:ModelObservation|null=null;
+  const progress=generationProgress(db,who,requestId);
   try{
-    const html=demo?.html??await generateModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base)+(elementContext?elementGenerationInstructions(elementContext):''),value=>{observation=value});
+    let html:string;
+    if(demo){
+      await progress.set('plan','running');
+      // Local example planning: choose the fixed template/settings, never claim an AI call.
+      await progress.set('plan','completed');
+      await progress.set('execute','running');
+      if(base&&demo.html!==base.html)html=applyHtmlPatch(base.html,demoPatch(base.html,demo.html));
+      else html=demo.html;
+      await progress.set('execute','completed');
+    }else html=await generateWorkflowModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base)+(elementContext?elementGenerationInstructions(elementContext):''),async value=>{observation=value;await usageCheckpoint(db,requestId,who,value).run()},(id,state)=>progress.set(id,state));
+    await progress.set('check','running');
+    checkGeneratedHtml(html);
+    await progress.set('check','completed');
+    await progress.set('save','running');
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};
     await stageResult(db,who,requestId,'generation',{projectId:id,isNew:!project,title:demo?.title??initialAppTitle(html,prompt),version,expectedCurrentVersionId:project?.currentVersionId??null,managedProjectId:managedProjectId??null,observation,config:{operation:elementContext?'element':base?'modify':'generate',baseVersionId:base?.id??null,settings:snapshotPreferences(settings.effective,mode,selectedModel)}});
     await commitGenerationResult(db,who,requestId,true);
   }catch(error){
     if(await stagedResult(db,who,requestId,'generation')){if(error instanceof HttpError)throw error;throw new HttpError(503,'生成结果已暂存，请仅重试保存。');}
-    const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId)]);
+    const failedProgress=progress.failureStatement();
+    const cleared=await db.batch([db.prepare("UPDATE forma_requests SET status='failed' WHERE id=? AND owner=? AND status='running'").bind(requestId,who),db.prepare('DELETE FROM forma_locks WHERE project_id=? AND request_id=?').bind(id,requestId),...failedProgress?[failedProgress]:[]]);
     if(mode==='model')await usageCompletion(db,requestId,who,'failed',observation,error instanceof HttpError?'state_changed':(observation as ModelObservation|null)?.errorCode??'storage').run();
     // Only a confirmed failed reservation can be retried with a new ID. An
     // ambiguous commit/network failure must first reconcile the original ID.

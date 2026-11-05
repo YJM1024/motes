@@ -2,7 +2,7 @@
 
 Motes Lite 是面向游客共享空间的轻量网页应用工作台：通过对话生成单文件 HTML，在隔离预览区操作、保存版本并按需发布。
 
-**状态：Motes Lite v24 已上线。** [正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)当前运行 runtime source `f7fb42db030f06e725b28075ba2664580c65e46b`。本地完整浏览器流程、CI 双平台 329 项测试、TypeScript 和原生 build 均通过。实体手机与已安装旧 Service Worker 升级尚未测试；完整证据和边界见[验收记录](docs/acceptance.md)。
+访问[正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)体验当前 Lite。此前各次发布的验收结果和适用边界保留在[历史验收记录](docs/acceptance.md)。
 
 完整功能仍保留在稳定的 [`full-product` 分支](https://github.com/YJM1024/motes/tree/full-product)（`51a315f`）；本地归档包位于 `D:\gpt\output\motes\motes-full-product.zip`。Lite 从 full-product 稳定基线 `809bb58` 精简，两个版本继续共享数据模型与 API。
 
@@ -16,13 +16,15 @@ Motes Lite 是面向游客共享空间的轻量网页应用工作台：通过对
 6. 继续对话修改，查看只读源码和版本历史；恢复历史代码不会回滚 SDK 业务数据。
 7. 发布选定版本，复制稳定公开链接并在独立页面使用。
 
+模型生成本轮采用“简短规划、执行、检查、保存”四步状态流程；新建输出完整 HTML，后续修改使用严格补丁。流程细节、demo 与模型模式的区别及限制见[生成工作流](docs/generation-workflow.md)。
+
 ## 保留范围
 
 - 复用现有 D1/API 和 iframe 预览，生成物仍是完整的单文件 HTML；不引入 AppSpec 或容器。
 - 应用显式通过 Motes SDK 写入的键值数据才会持久保存。普通表单输入、DOM 状态和计时器不会自动保存。
 - 手机界面可在聊天与预览间切换。Lite 使用网络；完整离线工作台仅在[完整版](https://github.com/YJM1024/motes/tree/full-product)提供。
-- 状态依据真实服务端回执和 iframe load 更新，不展示虚构的多 Agent 推理阶段，也不把请求发送说成服务端已接收。
-- 服务端无模型配置时，只提供标注明确、范围有限的三个示例；其他需求按不支持处理。真实模型调用需要服务端配置及额度，Lite 本轮验收不再增加模型调用。
+- 状态依据真实服务端回执和 iframe load 更新；生成阶段展示简短规划、执行、检查与保存，不展示隐藏推理或代码流。
+- 服务端无模型配置时，只提供标注明确、范围有限的示例；其他需求按不支持处理。模型模式通常进行规划与执行两次上游调用，需服务端配置及额度；demo 使用本地预设计划，不调用模型。
 
 ## 完整版保留的功能
 
@@ -30,7 +32,7 @@ Lite 不显示赛马、独立讨论、元素编辑、源码编辑器、复杂设
 
 ## 本地启动与验收
 
-本地依赖、数据库迁移和安全边界见[本地启动说明](docs/local-setup.md)。当前产品状态、恢复/数据检查及未测范围见[验收说明](docs/acceptance.md)。自动测试与类型检查已通过；浏览器与发布结论以验收记录为准。
+本地依赖、数据库迁移和安全边界见[本地启动说明](docs/local-setup.md)。发布验收、恢复/数据检查及未测范围见[验收记录](docs/acceptance.md)，其中保留历史发布事实。
 
 ## 数据与安全
 

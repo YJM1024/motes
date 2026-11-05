@@ -12,6 +12,7 @@ export default function LiteVersionDiff({ versions, currentVersionId, onClose }:
   const previous = currentIndex > 0 ? ordered[currentIndex - 1] : ordered.find(version => version.id !== currentVersionId);
   const [beforeId, setBeforeId] = useState<string | null>(null);
   const [afterId, setAfterId] = useState<string | null>(null);
+  const [wrapLines, setWrapLines] = useState(true);
   const before = ordered.find(version => version.id === beforeId) ?? previous;
   const after = ordered.find(version => version.id === afterId) ?? ordered.find(version => version.id === currentVersionId) ?? ordered.at(-1);
   const result = useMemo(() => {
@@ -33,8 +34,8 @@ export default function LiteVersionDiff({ versions, currentVersionId, onClose }:
       : result?.rows === null ? <p className="lite-diff-empty">这两个版本的代码量超过当前对比预算，暂时无法安全展示行级差异。</p>
       : result && before && after && before.id === after.id ? <p className="lite-diff-empty">选择了同一版本，没有差异。</p>
       : result ? <>
-        <p className="lite-diff-count">新增 {result.added} 行 · 删除 {result.removed} 行</p>
-        <div className="lite-diff-code" role="region" aria-label="代码行差异" tabIndex={0}><table><tbody>{result.rows.map((row, index) => <tr className={`lite-diff-${row.kind}`} key={`${row.kind}-${row.beforeLine ?? '-'}-${row.afterLine ?? '-'}-${index}`}>
+        <div className="lite-diff-summary"><p className="lite-diff-count">新增 {result.added} 行 · 删除 {result.removed} 行</p><label className="lite-diff-wrap-toggle"><input type="checkbox" checked={wrapLines} onChange={event => setWrapLines(event.target.checked)}/>自动换行</label></div>
+        <div className={`lite-diff-code${wrapLines ? ' is-wrapped' : ''}`} role="region" aria-label="代码行差异" tabIndex={0}><table><tbody>{result.rows.map((row, index) => <tr className={`lite-diff-${row.kind}`} key={`${row.kind}-${row.beforeLine ?? '-'}-${row.afterLine ?? '-'}-${index}`}>
           <td className="lite-diff-mark">{row.kind === 'added' ? '+' : row.kind === 'removed' ? '−' : ' '}</td><td className="lite-diff-line">{row.beforeLine ?? ''}</td><td className="lite-diff-line">{row.afterLine ?? ''}</td><td className="lite-diff-text"><code>{row.text || ' '}</code></td>
         </tr>)}</tbody></table></div>
       </> : <p className="lite-diff-empty">请选择两个版本。</p>}
