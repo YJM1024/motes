@@ -1,17 +1,5 @@
-import OfflineProvider from "./components/OfflineProvider";
-import type { Metadata } from "next";
-import "./globals.css";
-import "./components/motion-preferences.css";
-import MotionPreferenceProvider from "./components/MotionPreferenceProvider";
-import PalettePreferenceProvider from "./components/PalettePreferenceProvider";
-import HostLocaleProvider from "./components/HostLocaleProvider";
-import ThemePreferenceProvider from "./components/ThemePreferenceProvider";
-
-export const metadata: Metadata = {
-  title: "Motes · 微粒 — AI 应用工作台",
-  description: "用自然语言构建你的应用。在 Motes 中描述想法、即时预览、持续迭代。",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
-};
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body><HostLocaleProvider><ThemePreferenceProvider><MotionPreferenceProvider><PalettePreferenceProvider><OfflineProvider>{children}</OfflineProvider></PalettePreferenceProvider></MotionPreferenceProvider></ThemePreferenceProvider></HostLocaleProvider></body></html>;
-}
+import type { Metadata } from 'next';
+import LiteOfflineRetirement from './lite/LiteOfflineRetirement';
+import './globals.css';
+export const metadata: Metadata = { title: 'Motes · 微粒 — 轻量 AI 应用工作台', description: '用一句话创建小应用，预览、继续修改并公开运行。', icons: { icon: '/favicon.svg' } };
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="zh-CN"><body><LiteOfflineRetirement/>{children}</body></html>; }
