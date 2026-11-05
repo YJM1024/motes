@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
+import { requirePrivateWorkspace } from './http-smoke-helpers.mjs';
 
 const origin=(process.argv[2]||'http://127.0.0.1:5173').replace(/\/$/,'');
 const output=process.argv[3];
@@ -16,6 +17,7 @@ async function request(cookie,path,body,status=200,source=origin){
   assert.equal(response.status,status,`${path}: ${data.error||'unexpected status'}`);return data;
 }
 try{
+  await requirePrivateWorkspace(origin);
   const a=await visitor(),b=await visitor();
   const initial=await request(a,'/api/workspace'),other=await request(b,'/api/workspace');
   assert.equal(initial.profile.kind,'test');assert.notEqual(initial.workspace.id,other.workspace.id);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
+import { requirePrivateWorkspace } from './http-smoke-helpers.mjs';
 
 const origin=(process.argv[2]||'http://127.0.0.1:5173').replace(/\/$/,'');
 const output=process.argv[3];
@@ -23,6 +24,7 @@ async function visitor(){
 }
 const page=async path=>fetch(origin+path,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(30000)});
 try {
+  await requirePrivateWorkspace(origin);
   for(const [key,path] of [['workbench','/'],['management','/manage']]){
     const response=await page(path);result.headers[key]={status:response.status,csp:response.headers.get('Content-Security-Policy')};await response.text();
   }

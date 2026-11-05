@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { requirePrivateWorkspace } from './http-smoke-helpers.mjs';
 const origin = process.argv[2] || 'http://127.0.0.1:5173';
+await requirePrivateWorkspace(origin);
 async function visitor() { const r = await fetch(origin + '/api/session', { signal: AbortSignal.timeout(15000) }); assert.equal(r.status, 200); const cookie = r.headers.get('set-cookie')?.split(';')[0]; assert.ok(cookie); return cookie; }
 const cookie = await visitor(), other = await visitor();
 const requests = [];
