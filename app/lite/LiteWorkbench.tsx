@@ -8,7 +8,7 @@ import { useLiteWorkspace } from './useLiteWorkspace';
 import { useLiteGeneration } from './useLiteGeneration';
 import { liteApi } from './api';
 import { litePreview } from './preview';
-import { previewIdentity, safeFilename } from './state';
+import { previewIdentity, safeFilename, validLiteProject } from './state';
 import LiteRuntimeDataBridge from './LiteRuntimeDataBridge';
 import LitePublication from './LitePublication';
 import './lite.css';
@@ -22,7 +22,7 @@ export default function LiteWorkbench() {
   const [sidebar, setSidebar] = useState(false), [history, setHistory] = useState(false), [source, setSource] = useState(false), [viewId, setViewId] = useState<string | null>(null), [reload, setReload] = useState(0);
   const [groupForm, setGroupForm] = useState(false), [groupName, setGroupName] = useState(''), [groupBusy, setGroupBusy] = useState(false), [restoring, setRestoring] = useState(false), [loaded, setLoaded] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null), appRef = useRef(w.project?.id), draft = useWorkspaceDraft(w.session?.workspaceId || null, 'lite:' + contextKey(w.context)); appRef.current = w.project?.id;
-  const g = useLiteGeneration({ workspaceId: w.session?.workspaceId || null, context: w.context, baseVersionId: w.project?.currentVersionId, navigation: w.navigation, enabled: !w.loading, onSaved: (project, attempt) => { draft.set(current => current.trim() === attempt.text.trim() ? "" : current); w.adopt(project); setViewId(null); setReload(n => n + 1); setPane('preview'); void w.refresh().catch(() => {}); } });
+  const g = useLiteGeneration({ workspaceId: w.session?.workspaceId || null, context: w.context, baseVersionId: w.project?.currentVersionId, navigation: w.navigation, enabled: !w.loading, onSaved: (project, attempt) => { const nextDraft = draft.value.trim() === attempt.text.trim() ? "" : draft.value; if (!attempt.projectId && nextDraft) { draft.writeTo("lite:" + contextKey({ projectId: project.id }), nextDraft); draft.set(""); } else draft.set(current => current.trim() === attempt.text.trim() ? "" : current); w.adopt(project); setViewId(null); setReload(n => n + 1); setPane('preview'); void w.refresh().catch(() => {}); } });
   const [resultNote, setResultNote] = useState('');
   const scope = contextKey(w.context);
   useEffect(() => { setViewId(null); setSource(false); setHistory(false); setResultNote(''); }, [scope]);
@@ -43,7 +43,7 @@ export default function LiteWorkbench() {
     try {
       const result = await liteApi<{ project: Project }>('/api/projects/' + appId + '/restore', { versionId });
       if (appRef.current !== appId || w.navigation.current !== navigation) return;
-      w.adopt(result.project); setViewId(null); setReload(n => n + 1); setResultNote('已还原代码版本。预览已重新载入；已保存业务数据保持当前值。'); void w.refresh().catch(() => {});
+      if (!validLiteProject(result.project, appId)) throw new Error('还原结果尚未完整返回，请重新读取应用。'); w.adopt(result.project); setViewId(null); setReload(n => n + 1); setResultNote('已还原代码版本。预览已重新载入；已保存业务数据保持当前值。'); void w.refresh().catch(() => {});
     } catch (e) { if (appRef.current === appId && w.navigation.current === navigation) w.setError(e instanceof Error ? e.message : '还原失败。'); }
     finally { setRestoring(false); }
   }
@@ -73,7 +73,7 @@ export default function LiteWorkbench() {
           <div className="lite-chat-scroll">
             {!w.project && <div className="lite-welcome"><div className="lite-orbit"><Sparkles size={25}/></div><h2>你想做点什么？</h2><p>描述一个想法，生成可交互的页面。<br/>再聊几句，把细节慢慢做好。</p><div className="lite-examples">{examples.map(example => <button key={example.title} onClick={() => draft.set(example.text)}><span>{example.icon}</span>{example.title}<small>↗</small></button>)}</div></div>}
             {w.project?.versions.map(v => <article className="lite-message-pair" key={v.id}><div className="lite-user-message">{v.prompt}</div><div className="lite-assistant-message"><span className="lite-message-avatar">✣</span><div><strong><Check size={14}/>已保存 v{v.number}<small>{v.mode === 'demo' ? '示例生成' : v.mode === 'manual' ? '手工版本' : 'AI 生成'}</small></strong><p>{v.summary}</p><button onClick={() => { setViewId(v.id); setPane('preview'); }}>查看这一版 <Eye size={12}/></button></div></div></article>)}
-            {g.attempts.map(attempt => { const status = g.recovery.stateFor(attempt), retry = attempt.retryConfirmed || status?.retry === 'new' || status?.retry === 'same' || status?.retry === 'save'; return <article className="lite-message-pair" key={attempt.id}><div className="lite-user-message">{attempt.text}</div><div className="lite-attempt" role="status"><strong>{attempt.state === 'sending' ? <><LoaderCircle size={15} className="lite-spin"/>请求已发出，等待响应</> : '原请求需要核对'}</strong><p>{status?.message || attempt.error || '接收、生成与保存状态尚未确认。'}</p>{attempt.state === 'sending' ? <button onClick={g.stop}>停止本页等待</button> : <div><button disabled={g.busy} onClick={() => g.recovery.checkAgain()}>再次核对</button>{retry && <button disabled={g.busy} onClick={() => void g.send(attempt.text, attempt.mode, attempt)}>{status?.retry === 'save' ? '仅重试保存' : status?.retry === 'same' ? '沿用原编号重试' : '重新发送原需求'}</button>}</div>}<details><summary>请求记录</summary><code>{attempt.requestId}</code><p>停止等待不会保证取消服务端执行。核对结果前不重复生成。</p></details></div></article>; })}
+            {g.attempts.map(attempt => { const status = g.recovery.stateFor(attempt), retry = attempt.retryConfirmed || status?.retry === 'new' || status?.retry === 'same' || status?.retry === 'save'; return <article className="lite-message-pair" key={attempt.id}><div className="lite-user-message">{attempt.text}</div><div className="lite-attempt" role="status"><strong>{attempt.state === 'sending' ? <><LoaderCircle size={15} className="lite-spin"/>请求已发出，等待响应</> : '原请求需要核对'}</strong><p>{status?.message || attempt.error || '接收、生成与保存状态尚未确认。'}</p>{attempt.state === 'sending' ? <button onClick={g.stop}>停止本页等待</button> : <div><button disabled={g.busy} onClick={() => g.recovery.checkAgain()}>再次核对</button>{retry && <button disabled={g.busy} onClick={() => void g.send(attempt.text, attempt.mode, attempt)}>{status?.retry === 'save' ? '仅重试保存' : status?.retry === 'same' ? '沿用原编号重试' : '重新发送原需求'}</button>}{(attempt.retryConfirmed || status?.retry === 'new') && <button disabled={g.busy} onClick={() => g.dismiss(attempt)}>结束此请求，编辑新需求</button>}</div>}<details><summary>请求记录</summary><code>{attempt.requestId}</code><p>停止等待不会保证取消服务端执行。核对结果前不重复生成。</p></details></div></article>; })}
             {g.notice && <p className="lite-note" role="status">{g.notice}</p>}{resultNote && <p className="lite-note" role="status">{resultNote}</p>}
           </div>
           <form className="lite-composer" onSubmit={e => { e.preventDefault(); send(); }}><div className="lite-mode"><select aria-label="生成模式" value={mode} onChange={e => setMode(e.target.value as 'demo' | 'model')} disabled={g.busy}><option value="demo">示例模式</option>{w.session?.mode === 'model' && <option value="model">真实 AI · {w.session.model}</option>}</select><small>{mode === 'demo' ? '不调用模型' : '需求与当前代码将发送给模型'}</small></div><div className="lite-input-wrap"><textarea aria-label="应用需求" placeholder={w.project ? '继续描述你想修改的地方…' : '例如：做一个可以保存支出的旅行预算工具…'} value={draft.value} onChange={e => draft.set(e.target.value)} maxLength={4000} rows={3}/><button className="lite-send" type="submit" aria-label="发送需求" disabled={!canSend}>{g.busy ? <LoaderCircle size={18} className="lite-spin"/> : <ArrowUp size={19}/>}</button></div><p className="lite-composer-hint">{mode === 'demo' ? '示例仅支持旅行预算、任务看板、番茄钟及有限修改。其他需求会如实提示。' : '生成结果需在预览中检查；完整性检查不等于功能正确。'}{draft.unavailable && ' 浏览器草稿保存不可用，请保留输入。'}</p></form>
@@ -93,4 +93,7 @@ export default function LiteWorkbench() {
     </div>
   </div>;
 }
+
+
+
 

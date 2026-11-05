@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import type { Project } from '@/lib/forma/types';
 import { useAttemptRecovery } from '@/app/hooks/useAttemptRecovery';
 import { contextKey, matchesContext, restoredAttempts, removeFinishedAttempt, failOriginalAttempt, prepareRecoveryRetry, type RecoveryAttempt, type RecoveryContext } from '@/lib/motes/recovery-state';
-import { generationBody } from './state';
+import { generationBody, validLiteProject } from './state';
 import { LiteApiError, liteApi } from './api';
 
 type Props = { workspaceId: string | null; context: RecoveryContext; baseVersionId?: string; navigation: RefObject<number>; enabled: boolean; onSaved: (project: Project, attempt: RecoveryAttempt) => void };
@@ -31,6 +31,7 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
     setBusy(false); setNotice(''); setGeneration(n => n + 1);
   }, [scope, navigationVersion]);
   function accept(attempt: RecoveryAttempt, project: Project) {
+    if (!validLiteProject(project, attempt.projectId)) throw new Error('保存结果尚未完整返回，请核对原请求。');
     write(removeFinishedAttempt(all.current, attempt)); setBusy(false); active.current = null;
     setNotice(`服务端已返回并保存版本 v${project.versions.find(v => v.id === project.currentVersionId)?.number ?? ''}。请在预览中检查功能。`);
     savedCallback.current(project, attempt);
@@ -40,6 +41,8 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
     onRecovered: async (attempt, receipt, guard) => {
       const captured = scopeRef.current;
       const result = await liteApi<{ project: Project }>('/api/projects/' + receipt.projectId, undefined, guard.signal);
+      if (!guard.isCurrent() || !mounted.current || captured !== scopeRef.current || !matchesContext(attempt, context)) return;
+      if (!validLiteProject(result.project, receipt.projectId) || result.project.id !== receipt.projectId || !result.project.versions.some(v => v.id === receipt.resultVersionId)) throw new Error('原请求保存结果尚未完整返回。');
       if (guard.isCurrent() && mounted.current && captured === scopeRef.current && matchesContext(attempt, context)) accept(attempt, result.project);
     } });
   async function send(text: string, mode: 'demo' | 'model', retry?: RecoveryAttempt) {
@@ -63,7 +66,7 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
     } catch (e) {
       if (!current()) return;
       const message = e instanceof Error ? e.message : '结果尚未确认。';
-      write(failOriginalAttempt(all.current, attempt, message, e instanceof LiteApiError && e.retry === 'new'));
+      write(failOriginalAttempt(all.current, attempt, message, e instanceof LiteApiError && (e.retry === 'new' || [400, 422, 429].includes(e.status))));
       setNotice(message + ' 原成果和需求已保留。'); active.current = null; setBusy(false);
     }
   }
@@ -72,6 +75,11 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
     ++epoch.current; setGeneration(epoch.current); active.current = null; pending.controller.abort();
     write(failOriginalAttempt(all.current, pending.attempt, '已停止本页等待；请核对原请求，服务端执行及模型费用可能继续。')); setBusy(false); setNotice('已停止本页等待。原请求可能继续执行并产生模型费用，请先核对结果。');
   }
-  return { attempts: attempts.filter(a => matchesContext(a, context)), busy, notice, recovery, send, stop };
+  function dismiss(attempt: RecoveryAttempt) { const state = recovery.stateFor(attempt); if (attempt.retryConfirmed || state?.retry === 'new') write(removeFinishedAttempt(all.current, attempt)); }
+  return { dismiss, attempts: attempts.filter(a => matchesContext(a, context)), busy, notice, recovery, send, stop };
 }
+
+
+
+
 

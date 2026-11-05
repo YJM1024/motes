@@ -47,23 +47,3 @@ test('compare target resolution identifies a stale base without substituting it'
   assert.equal(api.resolveCompareHandoff(handoff(),{apps:[],projects:[{id:'project-a',archived:false}]}).status,'ready');
   assert.equal(api.resolveCompareHandoff(handoff(),{apps:[],projects:[{id:'project-a',archived:true}]}).status,'stale-target');
 });
-
-function elementTree(node) {
-  if(node===null||node===undefined||node===false)return [];
-  if(Array.isArray(node))return node.flatMap(elementTree);
-  if(typeof node!=='object'||!('type'in node))return [];
-  return [node,...elementTree(node.props?.children)];
-}
-function text(node){if(Array.isArray(node))return node.map(text).join(' ');if(node&&typeof node==='object'&&'type'in node)return text(node.props?.children);return node==null?'':String(node)}
-
-test('inline entry changes only mode/count and does not navigate or call a model',async()=>{
-  const source=await readFile(new URL('../app/components/CandidateModeEntry.tsx',import.meta.url),'utf8');
-  const compiled=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace(/^import .*?;\r?\n/gm,'').replace('export default function CandidateModeEntry','function CandidateModeEntry');
-  const jsx=(type,props)=>({type,props}),styles=new Proxy({}, {get:(_,key)=>String(key)});
-  const Component=new Function('useHostLocale','styles','_jsx','_jsxs',compiled+';return CandidateModeEntry;')(()=>({locale:'zh-CN'}),styles,jsx,jsx);
-  const changes=[];const props={workspaceId:'space',prompt:'番茄钟',mode:'single',count:2,creationMode:'demo',confirmed:false,confirmationOpen:false,onModeChange:mode=>changes.push(['mode',mode]),onCountChange:count=>changes.push(['count',count]),onConfirmedChange:()=>{}};
-  for(const count of [2,3,4]){const tree=Component(props);elementTree(tree).find(n=>n.type==='button'&&text(n)===count+' 路赛马').props.onClick();assert.deepEqual(changes.splice(0),[['count',count],['mode','race']]);}
-  const offline=Component({...props,offline:true});const offlineButtons=elementTree(offline).filter(n=>n.type==='button');assert.equal(offlineButtons.find(n=>text(n)==='单次').props.disabled,undefined);for(const count of [2,3,4])assert.equal(offlineButtons.find(n=>text(n)===count+' 路赛马').props.disabled,true);assert.match(text(offline),/赛马需要联网，离线可使用单次示例/);
-  const demo=Component({...props,mode:'race'});assert.match(text(demo),/0 次真实模型调用/);assert.equal(elementTree(demo).some(n=>n.type==='a'),false);
-  const ai=Component({...props,mode:'race',creationMode:'model',confirmationOpen:true});assert.match(text(ai),/真实模型调用并产生相应费用/);assert.ok(elementTree(ai).some(n=>n.type==='input'&&n.props.type==='checkbox'));
-});

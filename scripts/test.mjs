@@ -5,11 +5,24 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const roots = ['tests', 'lib/motes', 'app/manage'];
+// Lite requires its main suite and keeps backend/domain tests; pure management
+// filter tests remain in scope even though the manage UI is absent.
+const roots = [
+  { directory: 'tests', required: true },
+  { directory: 'lib/motes', required: false },
+  { directory: 'app/manage', required: false },
+];
 const files = [];
 
-for (const directory of roots) {
-  for (const entry of await readdir(join(root, directory), { withFileTypes: true })) {
+for (const { directory, required } of roots) {
+  let entries;
+  try {
+    entries = await readdir(join(root, directory), { withFileTypes: true });
+  } catch (error) {
+    if (!required && error?.code === 'ENOENT') continue;
+    throw error;
+  }
+  for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith('.test.mjs')) {
       files.push(join(root, directory, entry.name));
     }
@@ -18,7 +31,7 @@ for (const directory of roots) {
 
 files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 if (files.length === 0) {
-  console.error('No test files found in tests, lib/motes, or app/manage.');
+  console.error('No test files found in the required tests root or available shared test roots.');
   process.exit(1);
 }
 

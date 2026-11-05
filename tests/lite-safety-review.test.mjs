@@ -1,0 +1,123 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
+
+const compilerOptions = { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext };
+const compile = source => ts.transpileModule(source, { compilerOptions }).outputText;
+const modules = new Map();
+async function load(path) {
+  if (modules.has(path)) return modules.get(path);
+  let js = compile(await readFile(new URL(path, import.meta.url), 'utf8'));
+  for (const match of [...js.matchAll(/from\s+(['"])(\.[^'"]+)\1/g)]) {
+    const file = new URL(match[2] + '.ts', new URL(path, import.meta.url));
+    js = js.replaceAll(match[1] + match[2] + match[1], JSON.stringify(await load(file.href)));
+  }
+  const url = 'data:text/javascript;base64,' + Buffer.from(js).toString('base64'); modules.set(path, url); return url;
+}
+const recovery = await import(await load('../lib/motes/recovery-state.ts'));
+const state = await import(await load('../app/lite/state.ts'));
+const api = await import(await load('../app/lite/api.ts'));
+const source = await readFile(new URL('../app/lite/useLiteGeneration.ts', import.meta.url), 'utf8');
+const factory = compile(source.replace(/^import .*;\r?$/gm, '').replace('export function useLiteGeneration', 'function useLiteGeneration'));
+const appId = 'app-a', workspaceId = 'workspace-a';
+const attempt = () => ({ id: crypto.randomUUID(), requestId: crypto.randomUUID(), projectId: appId, baseVersionId: 'v2', text: '改成深色主题', mode: 'demo', state: 'failed', recovered: true, startedAt: Date.now() });
+const project = { id: appId, title: 'QA', currentVersionId: 'v3', versions: ['v2', 'v3'].map((id, index) => ({ id, number: index + 2, mode: 'demo', prompt: 'QA request', summary: 'QA saved', html: '<!doctype html><html><head><title>QA</title></head><body>saved</body></html>' })) };
+const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+
+function harness({ transport, recovered = [], retryState } = {}) {
+  const cells = [], effects = [], values = new Map(), saved = [], navigation = { current: 0 };
+  if (recovered.length) values.set('motes-lite-outbox:' + workspaceId, JSON.stringify(recovered));
+  let cursor = 0, dirty = false, pending = [], current, recoveryProps;
+  const react = {
+    useState(initial) { const id = cursor++; if (!(id in cells)) cells[id] = typeof initial === 'function' ? initial() : initial; return [cells[id], next => { const value = typeof next === 'function' ? next(cells[id]) : next; if (!Object.is(value, cells[id])) { cells[id] = value; dirty = true; } }]; },
+    useRef(initial) { const id = cursor++; if (!(id in cells)) cells[id] = { current: initial }; return cells[id]; },
+    useEffect(callback, deps) { const id = cursor++, previous = effects[id]; if (!previous || deps.some((value, index) => !Object.is(value, previous.deps[index]))) { effects[id] = { deps, cleanup: previous?.cleanup }; pending.push({ id, callback }); } },
+  };
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  const bindings = { ...react, useLayoutEffect: react.useEffect, ...recovery, ...state, ...api, liteApi: transport, crypto, sessionStorage: storage, useAttemptRecovery: props => { recoveryProps = props; return { stateFor: () => retryState, checkAgain() {} }; } };
+  const useHook = new Function(...Object.keys(bindings), factory + '\nreturn useLiteGeneration;')(...Object.values(bindings));
+  function render() { cursor = 0; dirty = false; current = useHook({ workspaceId, context: { projectId: appId }, baseVersionId: 'v2', navigation, enabled: true, onSaved: (...args) => saved.push(args) }); const queue = pending; pending = []; for (const item of queue) { effects[item.id].cleanup?.(); effects[item.id].cleanup = item.callback(); } }
+  function flush() { for (let count = 0; dirty && count < 15; count++) render(); assert.equal(dirty, false, 'Hook settles without an update loop'); }
+  render(); flush();
+  return { get current() { return current; }, get recoveryProps() { return recoveryProps; }, values, saved, navigation, flush, rerender: () => { render(); flush(); }, close: () => effects.forEach(effect => effect?.cleanup?.()) };
+}
+
+test('navigation begins before React rerenders: late generation cannot steal the requested app', async t => {
+  const gate = deferred(); let signal, body;
+  const h = harness({ transport: async (_path, sent, currentSignal) => { body = sent; signal = currentSignal; const stored = JSON.parse(h.values.get('motes-lite-outbox:' + workspaceId)); assert.equal(stored[0].requestId, sent.requestId, 'Outbox exists before network send'); return gate.promise; } }); t.after(h.close);
+  const sending = h.current.send('改成深色主题', 'demo'); h.flush();
+  h.navigation.current++; // w.open(B) invalidates A synchronously, before its read finishes.
+  gate.resolve({ project }); await sending;
+  assert.equal(h.saved.length, 0); h.rerender();
+  assert.equal(signal.aborted, true);
+  assert.equal(h.current.attempts[0].requestId, body.requestId);
+  assert.equal(h.current.attempts[0].recovered, true);
+});
+
+test('save_pending retries only the original generation payload and request ID', async t => {
+  const original = attempt(), sent = [];
+  const h = harness({ recovered: [original], retryState: { retry: 'save' }, transport: async (path, body) => { sent.push({ path, body }); return { project }; } }); t.after(h.close);
+  await h.current.send('a later unrelated draft', 'model', h.current.attempts[0]); h.flush();
+  assert.deepEqual(sent, [{ path: '/api/generate', body: { requestId: original.requestId, prompt: original.text, mode: 'demo', projectId: appId, baseVersionId: 'v2' } }]);
+  assert.equal(h.saved.length, 1); assert.equal(h.current.attempts.length, 0);
+});
+
+test('stop preserves the original request and rejects its late response without starting another POST', async t => {
+  const gate = deferred(); let calls = 0;
+  const h = harness({ transport: async () => { calls++; return gate.promise; } }); t.after(h.close);
+  const sending = h.current.send('改成深色主题', 'demo'); h.flush();
+  const requestId = h.current.attempts[0].requestId;
+  h.current.stop(); h.flush(); gate.resolve({ project }); await sending; h.flush();
+  await h.current.send('next draft', 'demo');
+  assert.equal(calls, 1); assert.equal(h.saved.length, 0);
+  assert.equal(h.current.attempts[0].requestId, requestId);
+  assert.match(h.current.attempts[0].error, /模型费用可能继续/);
+});
+
+test('read-only recovery also invalidates immediately when navigation starts', async t => {
+  const gate = deferred(), original = attempt();
+  const h = harness({ recovered: [original], transport: async () => gate.promise }); t.after(h.close);
+  const props = h.recoveryProps;
+  const guard = { signal: new AbortController().signal, isCurrent: () => props.isCurrentGeneration(props.generation) };
+  assert.equal(guard.isCurrent(), true);
+  const reading = props.onRecovered(original, { requestId: original.requestId, status: 'done', projectId: appId, resultVersionId: 'v3' }, guard);
+  h.navigation.current++; gate.resolve({ project }); await reading;
+  assert.equal(h.saved.length, 0);
+  assert.equal(h.current.attempts[0].requestId, original.requestId);
+});
+
+async function declaration(file, name) {
+  const text = await readFile(new URL(file, import.meta.url), 'utf8');
+  const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); let result;
+  function visit(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === name) result = node.getText(tree); ts.forEachChild(node, visit); }
+  visit(tree); assert.ok(result, name); return result;
+}
+const restoreSource = await declaration('../app/lite/LiteWorkbench.tsx', 'restore');
+function restoreHarness(stale) {
+  const gate = deferred(), navigation = { current: 0 }, events = []; let reload = 0;
+  const bindings = {
+    w: { project: { id: appId }, navigation, setError() {}, adopt: () => events.push('adopt'), refresh: async () => {} },
+    appRef: { current: appId }, restoring: false, g: { busy: false, attempts: [] },
+    validLiteProject: state.validLiteProject, setRestoring() {}, liteApi: async () => gate.promise, setViewId() {}, setReload: update => { reload = update(reload); events.push('remount'); }, setResultNote: () => events.push('outcome'),
+  };
+  const run = new Function(...Object.keys(bindings), compile(`const handler=(${restoreSource});`) + 'return handler;')(...Object.values(bindings));
+  return { async execute() { const running = run('v1'); if (stale) navigation.current++; gate.resolve({ project: { ...project, currentVersionId: 'v1', versions: project.versions.map((v, index) => ({ ...v, id: index ? 'v2' : 'v1', number: index + 1 })) } }); await running; }, events, reload: () => reload };
+}
+test('lite restore remounts an already-previewed version after the saved receipt', async () => {
+  const h = restoreHarness(false), before = state.previewIdentity(appId, 'v1', 0); await h.execute();
+  assert.deepEqual(h.events, ['adopt', 'remount', 'outcome']);
+  assert.notEqual(state.previewIdentity(appId, 'v1', h.reload()), before);
+});
+test('a restore response during pending navigation cannot adopt the old app or reset the target preview', async () => {
+  const h = restoreHarness(true); await h.execute(); assert.deepEqual(h.events, []); assert.equal(h.reload(), 0);
+});
+
+test('a malformed JSON success cannot consume the original generation outbox entry', async t => {
+  const h = harness({ transport: async () => ({}) }); t.after(h.close);
+  await h.current.send('改成深色主题', 'demo'); h.flush();
+  assert.equal(h.saved.length, 0);
+  assert.equal(h.current.attempts.length, 1, 'Keep the original request available for receipt reconciliation');
+  assert.equal(h.current.attempts[0].recovered, true);
+  assert.equal(h.current.busy, false);
+});

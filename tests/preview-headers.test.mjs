@@ -14,8 +14,8 @@ async function finalize(path,headers={}) {
   return finalizeAppRscResponse(new Response('<!doctype html><iframe sandbox="allow-scripts allow-forms" srcdoc="&lt;button&gt;preview&lt;/button&gt;"></iframe>',{status:200,headers:{'Content-Type':'text/html',...headers}}),request,{basePath:'',configHeaders:await config.headers(),i18nConfig:null,requestContext:requestContextFromRequest(request)});
 }
 
-test('installed Vinext applies the HTTP preview-host CSP to workbench, management, editor and comparison responses',async()=>{
-  for(const path of ['/','/?app=any','/manage','/manage/','/manage/settings','/compare','/compare?groupId=any']){
+test('installed Vinext applies the HTTP preview-host CSP to lite workbench and management responses',async()=>{
+  for(const path of ['/','/?app=any','/manage','/manage/']){
     const response=await finalize(path);assert.equal(response.status,200);assert.equal(response.headers.get('Content-Security-Policy'),"frame-src 'self'",path);
     assert.match(await response.text(),/sandbox="allow-scripts allow-forms"/);
     assert.doesNotMatch(response.headers.get('Content-Security-Policy'),/script-src|style-src|connect-src|default-src/,'Do not restrict the platform runtime or auth integrations');
@@ -30,7 +30,7 @@ test('auth, API and public-share routes keep their existing policy and custom he
 });
 
 test('all existing preview surfaces allow JS form handlers while CSP still prohibits actual submissions', async()=>{
-  for(const file of ['../app/page.tsx','../app/components/SourceEditor.tsx','../lib/motes/shared-page.ts','../app/compare/page.tsx']) {
+  for(const file of ['../app/lite/LiteWorkbench.tsx','../lib/motes/shared-page.ts']) {
     const source=await readFile(new URL(file,import.meta.url),'utf8');
     const sandboxes=[...source.matchAll(/sandbox="([^"]+)"/g)].map(match=>match[1]);
     assert.ok(sandboxes.length>0,file);
