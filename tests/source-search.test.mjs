@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import ts from 'file:///D:/gpt/sites/mini-atoms/node_modules/typescript/lib/typescript.js';
+import ts from 'typescript';
 
 const source = await readFile(new URL('../lib/motes/source-search.ts', import.meta.url), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;

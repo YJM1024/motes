@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Zero-model HTTP acceptance. Creates one clearly named QA app; never deletes existing data.
-// node tests/shared-runtime-smoke.mjs --base http://127.0.0.1:5173 --output D:/gpt/output/motes/shared-runtime-local.json
+// node tests/shared-runtime-smoke.mjs --base http://127.0.0.1:5173 --output outputs/shared-runtime-local.json
 // After restarting that same server/database:
-// node tests/shared-runtime-smoke.mjs --base http://127.0.0.1:5173 --verify-existing D:/gpt/output/motes/shared-runtime-local.json --output D:/gpt/output/motes/shared-runtime-restart.json
+// node tests/shared-runtime-smoke.mjs --base http://127.0.0.1:5173 --verify-existing outputs/shared-runtime-local.json --output outputs/shared-runtime-restart.json
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {dirname,resolve} from 'node:path';
 
-const args=process.argv.slice(2),options={base:'http://127.0.0.1:5173',output:'D:/gpt/output/motes/shared-runtime-smoke.json',samples:10};
+const args=process.argv.slice(2),options={base:'http://127.0.0.1:5173',output:'outputs/shared-runtime-smoke.json',samples:10};
 for(let i=0;i<args.length;i++){
  const [name,inline]=args[i].split('=',2);if(!['--base','--output','--verify-existing','--samples'].includes(name))throw Error('Unsupported option: '+name);
  const value=inline??args[++i];if(!value||value.startsWith('--'))throw Error('Missing option value: '+name);
