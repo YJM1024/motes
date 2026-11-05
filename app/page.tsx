@@ -427,7 +427,11 @@ export default function Home() {
     if(unresolvedRecovery){setNotice(t("请先核对原请求的保存结果，再还原历史版本。"));return;}
     const epoch=interruptRecovery(),operation=crypto.randomUUID();activeOperation.current=operation;
     operationLock.current = true; setBusy(true); setError("");
-    try { const result = await api<{ project: Project }>(`/api/projects/${project.id}/restore`, { versionId });if(!mounted.current || epoch!==operationEpoch.current || activeOperation.current!==operation)return;remember(result.project);setHistory(false);presentSavedOutcome(result.project,"restore"); }
+    try { const result = await api<{ project: Project }>(`/api/projects/${project.id}/restore`, { versionId });if(!mounted.current || epoch!==operationEpoch.current || activeOperation.current!==operation)return;remember(result.project);
+      // An already-viewed historical iframe may have failed its data read while
+      // this version was not current. Reboot it after the restore receipt so its
+      // SDK rereads persisted data with a fresh channel, even when the ID is unchanged.
+      setRefresh(value=>value+1);setHistory(false);presentSavedOutcome(result.project,"restore"); }
     catch (e) { if(mounted.current && epoch===operationEpoch.current)setError(e instanceof Error ? e.message : t("还原失败。")); }
     finally { if(mounted.current && activeOperation.current===operation){activeOperation.current=null;operationLock.current=false;setBusy(false);} }
   }

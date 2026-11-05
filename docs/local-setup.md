@@ -1,21 +1,21 @@
 # 本地启动与数据库迁移
 
-本文适用于当前工作树源码；生产 v15 状态与本地/生产验证进度分别记录在[验收说明](acceptance.md)。
+本文针对当前源码工作树。生产版本和本地证据分别见[验收说明](acceptance.md#当前验收状态)；本地命令不会连接或修改生产数据库。
 
-需要 Node.js 24（最低 22.13）与 npm。以下命令在仓库根目录运行，只操作本地数据，不包含 `--remote`。本地数据库与生产 D1 独立。
+需要 Node.js 24（最低 22.13）与 npm。以下命令从仓库根目录运行。状态保存在 Git 忽略的 `.wrangler/state`；保留该目录可复用本地数据库。
 
-## 安装与构建
+## 干净安装与构建
 
 ```sh
 npm ci
 npm run build
 ```
 
-构建生成 `dist/server/wrangler.json`，供下列本地数据库命令使用。依赖未变化时无需重复安装；安装或构建失败时先解决报错。
+构建生成 `dist/server/wrangler.json`，供本地 D1 命令使用。
 
 ## 全新本地库
 
-新建本地库时，按文件名顺序执行 `drizzle/` 中的全部 SQL 文件。此命令会动态读取当前文件清单，新增迁移不需要再手工更新序号范围：
+仅用于新建的本地数据库。按文件名顺序执行 `drizzle/` 中全部 SQL 迁移：
 
 ```powershell
 Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | ForEach-Object {
@@ -26,52 +26,45 @@ Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | 
 
 ## 已有本地库
 
-先保留 `.wrangler/state` 的本地备份，确认已执行的具体迁移文件，**只执行尚未应用的迁移**。用以下命令显式列出待补的文件名；数组默认为空，避免把全新库的命令误用于已有库：
-
-```powershell
-$pendingFiles = @(
-  # 仅填写已确认尚未执行的文件名，例如 '0009_example.sql'
-)
-Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File |
-  Where-Object { $pendingFiles -contains $_.Name } |
-  Sort-Object Name |
-  ForEach-Object {
-    node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file $_.FullName
-    if ($LASTEXITCODE -ne 0) { throw "本地迁移失败：$($_.Name)" }
-  }
-```
-
-不要删除状态目录来“修复”缺表，也不要修改已应用的迁移。迁移文件按名称排序运行，新增迁移会在新库命令中自动纳入。
-
-手动 `d1 execute --file` 不会替你建立迁移编号清单，请在项目外的本地记录中记下每个已执行文件。若不确定，可只读检查表清单并结合迁移文件与已有执行记录核对，不能从某个页面能打开推断所有表已齐全：
+先备份 `.wrangler/state`，再根据本地记录只执行尚未应用的迁移。不要删除状态目录或重复执行已有迁移；手动 `d1 execute --file` 不会自动记录迁移历史。若不确定已有哪些表，可只读检查：
 
 ```sh
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
 ```
 
-新增迁移只建立结构，旧应用的工作空间元数据由管理接口按当前空间归属幂等补建，ID、历史和当前指针保留。默认旧隔离模式不合并不同访客空间；显式设置 `MOTES_WORKSPACE_VISIBILITY=shared` 时，服务端将新访问映射至公共演示空间，但不会自动迁移旧访客作品。共享模式下所有访客都可查看和修改公共项目、对话、版本及 SDK 运行数据；不要在其中输入私密内容。旧作品须通过备份导入为新 ID 的副本。运行数据和备份细节见[共享运行数据](shared-runtime.md)。
+新增迁移只建立结构。已有应用的工作空间元数据由管理接口按当前空间归属幂等补建，保留应用 ID、版本历史和当前指针。切换到共享模式不会自动合并或公开原有访客数据；导入备份会创建新 ID 的副本。共享空间内的应用、讨论、版本和 SDK 运行数据对访客可见并可修改，不要在其中放入私密信息。
 
-## 启动与模型
+## 启动与模型配置
 
 ```sh
 npm run dev
 ```
 
-通常打开 `http://127.0.0.1:5173/`，以终端实际地址为准。`/manage` 管理应用，`/settings` 设置与用量，`/compare` 为用户主动进入的候选比较，支持选择 2/3/4 组。三个页面和工作台右上角均可选择雾蓝、鸢紫、薄荷或银灰配色（默认银灰）；明暗模式独立。工作台界面支持简体中文与英文，语言选择只影响静态界面；应用生成语言是独立设置，不会翻译用户内容。界面语言、主题、配色和动效是本浏览器偏好，不随服务端备份迁移。保持同一项目目录和 `.wrangler/state`；更换目录或状态路径会使用另一份本地数据。
+通常打开 `http://127.0.0.1:5173/`，以终端显示地址为准。管理、设置和候选比较页面分别为 `/manage`、`/settings`、`/compare`。
 
-无模型配置也可使用明确标记的示例。真实生成时，复制 `.dev.vars.example` 为 `.dev.vars`，仅在本地填写已有授权的服务端 `OPENAI_API_KEY` 与账户可用的 `OPENAI_MODEL`；`OPENAI_MODELS` 是可选逗号白名单，留空仅使用默认模型。真实值不得提交 Git、传给浏览器或写入公开文档。配置、服务端 CSP 等启动配置变更后需重启本地服务；普通源码可热更新。
+未配置模型也可使用标注明确的固定示例。需要真实生成时，复制 `.dev.vars.example` 为 `.dev.vars`，在本地填写已获授权的 `OPENAI_API_KEY` 和账户可用的 `OPENAI_MODEL`。真实凭据不得提交 Git、放入浏览器或写入验收报告；真实模型验收会发起请求并可能产生费用。
 
-## 免费示例验收
-
-这些脚本创建独立测试访客，使用示例或无模型操作，不调用真实模型。运行与本次变更有关的检查即可。
+## 自动检查
 
 ```sh
-node tests/smoke.mjs http://127.0.0.1:5173
-node tests/management-smoke.mjs http://127.0.0.1:5173
-node tests/settings-smoke.mjs http://127.0.0.1:5173
-node tests/creation-flow-smoke.mjs http://127.0.0.1:5173
-node tests/sharing-smoke.mjs http://127.0.0.1:5173
-node tests/candidates-smoke.mjs http://127.0.0.1:5173
+npm test
+npm run typecheck
 ```
 
-需要保存 JSON 的脚本可按其参数约定提供本地路径。模型权限、真实输出效果及费用回执需要另行授权的真实调用，不能用示例结果代替。
+`npm test` 从 `tests/`、`lib/motes/` 与 `app/manage/` 收集并排序 `*.test.mjs`。类型检查使用项目本地 TypeScript。
+
+## HTTP Smoke
+
+推荐先运行不调用模型的核心 Smoke：
+
+```sh
+node tests/smoke.mjs http://127.0.0.1:5173 outputs/core-http.json
+```
+
+该脚本使用示例 API，创建一个命名 QA 应用并在结束时归档自己的应用。共享模式下 QA 应用会短暂出现在所有访客可见的公共空间；报告路径默认相对当前目录。从仓库根目录运行时，报告位于被 Git 忽略的 `outputs/` 下。
+
+`tests/shared-runtime-smoke.mjs` 适用于专门的共享模式检查。它会创建 QA 应用且不删除已有数据；通过 `--verify-existing` 检查重启持久性。不要对含重要数据的环境运行。
+
+其余历史 Smoke（例如 `creation-flow-smoke.mjs`、`management-smoke.mjs`、`settings-smoke.mjs`、`sharing-smoke.mjs`）要求 disposable private workspace。它们会先读取 `/api/session` 并拒绝 shared 模式，拒绝时不发送写请求；仅在独立本地库且 `MOTES_WORKSPACE_VISIBILITY=private` 时运行。不要在生产站点或共享演示空间运行这些私有模式脚本。
+
+HTTP 示例和自动测试不替代浏览器验收；真实模型输出、模型权限与费用回执需单独记录，不能从 demo 结果推断。
