@@ -2,9 +2,9 @@
 
 Motes 是一个通过对话创建、预览、迭代和保存单文件网页应用的轻量工作台。
 
-[在线体验](https://motes-yangjunmin.warmgrove10.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地启动与迁移](docs/local-setup.md) · [架构](docs/architecture.md) · [当前验收状态](docs/acceptance.md#当前验收状态)
+[在线体验](https://motes-yangjunmin.yjm1024.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地启动与迁移](docs/local-setup.md) · [架构](docs/architecture.md) · [当前验收状态](docs/acceptance.md#当前验收状态)
 
-当前生产仍为 **v21**（2026-11-02），运行源码 `d556cdffa878733d4542398958318eeb82a04990`。本地源码修复 `fde6e58` 已解决历史版本还原后的预览重连问题，375 项测试与 TypeScript 检查通过，但补丁尚未部署；`a3cbe1a` 仅改进测试可移植性。生产版本与本轮证据分层见[验收说明](docs/acceptance.md)。
+当前生产为 **v22**，运行源码 `7491413ef0b138ebf73e87ed2842df617e336be2`。平台正式入口已更新为上方链接，现有项目和 slug 未变。历史版本还原后的预览重连修复已随 v22 部署；部署、CI 与线上验收范围见[验收说明](docs/acceptance.md)。机器可读摘要见[release manifest](docs/release-manifest.json)。
 
 ## 七步核心体验
 

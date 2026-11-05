@@ -2,27 +2,25 @@
 
 ## 当前验收状态
 
-本文把生产版本、自动检查、本地 HTTP、浏览器和真实模型证据分开记录。自动化、HTTP 与模型接口结果不能替代浏览器交互验收。
+以下记录把生产发布、CI、HTTP、浏览器和模型 API 分开。通过一类检查不代表其他类别也已通过。
 
 | 证据维度 | 状态 | 结果与边界 |
 | --- | --- | --- |
-| 生产版本与本地补丁 | **生产 v21；修复待部署** | 生产 runtime source 为 `d556cdffa878733d4542398958318eeb82a04990`，deployment `appgdep_6ae779052a3881919c273457e1cc28fc`，env revision 4。本地源码修复 `fde6e58` 解决历史版本还原后的预览重连问题；尚未部署。`a3cbe1a` 是测试可移植性变更，不是产品发布。 |
-| 可移植源码检查 | **通过** | 新鲜源码副本执行 `npm ci --prefer-offline --no-audit --no-fund` 后，372 项测试通过、TypeScript 检查通过，由另一工作目录启动。记录：`D:\gpt\output\motes\stable-portable-check.json`。修复后的当前源码另有 375 项测试及 TypeScript 通过；CI 尚未运行。 |
-| 本地 HTTP 核心流程 | **8/8 通过** | 本地 `http://127.0.0.1:5193`、共享模式、0 次模型调用。覆盖 QA 示例创建与幂等、修改和版本保留、访客读回、失败输入/来源拒绝、版本还原、三个版本导出、固定分享/稳定发布和 SDK 并发 revision。QA 应用已归档、发布已暂停、分享已撤销。记录：`D:\gpt\output\motes\stable-core-http.json`。 |
-| 浏览器验收 | **本地 UI 流程通过** | `D:\gpt\output\motes\stable-browser-check.json` 记录 demo 创建、任务保存/刷新、修改为 v2 并保留数据、预览历史后还原且无需整页刷新重连、422 后旧成果保留、v2 发布、独立页读写、确认刷新后读回及暂停发布。360/390/768/1440 视口均无横向溢出。截图：`stable-full-desktop.png`、`stable-full-mobile.png`（均为本地视口，不是真实手机）。 |
-| 真实模型接口 | **旧 v21 API 流程通过；模型 UI 未验收** | `D:\gpt\output\motes\stable-model-http.json` 对当时在线的 v21 发起 2 次 `gpt-6-luna` 调用，均成功，共 3746 tokens；保存 v1/v2、跨访客读取、还原及发布检查通过。该脚本明确未做浏览器交互，不能代表新补丁已上线或完整模型 UI 已验收。 |
+| 生产版本与入口 | **v22 已上线** | runtime source `7491413ef0b138ebf73e87ed2842df617e336be2`；native deployment `appgdep_6aeca50dcbfc8191b6f45e9983cf144b`，env revision 4。当前网址为[https://motes-yangjunmin.yjm1024.chatgpt.site/](https://motes-yangjunmin.yjm1024.chatgpt.site/)；平台未改变 project/slug。 |
+| CI 与可移植性 | **已通过** | [GitHub Actions run 42059022920](https://github.com/YJM1024/motes/actions/runs/42059022920)：Ubuntu、Windows 均全新 `npm ci`，375/375 测试、TypeScript 检查通过。较早 run `42057778521` 暴露候选并发测试的调度敏感等待；在 `7bb1c83` 修正后，`2debd2e`（本地 `7bb1c83`）的后续 run 通过，原失败记录仍保留。之后只有模型验收脚本目标域名与文档更新，不据此声称每个后续 SHA 都单独跑过 CI。此前独立清洁副本/异地启动的 372 项证据见 `D:\gpt\output\motes\stable-portable-check.json`。 |
+| 本地 HTTP 核心流程 | **8/8 通过** | 本地共享模式、0 次模型调用；覆盖示例创建/幂等、修改、跨访客读回、拒绝路径、历史还原、三版导出、分享/发布及 SDK revision 冲突。QA 应用归档、发布暂停、分享撤销。记录：`D:\gpt\output\motes\stable-core-http.json`。 |
+| 浏览器与线上数据连续性 | **v22 生产 UI 通过** | 生产中读取已存在的模型 v2，计数 7；加一保存 8、减一保存 7；预览 v1 后还原，无整页刷新即读回 7；再还原 v2 后读回 7，两个版本仍保留。新增模型调用为 0。证据：`D:\gpt\output\motes\stable-v22-browser-check.json`；截图 `D:\gpt\output\motes\stable-v22-live.png`。新旧正式域名读回同一应用、两个版本与 SDK 数据通过，0 写入、0 模型调用：`D:\gpt\output\motes\stable-v22-domain-readback.json`。旧域名仅保留作迁移来源，当前入口以新域名为准。 |
+| 真实模型 | **历史 API 流程通过；v22 未新增模型调用** | 旧 v21 生产 API 验收使用 `gpt-6-luna` 两次调用，共 3746 tokens，v1/v2、读回、还原和发布检查通过，证据见 `D:\gpt\output\motes\stable-model-http.json`。这不是 v22 新模型生成验收；v22 浏览器使用既存 v2，未证明完整模型 UI/生成链路在 v22 再次调用。 |
 
-## 验收边界
+## 已知边界
 
-- **生产与源码**：生产继续运行上表所列 v21 runtime。`fde6e58` 的修复通过本地浏览器、375 项测试和类型检查，但尚未部署；不把本地通过写成线上通过。
-- **本地与线上**：本地 D1 数据位于 `.wrangler/state`，与生产数据库独立。HTTP 本地结果不代表线上读写或部署成功。
-- **自动与浏览器**：`npm test` 覆盖自动化测试文件；`npm run typecheck` 检查 TypeScript。两者不验证真实设备、蜂窝网络或无痕行为；本次视口检查不是实体手机测试。
-- **示例与模型**：本地示例 API 不调用模型。旧 v21 的两次生产模型 API 请求及回执已记录，但没有浏览器模型交互证据，也不覆盖新补丁。
-- **共享数据**：共享模式访客共同查看和修改公共内容。普通预览 DOM 状态不自动保存；只有应用显式通过 SDK 写入的键值会持久保存。
+- v22 已部署历史版本还原后的预览重连修复；本地和生产浏览器检查均确认恢复流程。前序 v21 状态与旧域名作为[历史验收记录](history/acceptance-v21.md)保留。
+- 360、390、768、1440 像素宽度下的浏览器视口检查均无横向溢出，截图和原始记录见 `D:\gpt\output\motes\stable-browser-check.json`。这不是实体手机检查；蜂窝网络和无痕模式仍未核实。
+- CI run 42059022920 在修复测试调度等待的提交上成功；run 后的模型验收主机名和文档提交没有单独 CI run。CI 结果链接见上表。
+- 共享模式下访客共同查看和修改公共内容。普通预览 DOM 状态不会自动保存；SDK 只持久化应用显式写入的键值。
+- 本地数据库 `.wrangler/state` 与生产 D1 独立。HTTP Smoke、生产只读回访和真实模型 API 调用属于不同范围。
 
 ## 本地复核入口
-
-从仓库根目录运行：
 
 ```sh
 npm ci
@@ -31,8 +29,4 @@ npm run typecheck
 node tests/smoke.mjs http://127.0.0.1:5173 outputs/core-http.json
 ```
 
-迁移说明、共享空间副作用和 private-only 历史 Smoke 限制见[本地启动文档](local-setup.md)。模块能力与已知限制见[架构说明](architecture.md)和[非功能验收](nonfunctional-verification.md)。
-
-## 历史记录
-
-2026-11-05 之前的发布记录、版本表、演示步骤和既有验收详情已归档到[历史验收记录](history/acceptance-v21.md)。归档用于保留当时的证据和引用；当前状态以本页五维矩阵为准。
+本地迁移、共享空间副作用及 private-only 历史 Smoke 的运行条件见[本地启动文档](local-setup.md)。完整发布字段见[机器可读 release manifest](release-manifest.json)。

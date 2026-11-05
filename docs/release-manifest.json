@@ -1,0 +1,74 @@
+{
+  "product": "Motes",
+  "production": {
+    "version": "v22",
+    "url": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
+    "runtimeSource": "7491413ef0b138ebf73e87ed2842df617e336be2",
+    "deployment": "appgdep_6aeca50dcbfc8191b6f45e9983cf144b",
+    "environmentRevision": 4,
+    "previousDomain": "https://motes-yangjunmin.warmgrove10.chatgpt.site/"
+  },
+  "checks": {
+    "portableCleanInstall": {
+      "status": "passed",
+      "install": "npm ci --prefer-offline --no-audit --no-fund",
+      "tests": 372,
+      "typecheck": "passed",
+      "evidence": "D:\\gpt\\output\\motes\\stable-portable-check.json"
+    },
+    "githubActions": {
+      "status": "passed",
+      "runId": 42059022920,
+      "url": "https://github.com/YJM1024/motes/actions/runs/42059022920",
+      "testedCommit": "2debd2e5452fefe8d5af79a9c81428a67ba21b44",
+      "localCommit": "7bb1c83",
+      "platforms": {
+        "ubuntu-latest": { "testsPassed": 375, "testsFailed": 0, "typecheck": "passed" },
+        "windows-latest": { "testsPassed": 375, "testsFailed": 0, "typecheck": "passed" }
+      },
+      "earlierFailure": {
+        "runId": 42057778521,
+        "platform": "ubuntu-latest",
+        "cause": "Scheduler-sensitive setImmediate polling in a candidate concurrency test; replaced with a bounded condition wait without weakening assertions."
+      },
+      "scopeNote": "Later changes updated the model-acceptance hostname and documentation; this run does not claim checks for every later commit."
+    },
+    "localHttp": {
+      "status": "passed",
+      "checksPassed": 8,
+      "checksFailed": 0,
+      "modelCalls": 0,
+      "evidence": "D:\\gpt\\output\\motes\\stable-core-http.json"
+    },
+    "productionBrowser": {
+      "status": "passed",
+      "checks": [
+        "load existing model v2 and shared count 7",
+        "increment and persist 8",
+        "decrement and persist 7",
+        "preview v1 then restore without full-page refresh and read 7",
+        "restore v2 and read 7 with both versions preserved"
+      ],
+      "additionalModelCalls": 0,
+      "evidence": "D:\\gpt\\output\\motes\\stable-v22-browser-check.json",
+      "screenshot": "D:\\gpt\\output\\motes\\stable-v22-live.png"
+    },
+    "domainContinuity": {
+      "status": "passed",
+      "oldDomainToCurrentDomain": true,
+      "modelCalls": 0,
+      "mutations": 0,
+      "evidence": "D:\\gpt\\output\\motes\\stable-v22-domain-readback.json"
+    },
+    "productionModelApi": {
+      "status": "passed-on-v21",
+      "model": "gpt-6-luna",
+      "calls": 2,
+      "totalTokens": 3746,
+      "v22ModelCalls": 0,
+      "evidence": "D:\\gpt\\output\\motes\\stable-model-http.json",
+      "scopeNote": "Historical API generation evidence only; not a fresh v22 generation or full model UI test."
+    },
+    "physicalMobileDevice": "not-tested"
+  }
+}

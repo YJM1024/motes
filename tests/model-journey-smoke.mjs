@@ -6,10 +6,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 
 assert.equal(process.argv[2], '--run-two-calls', 'Explicit --run-two-calls is required');
-const origin = 'https://motes-yangjunmin.warmgrove10.chatgpt.site';
+// Exact canonical URL returned by the existing Site's v22 deployment.
+const origin = 'https://motes-yangjunmin.yjm1024.chatgpt.site';
 const output = resolve(process.argv[3] || 'outputs/stable-model-http.json');
 const marker = 'QA model journey ' + new Date().toISOString();
-const report = { passed: false, origin, marker, startedAt: new Date().toISOString(), modelPostLimit: 2, modelPosts: 0, requests: [], checks: [], modelRequests: [], cleanup: {}, browserInteraction: 'NOT TESTED: CUA stopped because the current Windows browser URL could not be determined reliably', runtimeSource: 'No product runtime changes in this acceptance patch; deployed v21 is the existing runtime under test.' };
+const report = { passed: false, origin, marker, startedAt: new Date().toISOString(), modelPostLimit: 2, modelPosts: 0, requests: [], checks: [], modelRequests: [], cleanup: {}, browserInteraction: 'NOT TESTED: this script performs HTTP checks only', runtimeSource: 'Not inferred by this script; record the native deployment identity separately.' };
 const cookies = new Map();
 let appId, publication;
 await mkdir(dirname(output), { recursive: true });
