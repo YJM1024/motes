@@ -23,6 +23,7 @@ async function harness(config={}){
   return{listTasks,saveTask,save,retry,sqlite,control,env,security,who,tools,server,seed,create,read,adopt,generate,success,close:()=>sqlite.close()};
 }
 const body=(extra={})=>({requestId:crypto.randomUUID(),prompt:'生成计时工具',mode:'model',confirmTwoCalls:true,...extra});
+async function waitForCondition(check,message,timeoutMs=10000){const deadline=Date.now()+timeoutMs;while(!check()){const remaining=deadline-Date.now();if(remaining<=0)assert.fail(message);await new Promise(resolve=>setTimeout(resolve,Math.min(10,remaining)))}}
 async function fillApps(h,count){const who=await h.who('a'),now=new Date().toISOString();while(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects WHERE owner=?').get(who).n<count){const id=crypto.randomUUID(),version=crypto.randomUUID();h.sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,who,'已有作品',now,now,version);h.sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'原需求','原摘要','<!doctype html><html><body>existing</body></html>',now,'manual',null);}}
 function oldRequests(h,n,who,mode='model'){const now=new Date().toISOString();for(let i=0;i<n;i++)h.sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at) VALUES(?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),who,'old','old',now.slice(0,10),mode,'failed',now)}
 
@@ -41,7 +42,7 @@ test('one remaining visitor or global slot rejects both reservations before any 
 
 test('concurrent duplicate retries and competing final-two slots never call extra models',async t=>{
   const h=await harness();t.after(h.close);oldRequests(h,8,await h.who('a'));let calls=0;const gates=[];t.mock.method(globalThis,'fetch',()=>{calls++;return new Promise(resolve=>gates.push(()=>resolve(h.success())))});
-  const input=body(),pending=h.create(input);for(let n=0;gates.length<2&&n<500;n++)await new Promise(r=>setImmediate(r));assert.equal(gates.length,2);
+  const input=body(),pending=h.create(input);await waitForCondition(()=>gates.length>=2,'Timed out waiting for both model requests');assert.equal(gates.length,2);
   const retry=await h.create(input);assert.equal(retry.status,200);assert.ok(retry.data.group.candidates.every(c=>c.status==='running'));assert.equal((await h.create(body())).status,429);assert.equal(calls,2);
   gates.forEach(run=>run());assert.equal((await pending).status,201);assert.equal(h.sqlite.prepare("SELECT count(*) AS n FROM forma_requests WHERE mode='model'").get().n,10);
 });
@@ -105,7 +106,7 @@ test('candidate adoption can fill the last slot during generation without a 101s
   await fillApps(h,99);let calls=0,finish;
   t.mock.method(globalThis,'fetch',()=>{calls++;return new Promise(resolve=>{finish=()=>resolve(h.success())})});
   const input={requestId:crypto.randomUUID(),mode:'model',prompt:'番茄钟',managedProjectId:group.managedProjectId},pending=h.generate(input);
-  for(let n=0;!finish&&n<500;n++)await new Promise(r=>setImmediate(r));assert.ok(finish);
+  await waitForCondition(()=>typeof finish==='function','Timed out waiting for the model request before adoption');assert.ok(finish);
   const adopted=await h.adopt(group.id,group.candidates[0].id);assert.equal(adopted.status,201);finish();
   const result=await pending;assert.equal(result.status,409);assert.equal(result.data.retry,undefined);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_projects').get().n,100);
@@ -156,7 +157,7 @@ test('single failed lane retry has stable receipt, new budget and does not touch
 test('retry CAS admits only one concurrent attempt, rejects unresolved peers and stale source state without spending',async t=>{
  const h=await harness();t.after(h.close);let fail=true,finish,calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;if(fail)throw new DOMException('timeout','TimeoutError');return new Promise(resolve=>{finish=()=>resolve(h.success())})});const app=await h.seed(),group=(await h.create(body({appId:app.id,baseVersionId:app.version}))).data.group,candidate=group.candidates[0],retry={requestId:crypto.randomUUID(),candidateId:candidate.id,previousAttemptId:candidate.attemptId,confirmOneCall:true};
  h.sqlite.prepare('INSERT INTO forma_locks VALUES(?,?,?)').run(app.id,'other',Date.now()+60000);assert.equal((await h.retry(group.id,retry)).status,409);h.sqlite.prepare('DELETE FROM forma_locks').run();assert.equal(calls,2);
- fail=false;const pending=h.retry(group.id,retry);for(let n=0;!finish&&n<500;n++)await new Promise(r=>setImmediate(r));assert.ok(finish);assert.equal((await h.retry(group.id,retry)).status,200);assert.equal((await h.retry(group.id,{...retry,requestId:crypto.randomUUID()})).status,409);assert.equal(calls,3);h.sqlite.prepare('UPDATE forma_locks SET expires_at=0').run();assert.equal((await h.read(group.id)).data.group.candidates[0].status,'unresolved');assert.equal((await h.retry(group.id,{...retry,requestId:crypto.randomUUID(),previousAttemptId:retry.requestId})).status,409);finish();await pending;assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,3);
+ fail=false;const pending=h.retry(group.id,retry);await waitForCondition(()=>typeof finish==='function','Timed out waiting for the retry model request');assert.ok(finish);assert.equal((await h.retry(group.id,retry)).status,200);assert.equal((await h.retry(group.id,{...retry,requestId:crypto.randomUUID()})).status,409);assert.equal(calls,3);h.sqlite.prepare('UPDATE forma_locks SET expires_at=0').run();assert.equal((await h.read(group.id)).data.group.candidates[0].status,'unresolved');assert.equal((await h.retry(group.id,{...retry,requestId:crypto.randomUUID(),previousAttemptId:retry.requestId})).status,409);finish();await pending;assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n,3);
 });
 
 test('generation paid output survives storage failure, owner-scoped task saves once and expires after seven days',async t=>{
