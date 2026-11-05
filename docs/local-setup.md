@@ -39,7 +39,7 @@ npm test
 npm run typecheck
 ```
 
-测试发现以根目录 `tests/` 为必需入口，只收集该目录的顶层 `*.test.mjs`。完整版专属 UI 测试仍保留在 `full-product` 分支，已从 Lite 测试树移除，因此不会误运行。共享逻辑目录 `lib/motes/` 和纯管理筛选测试目录 `app/manage/` 若存在则纳入，Lite 移除管理 UI 后可没有 `app/manage/`。可选目录只有在不存在（`ENOENT`）时跳过，其他读取错误仍会失败；零测试文件也会失败。当前 62 个测试文件以最多 2 个并行文件进程执行；测试内的 Promise 并发、锁和幂等断言不变。Lite 保留适用的 API、数据恢复、SDK、安全边界和纯筛选测试。公开 CI 的 329 项结果以及 v24 同 SHA 原生测试、typecheck、build 见[验收记录](acceptance.md#当前状态)。旧 Service Worker 真实浏览器升级和实体手机测试尚未完成。
+测试发现以根目录 `tests/` 为必需入口，只收集该目录的顶层 `*.test.mjs`。完整版专属 UI 测试仍保留在 `full-product` 分支，已从 Lite 测试树移除，因此不会误运行。共享逻辑目录 `lib/motes/` 和纯管理筛选测试目录 `app/manage/` 若存在则纳入，Lite 移除管理 UI 后可没有 `app/manage/`。可选目录只有在不存在（`ENOENT`）时跳过，其他读取错误仍会失败；零测试文件也会失败。当前共有 65 个测试文件，按最多 2 个并行文件进程执行；测试内的 Promise 并发、锁和幂等断言不变。Lite 保留适用的 API、数据恢复、SDK、安全边界和纯筛选测试。本轮 349 项本地检查结果、当前公开 CI、typecheck、原生 build 及验收范围见[验收记录](acceptance.md)。旧 Service Worker 真实浏览器升级和实体手机测试尚未完成。
 
 ## 浏览器数据与 Service Worker
 

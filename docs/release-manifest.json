@@ -1,15 +1,16 @@
 {
   "product": "Motes",
   "activeBranch": "exam-lite",
-  "liteStatus": "v24-deployed",
+  "liteStatus": "v27-deployed",
   "production": {
     "product": "Motes Lite",
-    "version": "v24",
+    "version": "v27",
     "url": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-    "runtimeSource": "f7fb42db030f06e725b28075ba2664580c65e46b",
-    "savedSiteId": "appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_4b5bfd5fce3c81918262d84ecee32dad",
-    "deployment": "appgdep_6aecba53fef48191bcecc25484d6f484",
-    "environmentRevision": 4
+    "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
+    "savedSiteId": "appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_cd6ea61e396481918f62afa072161f56",
+    "deployment": "appgdep_6aecccb8c5c08191b6565e9c75c1ef34",
+    "environmentRevision": 4,
+    "publicRuntimeSha": "5cca8498f601e7d028f9afba036034089f951f2a"
   },
   "fullProductReference": {
     "branch": "https://github.com/YJM1024/motes/tree/full-product",
@@ -20,10 +21,9 @@
   "lite": {
     "branch": "exam-lite",
     "baseCommit": "809bb58",
-    "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b",
-    "deploymentStatus": "deployed-v24",
+    "deploymentStatus": "deployed-v27",
     "siteUrl": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-    "realModelCallsThisLiteIteration": 0,
+    "realModelCallsThisLiteIteration": 4,
     "scope": {
       "sharedGuestWorkspace": true,
       "singleFileHtml": true,
@@ -33,41 +33,167 @@
       "advancedRaceDiscussionEditorSettingsTemplatesBackupUi": false
     },
     "testScopeExclusions": [
-      { "path": "tests/artifact-card-controls.test.mjs", "feature": "Full ArtifactCard interaction controls", "reason": "Component removed from Lite; recover from full-product." },
-      { "path": "tests/artifact-workspace-actions.test.mjs", "feature": "Full Home page artifact card callbacks", "reason": "Full Home page UI removed; recover from full-product." },
-      { "path": "tests/build-attempt-feedback.test.mjs", "feature": "Full BuildAttemptFeedback component", "reason": "Component removed; Lite receipt state is covered by tests/lite-workbench.test.mjs and tests/lite-safety-review.test.mjs." },
-      { "path": "tests/candidate-waiting.test.mjs", "feature": "Full compare-page waiting UI", "reason": "Compare UI removed; candidate API behavior remains tested in tests/candidates.test.mjs." },
-      { "path": "tests/composer-race-guard.test.mjs", "feature": "Full Home page race composer guard", "reason": "Race composer removed from Lite." },
-      { "path": "tests/inline-race-workspace.test.mjs", "feature": "Full inline race workspace UI", "reason": "Race UI removed; pure race and candidate domain tests remain." },
-      { "path": "tests/offline-changes-panel.test.mjs", "feature": "Full offline changes panel", "reason": "Complete offline UI is full-only; Lite Service Worker retirement has separate tests." },
-      { "path": "tests/offline-lifecycle.test.mjs", "feature": "Full offline component lifecycle", "reason": "Offline UI components removed; offline engine/runtime domain tests remain." },
-      { "path": "tests/offline-sync-status.test.mjs", "feature": "Full offline sync status component", "reason": "Component removed from Lite." },
-      { "path": "tests/offline-workspace-controls.test.mjs", "feature": "Full offline workspace controls", "reason": "Component removed from Lite." },
-      { "path": "tests/page-demo-copy.test.mjs", "feature": "Full Home page demo-mode UI", "reason": "Old Home UI removed; bounded Lite demos and unsupported prompts are covered by lite workbench tests." },
-      { "path": "tests/page-offline-status.test.mjs", "feature": "Full Home offline labels and sync callbacks", "reason": "Offline Home UI removed; offline engine and retirement domain tests remain." },
-      { "path": "tests/palette-picker-events.test.mjs", "feature": "Full palette picker UI", "reason": "Theme and palette UI removed from Lite." },
-      { "path": "tests/preview-controls-layout.test.mjs", "feature": "Full preview control component layout", "reason": "Full preview controls removed; Lite workbench behavior is covered separately." },
-      { "path": "tests/race-preview.test.mjs", "feature": "Full race preview component and Home UI", "reason": "Race UI removed; pure race presentation/domain tests remain." },
-      { "path": "tests/restore-preview-lifecycle.test.mjs", "feature": "Full Home restore callback lifecycle", "reason": "Tests extracted callbacks from removed Home UI; Lite restore/reload lifecycle is covered in tests/lite-safety-review.test.mjs." },
-      { "path": "tests/stop-waiting.test.mjs", "feature": "Full discussion component stop-waiting UI", "reason": "Discussion UI removed; request recovery and save_pending domain behavior remains tested." },
-      { "path": "tests/ui-palette-tokens.test.mjs", "feature": "Full theme palette and motion UI", "reason": "Complex theme UI removed from Lite." },
-      { "path": "tests/workspace-callbacks.test.mjs", "feature": "Full backup, source editor, and version tools UI callbacks", "reason": "Those panels are removed; generic saved-result and workspace domain tests remain." },
-      { "path": "tests/workspace-navigation.test.mjs", "feature": "Full Home sidebar and recovery callback wiring", "reason": "Tests inspect removed Home UI; generic recovery, draft and outcome modules remain covered independently." },
-      { "path": "tests/workspace-status-component.test.mjs", "feature": "Full workspace status component", "reason": "Component removed from Lite; workspace status model tests remain." },
-      { "path": "tests/host-locale.test.mjs (translated native option subtest)", "feature": "Full pages' translated select-option values", "reason": "The subtest scanned removed pages/components; pure locale catalog and interpolation tests remain in the same file." },
-      { "path": "tests/native-navigation.test.mjs (settings navigation subtests)", "feature": "Full settings leave guards and page-link structure", "reason": "Settings UI removed; the retained composer draft persistence subtest still runs." }
+      {
+        "path": "tests/artifact-card-controls.test.mjs",
+        "feature": "Full ArtifactCard interaction controls",
+        "reason": "Component removed from Lite; recover from full-product."
+      },
+      {
+        "path": "tests/artifact-workspace-actions.test.mjs",
+        "feature": "Full Home page artifact card callbacks",
+        "reason": "Full Home page UI removed; recover from full-product."
+      },
+      {
+        "path": "tests/build-attempt-feedback.test.mjs",
+        "feature": "Full BuildAttemptFeedback component",
+        "reason": "Component removed; Lite receipt state is covered by tests/lite-workbench.test.mjs and tests/lite-safety-review.test.mjs."
+      },
+      {
+        "path": "tests/candidate-waiting.test.mjs",
+        "feature": "Full compare-page waiting UI",
+        "reason": "Compare UI removed; candidate API behavior remains tested in tests/candidates.test.mjs."
+      },
+      {
+        "path": "tests/composer-race-guard.test.mjs",
+        "feature": "Full Home page race composer guard",
+        "reason": "Race composer removed from Lite."
+      },
+      {
+        "path": "tests/inline-race-workspace.test.mjs",
+        "feature": "Full inline race workspace UI",
+        "reason": "Race UI removed; pure race and candidate domain tests remain."
+      },
+      {
+        "path": "tests/offline-changes-panel.test.mjs",
+        "feature": "Full offline changes panel",
+        "reason": "Complete offline UI is full-only; Lite Service Worker retirement has separate tests."
+      },
+      {
+        "path": "tests/offline-lifecycle.test.mjs",
+        "feature": "Full offline component lifecycle",
+        "reason": "Offline UI components removed; offline engine/runtime domain tests remain."
+      },
+      {
+        "path": "tests/offline-sync-status.test.mjs",
+        "feature": "Full offline sync status component",
+        "reason": "Component removed from Lite."
+      },
+      {
+        "path": "tests/offline-workspace-controls.test.mjs",
+        "feature": "Full offline workspace controls",
+        "reason": "Component removed from Lite."
+      },
+      {
+        "path": "tests/page-demo-copy.test.mjs",
+        "feature": "Full Home page demo-mode UI",
+        "reason": "Old Home UI removed; bounded Lite demos and unsupported prompts are covered by lite workbench tests."
+      },
+      {
+        "path": "tests/page-offline-status.test.mjs",
+        "feature": "Full Home offline labels and sync callbacks",
+        "reason": "Offline Home UI removed; offline engine and retirement domain tests remain."
+      },
+      {
+        "path": "tests/palette-picker-events.test.mjs",
+        "feature": "Full palette picker UI",
+        "reason": "Theme and palette UI removed from Lite."
+      },
+      {
+        "path": "tests/preview-controls-layout.test.mjs",
+        "feature": "Full preview control component layout",
+        "reason": "Full preview controls removed; Lite workbench behavior is covered separately."
+      },
+      {
+        "path": "tests/race-preview.test.mjs",
+        "feature": "Full race preview component and Home UI",
+        "reason": "Race UI removed; pure race presentation/domain tests remain."
+      },
+      {
+        "path": "tests/restore-preview-lifecycle.test.mjs",
+        "feature": "Full Home restore callback lifecycle",
+        "reason": "Tests extracted callbacks from removed Home UI; Lite restore/reload lifecycle is covered in tests/lite-safety-review.test.mjs."
+      },
+      {
+        "path": "tests/stop-waiting.test.mjs",
+        "feature": "Full discussion component stop-waiting UI",
+        "reason": "Discussion UI removed; request recovery and save_pending domain behavior remains tested."
+      },
+      {
+        "path": "tests/ui-palette-tokens.test.mjs",
+        "feature": "Full theme palette and motion UI",
+        "reason": "Complex theme UI removed from Lite."
+      },
+      {
+        "path": "tests/workspace-callbacks.test.mjs",
+        "feature": "Full backup, source editor, and version tools UI callbacks",
+        "reason": "Those panels are removed; generic saved-result and workspace domain tests remain."
+      },
+      {
+        "path": "tests/workspace-navigation.test.mjs",
+        "feature": "Full Home sidebar and recovery callback wiring",
+        "reason": "Tests inspect removed Home UI; generic recovery, draft and outcome modules remain covered independently."
+      },
+      {
+        "path": "tests/workspace-status-component.test.mjs",
+        "feature": "Full workspace status component",
+        "reason": "Component removed from Lite; workspace status model tests remain."
+      },
+      {
+        "path": "tests/host-locale.test.mjs (translated native option subtest)",
+        "feature": "Full pages' translated select-option values",
+        "reason": "The subtest scanned removed pages/components; pure locale catalog and interpolation tests remain in the same file."
+      },
+      {
+        "path": "tests/native-navigation.test.mjs (settings navigation subtests)",
+        "feature": "Full settings leave guards and page-link structure",
+        "reason": "Settings UI removed; the retained composer draft persistence subtest still runs."
+      }
     ],
     "testScopeAdaptations": [
-      { "path": "tests/compare-handoff.test.mjs", "change": "Retains the three pure handoff validation, expiry/scope, and stale-target tests; removes only the deleted CandidateModeEntry component test." },
-      { "path": "tests/candidates.test.mjs (no-key demo test preview assertions)", "change": "Retained candidate API demo/safety coverage and moved the preview contract check to LiteWorkbench, litePreview, and the shared preview-document policy." },
-      { "path": "tests/preview-headers.test.mjs", "change": "Retained the installed Vinext response/header and preview security assertions, with LiteWorkbench and shared-page as the current preview surfaces." }
+      {
+        "path": "tests/compare-handoff.test.mjs",
+        "change": "Retains the three pure handoff validation, expiry/scope, and stale-target tests; removes only the deleted CandidateModeEntry component test."
+      },
+      {
+        "path": "tests/candidates.test.mjs (no-key demo test preview assertions)",
+        "change": "Retained candidate API demo/safety coverage and moved the preview contract check to LiteWorkbench, litePreview, and the shared preview-document policy."
+      },
+      {
+        "path": "tests/preview-headers.test.mjs",
+        "change": "Retained the installed Vinext response/header and preview security assertions, with LiteWorkbench and shared-page as the current preview surfaces."
+      }
     ],
     "testRestoreInstructions": "Full UI tests are preserved on the full-product branch at baseline 809bb58946ceb83b7312216294d553be8f114c62. On exam-lite, recover an original test file with: git restore --source=full-product -- tests/<path>. Run the complete restored suite on the full-product branch. The Lite runner intentionally discovers only top-level tests/*.test.mjs, lib/motes/*.test.mjs, and app/manage/*.test.mjs.",
     "testRunner": {
-      "files": 62,
-      "fileConcurrency": 2,
-      "rationale": "The default 15 concurrent file workers caused Node Zone Allocation OOM and spawn ENOMEM on this host; test-internal concurrency remains unchanged.",
-      "diagnosticLog": "D:\\gpt\\output\\motes\\lite-default-concurrency-oom.log"
+      "maxFileConcurrency": 2,
+      "rationale": "The default 15 concurrent file workers caused Node Zone Allocation OOM and spawn ENOMEM on this host; test-internal concurrency remains unchanged."
+    },
+    "publicRuntimeSha": "5cca8498f601e7d028f9afba036034089f951f2a",
+    "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
+    "capabilities": {
+      "generationPhases": [
+        "plan",
+        "execute",
+        "check",
+        "save"
+      ],
+      "newAppOutput": "complete single-file HTML",
+      "existingAppEdits": "strict local replacement patches; atomic validation; original version retained on failure",
+      "demoPlanning": "local preset; no model call",
+      "versionDiff": "actual line additions, removals and context; bounded work; explicit over-budget state; optional display-only wrapping",
+      "codeStreaming": false,
+      "login": false,
+      "zipExport": false
+    },
+    "modelWorkflow": {
+      "typicalUpstreamCallsPerRequest": 2,
+      "rounds": 2,
+      "providerCalls": 4,
+      "totalTokens": 4769,
+      "usageAccounting": "per-request token totals aggregated; native local D1 confirms 2 calls per round and complete usage; HTTP receipts do not expose per-line callCount",
+      "verification": "HTML button background changed from #6941c6 to #2563eb; all other script bytes unchanged; SDK count 1 and revision 1 persisted across code edit",
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\real-model-check.json",
+      "nativeUsageEvidence": "D:\\gpt\\output\\motes\\workflow\\real-model-native-usage.json"
     }
   },
   "checks": {
@@ -80,77 +206,165 @@
     },
     "liteAutomatedSuite": {
       "status": "passed",
-      "tests": 329,
+      "tests": 349,
       "failed": 0,
-      "evidence": "D:\\gpt\\output\\motes\\lite-final-tests.log",
-      "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b",
-      "nativePackageEvidence": "D:\\gpt\\output\\motes\\lite-final-package.log"
+      "skipped": 0,
+      "testedCommit": "1b9111e",
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\tests.log",
+      "followupSpecializedTests": {
+        "passed": 12,
+        "scope": "final chat-scroll adjustment"
+      }
     },
-    "liteTypecheck": { "status": "passed", "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b", "command": "tsc --noEmit" },
-    "liteBuild": { "status": "passed", "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b", "evidence": "D:\\gpt\\output\\motes\\lite-final-package.log" },
+    "liteTypecheck": {
+      "status": "passed",
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\tests.log"
+    },
+    "liteBuild": {
+      "status": "passed",
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\tests.log"
+    },
     "liteCi": {
       "status": "passed",
-      "runId": 42072397135,
-      "url": "https://github.com/YJM1024/motes/actions/runs/42072397135",
-      "publicHead": "71a68fda89b9a4711aa40ff5ddf42047680803f9",
-      "tree": "3824c0e6eecd5d3e8e88a707b6aeb81e2965a19a",
+      "runId": 42085802534,
+      "url": "https://github.com/YJM1024/motes/actions/runs/42085802534",
+      "publicHead": "5cca8498f601e7d028f9afba036034089f951f2a",
+      "exactRuntime": true,
+      "result": "success",
       "platforms": {
-        "ubuntu-latest": { "node": 24, "testsPassed": 329, "testsFailed": 0, "skipped": 0, "npmCi": "passed", "typecheck": "passed" },
-        "windows-latest": { "node": 24, "testsPassed": 329, "testsFailed": 0, "skipped": 0, "npmCi": "passed", "typecheck": "passed" }
+        "ubuntu-latest": {
+          "node": 24,
+          "npmCi": "passed",
+          "test": "passed",
+          "typecheck": "passed"
+        },
+        "windows-latest": {
+          "node": 24,
+          "npmCi": "passed",
+          "test": "passed",
+          "typecheck": "passed"
+        }
       },
-      "evidence": "D:\\gpt\\output\\motes\\lite-final-ci-check.json"
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\ci-check.json"
     },
     "liteBrowserAndDataAcceptance": {
       "status": "passed",
-      "local": {
-        "sourceCommit": "d00dd77458564e6f9b5da30be8aebd56d05435cf",
-        "origin": "http://127.0.0.1:5193",
-        "modelCalls": 0,
-        "evidence": "D:\\gpt\\output\\motes\\lite-browser-check.json",
-        "exportVerification": "D:\\gpt\\output\\motes\\lite-export-verification.json",
-        "screenshots": ["D:\\gpt\\output\\motes\\lite-desktop.jpg", "D:\\gpt\\output\\motes\\lite-mobile-chat.jpg", "D:\\gpt\\output\\motes\\lite-mobile-preview.jpg", "D:\\gpt\\output\\motes\\lite-mobile-history.jpg"],
-        "viewportWidths": [360, 390, 768, 1440],
-        "shortViewport": [360, 450]
-      },
-      "physicalPhoneTest": false,
-      "installedServiceWorkerUpgradeBrowserTest": false
+      "origin": "local browser",
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\local-core-smoke.json",
+      "screenshots": [
+        "D:\\gpt\\output\\motes\\workflow\\local-steps-mobile.png",
+        "D:\\gpt\\output\\motes\\workflow\\local-diff-mobile.png"
+      ],
+      "checks": [
+        "visible four-step workflow",
+        "send clears input",
+        "422 restores editable input",
+        "version diff and same-version empty state",
+        "diff wrapping",
+        "390px no horizontal overflow",
+        "360x450 composer bottom at 403.84px",
+        "patch and restore preserve user task",
+        "single preview iframe"
+      ]
     },
     "liteProductionBrowser": {
       "status": "passed",
-      "version": 24,
-      "runtimeSource": "f7fb42db030f06e725b28075ba2664580c65e46b",
-      "evidence": "D:\\gpt\\output\\motes\\lite-production-browser-check.json",
-      "checks": ["existing SDK value 7 loaded", "increment to 8 saved", "decrement to 7 saved", "refresh preserved same app and value 7", "project badge 10 matches 10 visible apps", "single preview iframe", "390px viewport without horizontal overflow"],
-      "additionalModelCalls": 0,
-      "screenshots": ["D:\\gpt\\output\\motes\\lite-production-live.jpg", "D:\\gpt\\output\\motes\\lite-production-mobile.jpg"]
+      "version": 27,
+      "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
+      "checks": [
+        "counter v2 restored to v1 then returned to v2",
+        "SDK count remained 1",
+        "single preview iframe",
+        "390px preview and version diff without horizontal overflow",
+        "version selectors positioned within viewport",
+        "demo send collapses welcome and shows completed steps",
+        "390px version selectors at x=26..182 and x=207..364"
+      ],
+      "evidence": [
+        "D:\\gpt\\output\\motes\\workflow\\browser-check.json",
+        "D:\\gpt\\output\\motes\\workflow\\production-counter-mobile.png",
+        "D:\\gpt\\output\\motes\\workflow\\production-diff-mobile.png",
+        "D:\\gpt\\output\\motes\\workflow\\production-final-steps.png"
+      ]
     },
     "liteProductionDataIntegrity": {
       "status": "passed",
-      "normalApps": 12,
-      "historicalVersions": 29,
-      "hashesUnchanged": true,
-      "evidence": "D:\\gpt\\output\\motes\\lite-production-after.json"
+      "normalApps": 13,
+      "historicalVersions": 32,
+      "differenceCount": 0,
+      "fields": [
+        "app ID",
+        "current version",
+        "version number",
+        "HTML hash"
+      ],
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\cleanup-and-continuity.json"
     },
     "liteProductionCleanup": {
       "status": "completed-without-deletion",
-      "qaApplicationArchived": true,
-      "qaPublicationPaused": true,
+      "productionQaAppsArchived": 2,
+      "productionQaGroupArchived": true,
+      "localQaGroupAndAppsArchived": true,
+      "qaDataPreserved": true,
+      "localTasksAndHtmlVersionsPreserved": true,
       "deletedRecords": 0,
-      "normalAppsUnchanged": 12,
-      "normalVersionsUnchanged": 29,
-      "evidence": "D:\\gpt\\output\\motes\\lite-production-final-cleanup.json"
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\cleanup-and-continuity.json"
     },
     "liteProductionZeroModelSmoke": {
       "status": "passed",
+      "version": 26,
+      "finalRuntime27": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
+      "uiOnlyNote": "v27 adds chat UI changes; core HTTP smoke was run against v26",
       "checks": 8,
       "modelCalls": 0,
-      "evidence": "D:\\gpt\\output\\motes\\lite-production-core-smoke.json"
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\production-core-smoke.json"
     },
-    "previousModelQa": {
-      "product": "v23 UI; existing full-product QA data",
-      "checks": ["SDK value 7 to 8 and saved", "SDK value 8 to 7 and saved", "v24 refresh still reads 7 from same app"],
-      "newModelCallsInLiteRound": 0
+    "liteProductionCoreSmoke": {
+      "status": "passed",
+      "version": 26,
+      "finalRuntime27": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
+      "uiOnlyNote": "v27 adds chat UI changes; core HTTP smoke was run against v26",
+      "checks": 8,
+      "modelCalls": 0,
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\production-core-smoke.json"
     },
-    "liteDeployment": { "status": "deployed", "version": "v24", "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b" }
+    "sourceArchive": {
+      "status": "see-external-delivery-manifest",
+      "path": "D:\\gpt\\output\\motes\\motes-source.zip",
+      "verificationManifest": "D:\\gpt\\output\\motes\\delivery.json"
+    },
+    "realModelWorkflow": {
+      "status": "passed",
+      "testedRuntime": 26,
+      "finalRuntime": 27,
+      "delta": "UI-only chat scroll and welcome visibility changes",
+      "rounds": 2,
+      "providerCalls": 4,
+      "totalTokens": 4769,
+      "nativeUsageConfirmedPerRound": {
+        "providerCalls": 2,
+        "usageComplete": true
+      },
+      "evidence": "D:\\gpt\\output\\motes\\workflow\\real-model-check.json",
+      "nativeUsageEvidence": "D:\\gpt\\output\\motes\\workflow\\real-model-native-usage.json"
+    },
+    "historicalV24": {
+      "deploymentVersion": 24,
+      "runtimeSource": "f7fb42db030f06e725b28075ba2664580c65e46b",
+      "historicalModelCallsThisIteration": 0,
+      "historicalBrowserEvidence": "D:\\gpt\\output\\motes\\lite-production-browser-check.json",
+      "historicalIntegrity": {
+        "normalApps": 12,
+        "historicalVersions": 29,
+        "hashesUnchanged": true
+      },
+      "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b"
+    },
+    "liteDeployment": {
+      "status": "deployed",
+      "version": 27,
+      "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
+      "publicRuntimeSha": "5cca8498f601e7d028f9afba036034089f951f2a"
+    }
   }
 }

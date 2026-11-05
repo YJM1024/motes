@@ -1,34 +1,36 @@
 # 验收与发布状态
 
-## 当前状态
+## 当前 Lite 发布：v27
 
-| 范围 | 状态 | 记录 |
+| 范围 | 结果 | 记录 |
 | --- | --- | --- |
-| Lite 生产 | **v24 已上线** | 正式网址：[Motes Lite](https://motes-yangjunmin.yjm1024.chatgpt.site/)。runtime source `f7fb42db030f06e725b28075ba2664580c65e46b`，deployment `appgdep_6aecba53fef48191bcecc25484d6f484`，environment revision 4；saved site ID `appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_4b5bfd5fce3c81918262d84ecee32dad`。 |
-| 完整版分支 | **稳定保留** | Lite 从 `809bb58` 基线分出；完整版位于公开 [`full-product` branch](https://github.com/YJM1024/motes/tree/full-product)，当前 SHA `51a315f35554705cd34b51e7d6a7598e36f0fa3d`，原版 375 项 CI、赛马/讨论/复杂编辑/离线入口均留在那里。 |
-| 本地构建与检查 | **329/329 通过；TypeScript 与 build 通过** | 与当前 runtime 同 SHA 的原生完整检查结果记录于本地 `D:\gpt\output\motes\lite-final-package.log`。 |
-| 公开 CI | **Ubuntu 与 Windows 全绿** | [run 42072397135](https://github.com/YJM1024/motes/actions/runs/42072397135)：公开 SHA `71a68fda89b9a4711aa40ff5ddf42047680803f9`，其 tree 与 runtime commit `f7fb42d` 相同；两平台 Node 24 均完成 `npm ci`、329/329 测试、TypeScript 检查。逐 job 证据见本地 [lite-final-ci-check.json](D:/gpt/output/motes/lite-final-ci-check.json)。 |
-| 本地浏览器 | **流程与响应式检查通过** | [实际流程证据](D:/gpt/output/motes/lite-browser-check.json)：生成/修改、保存刷新、历史预览/还原、422 后直接编辑、发布和公开页读写、单 iframe、发布暂停均通过；360/390/768/1440 视口无横溢，360×450 短屏输入可用。导出的 v3 HTML 与保存内容字节和 SHA 完全一致。模型调用为 0。 |
-| 生产浏览器 | **v24 实际核验通过** | [生产 UI 证据](D:/gpt/output/motes/lite-production-browser-check.json)：原有模型应用值 7 加一并保存为 8，再减一保存为 7；v24 刷新仍为同一应用值 7。项目角标 10 与可见应用数 10 一致，单 iframe、390 宽视口无横溢，0 额外模型调用。加减操作在 v23 页面执行；v24 只更改角标显示逻辑。 |
-| 生产数据保留 | **既有内容未变** | v23/v24 对比核对 12 个正常应用与 29 个历史版本 hash 保持一致；8 项 production core/demo 检查通过且 0 模型调用。临时 QA 应用只归档、不删除，发布保持暂停。见本地 `lite-production-after.json`、`lite-production-core-smoke.json` 与 `lite-production-final-cleanup.json`。 |
-| 未测边界 | **已明确** | 旧 Service Worker 已有精确注销回归测试，但实际已安装 worker 升级未在浏览器模拟；实体手机未测。生产读写核验复用已有模型应用，没有产生 Lite 本轮模型调用。 |
+| 生产发布 | **v27 已部署** | [Motes Lite](https://motes-yangjunmin.yjm1024.chatgpt.site/)；runtime `81a84e76d7fa25d6635668dfd3615c9c1bd91c18`；saved app `appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_cd6ea61e396481918f62afa072161f56`；deployment `appgdep_6aecccb8c5c08191b6565e9c75c1ef34`；environment revision 4。 |
+| 公开运行代码 | **v27 runtime SHA 已知** | `5cca8498f601e7d028f9afba036034089f951f2a`。完整版仍在 [`full-product`](https://github.com/YJM1024/motes/tree/full-product)，public SHA `51a315f35554705cd34b51e7d6a7598e36f0fa3d`。 |
+| 本地自动化 | **349/349 通过，0 skip** | 最终主体结果基于 `1b9111e`；随后聊天滚动小修另有 12 项专项通过。TypeScript 检查及原生最终 build 通过。证据：[tests.log](D:/gpt/output/motes/workflow/tests.log)。 |
+| 公开 CI | **精确 runtime 双平台通过** | [GitHub Actions run 42085802534](https://github.com/YJM1024/motes/actions/runs/42085802534)：ubuntu-latest 与 windows-latest 的 `npm ci`、test、typecheck 均 success；公开 runtime SHA `5cca8498f601e7d028f9afba036034089f951f2a`。记录：[ci-check.json](D:/gpt/output/motes/workflow/ci-check.json)。 |
+| 本地浏览器 | **目标流程通过** | 已验收步骤可见、发送清空与 422 恢复、版本差异/同版空态/自动换行、390px 无横向溢出、360×450 输入框底部位置 403.84px、patch/restore 保留用户任务，以及单 iframe。截图：[steps](D:/gpt/output/motes/workflow/local-steps-mobile.png)、[diff](D:/gpt/output/motes/workflow/local-diff-mobile.png)。 |
+| 生产核心 HTTP | **8 项通过，0 模型调用** | 核心 smoke 在 v26 上执行；v27 只含聊天 UI 变化。记录：[production-core-smoke.json](D:/gpt/output/motes/workflow/production-core-smoke.json)。 |
+| 生产浏览器 | **v27 counter 与移动端验收通过** | 计数器 v2→还原 v1→恢复 v2，SDK count 始终为 1，单 iframe；390px 生产预览与版本差异均无横向溢出，两个版本选择框位于 x=26..182、x=207..364；发送 demo 后欢迎区收起且完成步骤可见。[最终浏览器记录](D:/gpt/output/motes/workflow/browser-check.json)；截图：[counter](D:/gpt/output/motes/workflow/production-counter-mobile.png)、[diff](D:/gpt/output/motes/workflow/production-diff-mobile.png)、[steps](D:/gpt/output/motes/workflow/production-final-steps.png)。 |
+| 数据完整性与 QA 清理 | **已通过，无删除** | 生产 QA 两个应用及其组已归档并保留全部数据；本地 QA 组与应用也已归档，任务及两版 HTML 保留。生产正常列表 13 个应用、32 个历史版本与基线逐项核对，ID、当前版本、版本号及 HTML hash 均一致。证据：[cleanup-and-continuity.json](D:/gpt/output/motes/workflow/cleanup-and-continuity.json)，`passed: true`。 |
+| 真实模型浏览器 | **两轮生成与补丁成功** | 实测在 v26 runtime；最终 v27 runtime 仅有聊天 UI 变化。两轮请求共 4 次 provider 调用、4769 tokens。修改仅将按钮背景色 `#6941c6` 改为 `#2563eb`，其余 script 字节完全相同；SDK 计数为 1、revision 1，跨代码修改后保留。记录：[real-model-check.json](D:/gpt/output/motes/workflow/real-model-check.json)、[native usage](D:/gpt/output/motes/workflow/real-model-native-usage.json)。usage 的 callCount 来自本机原生 D1 实读；HTTP 回执未逐条公开 callCount。 |
 
-## Lite 产品边界
+## 交付归档
 
-- 目标流程：游客进入共享空间 → 创建项目/应用 → 用自然语言生成与修改 → 预览 → 查看版本/恢复 → 发布并复制链接。
-- 无注册；访客共享空间内容并可互相查看、修改。不得存入私人或机密数据。
-- 复用现有 HTML 与 API，不引入 AppSpec 或容器。业务运行数据只有应用显式调用 SDK 写入才会持久化；恢复代码版本只改变代码当前指针，不回滚 SDK 业务数据。
-- 请求状态依据真实服务端回执：已发出且无响应时只显示等待，收到保存结果后才标记版本已保存；不显示虚构的多 Agent 推理阶段或假装服务端已接收。
-- 无服务端模型配置时，仅提供明确标注、有限范围的示例；其他需求按不支持处理。本轮 Lite 流程与生产核查均无新增模型调用；已有模型应用只用于验证保存数据读写与刷新持久性。
-- Lite 需要网络；完整离线工作台仅在完整版。隐藏赛马、讨论、元素/源码编辑、复杂设置、模板、备份和离线入口，但不删除旧数据库资料。
-- 退役旧 Service Worker 时保留 IndexedDB、草稿和待处理队列。现有代码回归检查确认不会清理这些存储，但真实浏览器升级/离线恢复仍待验收；不得宣称完成数据迁移。
+最终源码包路径、归档版本与 SHA-256 统一记录在[交付清单](D:/gpt/output/motes/delivery.json)，避免在仓库发布清单中重复保存归档摘要。文件路径为 `D:\gpt\output\motes\motes-source.zip`。
 
-## 验收证据
+## 本轮产品与数据边界
 
-HTML 导出与保存的 v3 字节完全一致（SHA-256 相同），没有额外模型调用或数据变更；见[导出核对记录](D:/gpt/output/motes/lite-export-verification.json)。生产浏览器也确认：已有 AI 应用 SDK 值 7 加一并保存为 8、再减一并保存为 7，v24 刷新后同一应用仍为 7；此过程未调用模型。详细结果见[生产浏览器核对](D:/gpt/output/motes/lite-production-browser-check.json)。
+- 生成阶段为独立简短规划、执行、检查、保存。新建应用生成完整 HTML；后续修改通过严格局部补丁；检查失败时保留原保存版本。模型模式通常为规划和执行两次上游调用，demo 计划由本地预设提供，不伪装为模型调用。细节见[生成工作流](generation-workflow.md)。
+- 版本对比展示真实行级新增、删除与上下文；自动换行只影响显示，保留真实代码与行号，超预算明确提示。HTML 代码版本的还原不会回滚 SDK 业务数据。
+- Lite 面向共享游客空间，内容访客可见且可修改；不要存放个人或机密数据。Lite 需要网络，不提供登录、代码流式输出或 ZIP 导出。完整离线工作台及赛马、讨论、复杂编辑等保留在完整版。
+- 实体手机和真实已安装旧 Service Worker 升级仍未验收。响应式视口检查不能代替实体设备测试。
+- 本记录不承诺官方评分或评分结果。
 
-完整版的生产与历史验收证据见[完整版 release manifest](docs/release-manifest.json)及[完整版分支文档](https://github.com/YJM1024/motes/tree/full-product)。这些证据不计入 Lite 的本地浏览器检查。
+## v24 历史验收记录
 
-后续若复测，保留区分真实已安装 Service Worker 升级和退役逻辑单测；实体手机与无痕模式等没有测过，不由响应式视口结果代替。
+以下内容只描述 v24 发布时的历史结果，不能当作当前版本的测试或生产状态。历史证据文件保留在 `D:\gpt\output\motes`；v24 说明文档已归档到 `D:\gpt\output\motes\history\release-v24`。
 
-当前机器可读快照见[release manifest](docs/release-manifest.json)；本轮进度见本地 `D:\gpt\output\motes\本轮优化进展.md`。
+- v24 runtime `f7fb42db030f06e725b28075ba2664580c65e46b`，deployment `appgdep_6aecba53fef48191bcecc25484d6f484`，环境 revision 4。该轮本地 329 项检查、公开 CI run 42072397135、生产浏览器检查与零新增模型调用均为 v24 历史事实。
+- v24 生产浏览器读写的是已有模型应用的 SDK 值 7→8→7，刷新后仍为 7；该历史流程没有产生新模型内容。
+- v24 曾核对 12 个正常应用与 29 个历史版本 hash 未变，并归档 QA 应用且未删除记录。v27 的 13 个正常应用/32 个历史版本已逐项比对通过，当前记录见 [连续性核对](D:/gpt/output/motes/workflow/cleanup-and-continuity.json)。
+- v24 验收记录和 JSON 快照见 [release manifest](release-manifest.json) 的历史字段及本地 v24 归档。旧的零模型调用结论不适用于本轮真实模型验收。
