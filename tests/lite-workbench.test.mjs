@@ -67,3 +67,12 @@ test('publication conflict only reads latest revision and asks for review instea
   await h.publish(); assert.equal(h.output.requests.filter(r => r.body).length, 1); assert.equal(h.output.requests.filter(r => !r.body).length, 1); assert.equal(h.output.publication.revision, 7); assert.equal(h.output.pending, null); assert.match(h.output.messages.at(-1), /核对/);
 });
 
+test('preview reconciliation uses one keyed boundary for the iframe and SDK bridge, with no colliding sibling keys', async () => {
+  const text = await readFile(new URL('../app/lite/LiteWorkbench.tsx', import.meta.url), 'utf8'), tree = ts.createSourceFile('LiteWorkbench.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const groups = []; function visit(node) { if (ts.isJsxElement(node) && node.openingElement.tagName.getText(tree) === 'Fragment') groups.push(node); ts.forEachChild(node, visit); } visit(tree);
+  const group = groups.find(node => node.children.some(child => ts.isJsxSelfClosingElement(child) && child.tagName.getText(tree) === 'iframe'));
+  assert.ok(group, 'The iframe and its data bridge must share a replaceable lifecycle boundary');
+  const key = group.openingElement.attributes.properties.find(a => ts.isJsxAttribute(a) && a.name.getText(tree) === 'key'); assert.equal(key?.initializer?.expression?.getText(tree), 'identity');
+  const children = group.children.filter(ts.isJsxSelfClosingElement); assert.deepEqual(children.map(c => c.tagName.getText(tree)), ['iframe', 'LiteRuntimeDataBridge']);
+  assert.equal(children.filter(child => child.attributes.properties.some(a => ts.isJsxAttribute(a) && a.name.getText(tree) === 'key')).length, 0, 'Duplicate keys on sibling iframe and bridge previously left live orphan iframes');
+});

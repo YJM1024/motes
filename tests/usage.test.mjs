@@ -38,6 +38,25 @@ test('configured model allowlist has no secrets and missing key remains honest d
   assert.equal((await h.route.GET(new Request('https://motes.test/api/usage'))).status,401);
 });
 
+test('unsupported demo rejection happens before reservation and preserves the saved app for an edited request', async t => {
+  const h = await harness(); t.after(h.close);
+  t.mock.method(globalThis, 'fetch', () => { throw Error('Demo capability rejection must never call a model'); });
+  const first = await h.generate({ mode: 'demo', prompt: '任务看板', requestId: crypto.randomUUID() });
+  assert.equal(first.status, 200);
+  const original = first.data.project, rejectedId = crypto.randomUUID();
+  const rejected = await h.generate({ mode: 'demo', prompt: '增加多用户注册', projectId: original.id, baseVersionId: original.currentVersionId, requestId: rejectedId });
+  assert.equal(rejected.status, 422);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests WHERE id=?').get(rejectedId).n, 0, 'No request exists to reconcile after a confirmed capability rejection');
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_locks WHERE request_id=?').get(rejectedId).n, 0);
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM motes_model_usage').get().n, 0);
+  const preserved = await h.server.readProject(await h.who('a'), original.id);
+  assert.equal(preserved.currentVersionId, original.currentVersionId);
+  assert.deepEqual(preserved.versions, original.versions);
+  const edited = await h.generate({ mode: 'demo', prompt: '改成深色主题', projectId: original.id, baseVersionId: original.currentVersionId, requestId: crypto.randomUUID() });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.project.versions.length, 2);
+});
+
 test('workspace/project/app model inheritance and explicit allowed request choose the real fetch model',async t=>{
   const h=await harness();t.after(h.close);const who=await h.who('a'),wid=await h.management.initializeWorkspace(who),now=new Date().toISOString(),group=crypto.randomUUID();
   h.sqlite.prepare('INSERT INTO motes_projects(id,workspace_id,name,created_at,updated_at) VALUES(?,?,?,?,?)').run(group,wid,'模型项目',now,now);

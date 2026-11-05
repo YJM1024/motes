@@ -35,7 +35,13 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const result = spawnSync(process.execPath, ['--test', ...files], {
+const result = spawnSync(process.execPath, ['--test', '--test-concurrency=2', ...files], {
+  // 62 files × Node's default 15 workers exceeded this environment's
+  // available memory. Limit file workers while preserving concurrency inside
+  // each test (Promise races, locks, idempotency and CAS assertions).
+  // The same fixed limit keeps local and CI runs resource-predictable.
+  // Node's test-runner file concurrency is supported by the project's Node 22+ baseline.
+  // Keep concurrency explicit instead of inheriting the host's CPU count.
   cwd: root,
   stdio: 'inherit',
 });

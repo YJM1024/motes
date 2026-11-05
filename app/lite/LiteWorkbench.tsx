@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, Check, ChevronDown, Code2, Download, Eye, History, LoaderCircle, Menu, MessageSquare, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useWorkspaceDraft } from '@/app/hooks/useWorkspaceDraft';
 import type { Project } from '@/lib/forma/types';
@@ -59,7 +59,7 @@ export default function LiteWorkbench() {
       <aside className={`lite-sidebar ${sidebar ? 'is-open' : ''}`}>
         <div className="lite-sidebar-label"><span>我的项目</span><button className="lite-icon" title="新建项目" aria-label="新建项目" disabled={!w.session || w.loading} onClick={() => setGroupForm(!groupForm)}><Plus size={16}/></button></div>
         {groupForm && <form className="lite-group-form" onSubmit={createGroup}><input aria-label="项目名称" placeholder="项目名称" maxLength={80} value={groupName} onChange={e => setGroupName(e.target.value)} autoFocus/><button disabled={groupBusy || !groupName.trim()}>{groupBusy ? '创建中' : '创建'}</button></form>}
-        <div className="lite-groups">{w.snapshot?.projects.filter(p => !p.archived).map(p => <button className={p.id === w.groupId ? 'selected' : ''} key={p.id} onClick={() => { w.switchGroup(p.id); setSidebar(false); }}><span>▱</span><span>{p.name}</span><small>{p.appCount}</small></button>)}</div>
+        <div className="lite-groups">{w.snapshot?.projects.filter(p => !p.archived).map(p => <button className={p.id === w.groupId ? 'selected' : ''} key={p.id} onClick={() => { w.switchGroup(p.id); }}><span>▱</span><span>{p.name}</span><small>{p.appCount}</small></button>)}</div>
         <div className="lite-sidebar-label"><span>{group?.name || '项目'}中的应用</span></div>
         <button className="lite-new-app" disabled={!w.session || w.loading} onClick={() => { w.create(); setPane('chat'); setSidebar(false); }}><Plus size={16}/>新建应用</button>
         <nav className="lite-apps" aria-label="应用列表">{apps.map(a => <button key={a.id} className={a.id === w.project?.id ? 'selected' : ''} onClick={() => { void w.open(a.id); setSidebar(false); }}><span className="lite-app-symbol">◇</span><span>{a.name}</span></button>)}{!apps.length && <p className="lite-note">这个项目还没有应用。从一句话开始。</p>}</nav>
@@ -83,7 +83,7 @@ export default function LiteWorkbench() {
           {displayed && <div className="lite-preview-meta"><span>{loaded ? <><Check size={13}/>预览已加载 · 请检查实际功能</> : '正在载入预览…'}</span>{w.session?.visibility === 'shared' && <small>仅通过 SDK 显式保存的业务数据会持久保留</small>}</div>}
           <div className="lite-preview-stage">
             {w.loading && <div className="lite-loading"><LoaderCircle className="lite-spin" size={22}/>正在读取云端工作空间…</div>}
-            {preview && displayed && w.project ? <><iframe key={identity} ref={frameRef} title={`${w.project.title} v${displayed.number} 预览`} sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" srcDoc={preview.html} onLoad={() => setLoaded(true)}/><LiteRuntimeDataBridge key={identity} frameRef={frameRef} appId={w.project.id} versionId={displayed.id} channel={preview.channel} enabled={w.session?.visibility === 'shared'}/></> : <div className="lite-empty-preview"><div className="lite-window-illustration"><div><i/><i/><i/></div><span>✣</span><b/><b/></div><h2>下一份作品，从这里开始</h2><p>在左侧描述需求，应用会出现在这里。<br/>可以操作、继续修改，再发布成公开链接。</p><span className="lite-empty-label">你的想法，值得一个可以运行的版本</span></div>}
+            {preview && displayed && w.project ? <Fragment key={identity}><iframe ref={frameRef} title={`${w.project.title} v${displayed.number} 预览`} sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" srcDoc={preview.html} onLoad={() => setLoaded(true)}/><LiteRuntimeDataBridge frameRef={frameRef} appId={w.project.id} versionId={displayed.id} channel={preview.channel} enabled={w.session?.visibility === 'shared'}/></Fragment> : <div className="lite-empty-preview"><div className="lite-window-illustration"><div><i/><i/><i/></div><span>✣</span><b/><b/></div><h2>下一份作品，从这里开始</h2><p>在左侧描述需求，应用会出现在这里。<br/>可以操作、继续修改，再发布成公开链接。</p><span className="lite-empty-label">你的想法，值得一个可以运行的版本</span></div>}
             {history && w.project && <div className="lite-overlay"><header><strong>代码历史</strong><button aria-label="关闭历史" onClick={() => setHistory(false)}><X size={17}/></button></header><p>查看历史只切换预览；继续修改仍基于当前保存版。还原会重新载入页面，未保存的临时输入会重置。</p>{[...w.project.versions].reverse().map(v => <div className="lite-history-item" key={v.id}><button className={displayed?.id === v.id ? 'selected' : ''} onClick={() => setViewId(v.id)}><strong>v{v.number}{v.id === w.project?.currentVersionId ? ' · 当前保存' : ''}</strong><span>{v.prompt}</span><small>{new Date(v.createdAt).toLocaleString('zh-CN')}</small></button>{v.id !== w.project?.currentVersionId && <button disabled={restoring || g.busy || !!g.attempts.length} onClick={() => void restore(v.id)}><RotateCcw size={13}/>{restoring ? '还原中' : '还原此版'}</button>}</div>)}</div>}
             {source && displayed && <div className="lite-overlay lite-source"><header><strong>HTML · v{displayed.number}</strong><button aria-label="关闭代码" onClick={() => setSource(false)}><X size={17}/></button></header><p>只读完整源码。导出的 HTML 独立运行时不连接工作台数据桥。</p><pre><code>{displayed.html}</code></pre></div>}
           </div>
@@ -93,6 +93,8 @@ export default function LiteWorkbench() {
     </div>
   </div>;
 }
+
+
 
 
 

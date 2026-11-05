@@ -1,21 +1,17 @@
-# 本地启动与数据库迁移
+# Lite 本地启动与验收
 
-本文针对当前源码工作树。线上体验：[Motes](https://motes-yangjunmin.yjm1024.chatgpt.site/)。生产版本和本地证据分别见[验收说明](acceptance.md#当前验收状态)；本地命令不会连接或修改生产数据库。
+当前生产仍是完整版 v22：[在线站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)。`exam-lite` 是尚未发布的本地分支；本地运行不会修改生产 D1。Lite 需要网络，不提供完整版的完整离线工作台。
 
-需要 Node.js 24（最低 22.13）与 npm。以下命令从仓库根目录运行。状态保存在 Git 忽略的 `.wrangler/state`；保留该目录可复用本地数据库。
+## 安装与本地数据库
 
-## 干净安装与构建
+需要 Node.js 24（最低 22.13）和 npm。从仓库根目录运行：
 
 ```sh
 npm ci
 npm run build
 ```
 
-构建生成 `dist/server/wrangler.json`，供本地 D1 命令使用。
-
-## 全新本地库
-
-仅用于新建的本地数据库。按文件名顺序执行 `drizzle/` 中全部 SQL 迁移：
+构建生成本地 Wrangler 配置 `dist/server/wrangler.json`。仅对新建的本地 D1 按文件名顺序应用全部迁移：
 
 ```powershell
 Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | ForEach-Object {
@@ -24,25 +20,15 @@ Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | 
 }
 ```
 
-## 已有本地库
+此命令只用于全新本地库。已有库先备份 `.wrangler/state`，只补尚未执行的迁移；不要清空数据库或对生产执行 `--remote`。数据库 schema/API 与完整版兼容，lite 是界面缩减，不是新数据模型。
 
-先备份 `.wrangler/state`，再根据本地记录只执行尚未应用的迁移。不要删除状态目录或重复执行已有迁移；手动 `d1 execute --file` 不会自动记录迁移历史。若不确定已有哪些表，可只读检查：
-
-```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-```
-
-新增迁移只建立结构。已有应用的工作空间元数据由管理接口按当前空间归属幂等补建，保留应用 ID、版本历史和当前指针。切换到共享模式不会自动合并或公开原有访客数据；导入备份会创建新 ID 的副本。共享空间内的应用、讨论、版本和 SDK 运行数据对访客可见并可修改，不要在其中放入私密信息。
-
-## 启动与模型配置
+## 启动
 
 ```sh
 npm run dev
 ```
 
-通常打开 `http://127.0.0.1:5173/`，以终端显示地址为准。管理、设置和候选比较页面分别为 `/manage`、`/settings`、`/compare`。
-
-未配置模型也可使用标注明确的固定示例。需要真实生成时，复制 `.dev.vars.example` 为 `.dev.vars`，在本地填写已获授权的 `OPENAI_API_KEY` 和账户可用的 `OPENAI_MODEL`。真实凭据不得提交 Git、放入浏览器或写入验收报告；真实模型验收会发起请求并可能产生费用。
+通常打开 `http://127.0.0.1:5173/`，以终端显示地址为准。示例 `.dev.vars.example` 默认使用共享游客空间；同一工作区中的访问者能看到和修改彼此内容。请勿放入私人数据。没有服务端模型 Key 时只能使用标注明确的有限 demo；真实模型功能需在本地秘密文件 `.dev.vars` 中配置服务端 Key 和可用模型，不能把 Key 交给游客或提交 Git。
 
 ## 自动检查
 
@@ -51,20 +37,10 @@ npm test
 npm run typecheck
 ```
 
-`npm test` 从 `tests/`、`lib/motes/` 与 `app/manage/` 收集并排序 `*.test.mjs`。类型检查使用项目本地 TypeScript。
+测试发现以根目录 `tests/` 为必需入口，只收集该目录的顶层 `*.test.mjs`。完整版专属 UI 测试仍保留在 `full-product` 分支，已从 Lite 测试树移除，因此不会误运行。共享逻辑目录 `lib/motes/` 和纯管理筛选测试目录 `app/manage/` 若存在则纳入，Lite 移除管理 UI 后可没有 `app/manage/`。可选目录只有在不存在（`ENOENT`）时跳过，其他读取错误仍会失败；零测试文件也会失败。当前 62 个测试文件以最多 2 个并行文件进程执行；测试内的 Promise 并发、锁和幂等断言不变。Lite 保留适用的 API、数据恢复、SDK、安全边界和纯筛选测试。329 项完整测试与之后 Lite UI 小改后的定向检查分别见[验收记录](acceptance.md#当前状态)。旧 Service Worker 真实浏览器升级和实体手机测试尚未完成。
 
-## HTTP Smoke
+## 浏览器数据与 Service Worker
 
-推荐先运行不调用模型的核心 Smoke：
+退役旧 Service Worker 时只解除旧 Worker 的拦截，不清除旧 IndexedDB、草稿或待处理队列。不要用“清除站点数据”排除兼容问题；真实浏览器更新后保留与恢复仍需单独验收。完整离线工作台仅在[完整版分支](https://github.com/YJM1024/motes/tree/full-product)提供。
 
-```sh
-node tests/smoke.mjs http://127.0.0.1:5173 outputs/core-http.json
-```
-
-该脚本使用示例 API，创建一个命名 QA 应用并在结束时归档自己的应用。共享模式下 QA 应用会短暂出现在所有访客可见的公共空间；报告路径默认相对当前目录。从仓库根目录运行时，报告位于被 Git 忽略的 `outputs/` 下。
-
-`tests/shared-runtime-smoke.mjs` 适用于专门的共享模式检查。它会创建 QA 应用且不删除已有数据；通过 `--verify-existing` 检查重启持久性。不要对含重要数据的环境运行。
-
-其余历史 Smoke（例如 `creation-flow-smoke.mjs`、`management-smoke.mjs`、`settings-smoke.mjs`、`sharing-smoke.mjs`）要求 disposable private workspace。它们会先读取 `/api/session` 并拒绝 shared 模式，拒绝时不发送写请求；仅在独立本地库且 `MOTES_WORKSPACE_VISIBILITY=private` 时运行。不要在生产站点或共享演示空间运行这些私有模式脚本。
-
-HTTP 示例和自动测试不替代浏览器验收；真实模型输出、模型权限与费用回执需单独记录，不能从 demo 结果推断。
+版本恢复只切换当前 HTML 版本，不回滚应用通过 SDK 显式写入的业务数据。普通输入和页面 DOM 状态不会自动持久化；发布链接公开可访问，发布前应检查内容。

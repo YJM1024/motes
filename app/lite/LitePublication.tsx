@@ -43,12 +43,14 @@ export default function LitePublication({ appId, versionId, number, html }: { ap
   }
   const current = publication?.enabled && publication.versionId === versionId;
   return <div className="lite-publication">
+    {ready && <div className="lite-publication-state">{publication?.enabled ? <><strong>当前发布 v{publication.versionNumber}</strong><span>{current ? `当前预览 v${number} 已发布` : `当前预览 v${number} 尚未发布`}</span></> : publication ? <><strong>发布已暂停</strong><span>公开链接暂不可访问 · 可重新发布当前预览 v{number}</span></> : <><strong>尚未发布</strong><span>当前预览 v{number} 仅在工作台中查看</span></>}</div>}
     <div className="lite-publication-actions">{loading && <small role="status">正在读取发布状态…</small>}{!ready && !loading && <button onClick={() => void reconnect()}>重试连接发布服务</button>}<button className="lite-primary" disabled={!ready || busy} onClick={() => pending ? void publish() : setConfirm(confirm === 'publish' ? false : 'publish')}>{busy ? '发布中…' : pending ? '核对原发布请求' : current ? `重新发布 v${number}` : `发布 v${number}`}</button>{publication?.enabled && <><button onClick={() => void copy()}>复制链接</button><a href={publication.path} target="_blank" rel="noopener noreferrer">打开 ↗</a><button disabled={busy || !!pending} onClick={() => setConfirm("unpublish")}>暂停发布</button></>}</div>
     {confirm && <div className="lite-publish-confirm"><p>{confirm === "unpublish" ? "将暂停公开链接的后续访问；再次发布可恢复同一链接。已复制或下载的内容不会被收回。" : <>将公开当前预览版本 v{number} 的完整 HTML。此空间的作品和业务数据由访客共享；请确认适合公开。</>}</p><small>发布前静态检查不能代替实际功能验证。</small><div><button className="lite-primary" onClick={() => void publish(confirm || "publish")} disabled={busy}>{confirm === "unpublish" ? "确认暂停" : `确认发布 v${number}`}</button><button onClick={() => setConfirm(false)}>取消</button></div></div>}
-    {publication?.enabled && <small>线上版本 v{publication.versionNumber}{!current && ' · 与当前预览不同'} · <a href={publication.path} target="_blank" rel="noopener noreferrer">{publication.path}</a></small>}
+    {publication?.enabled && <small><a href={publication.path} target="_blank" rel="noopener noreferrer">{publication.path}</a></small>}
     {message && <p role="status" className="lite-note">{message}</p>}
   </div>;
 }
+
 
 
 

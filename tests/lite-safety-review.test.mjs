@@ -121,3 +121,28 @@ test('a malformed JSON success cannot consume the original generation outbox ent
   assert.equal(h.current.attempts[0].recovered, true);
   assert.equal(h.current.busy, false);
 });
+
+test('confirmed demo capability rejection allows editing without a nonexistent request to reconcile', async t => {
+  let calls = 0;
+  const h = harness({ transport: async () => { calls++; if (calls === 1) throw new api.LiteApiError('这项修改超出示例模式能力。', 422); return { project }; } }); t.after(h.close);
+  await h.current.send('增加多用户注册', 'demo'); h.flush();
+  assert.equal(h.saved.length, 0, 'Rejection must not replace the existing saved app');
+  assert.equal(h.current.attempts.length, 0, 'Capability check precedes the server reservation');
+  assert.equal(h.current.busy, false);
+  assert.match(h.current.notice, /编辑|调整/);
+  await h.current.send('改成深色主题', 'demo'); h.flush();
+  assert.equal(calls, 2, 'A changed supported request can be sent directly');
+  assert.equal(h.saved.length, 1);
+});
+
+test('network and timeout ambiguity never use the confirmed demo rejection shortcut', async t => {
+  for (const error of [new Error('这项修改超出示例模式能力。'), new DOMException('timeout', 'TimeoutError'), new api.LiteApiError('temporary gateway', 502)]) {
+    let calls = 0;
+    const h = harness({ transport: async () => { calls++; throw error; } }); t.after(h.close);
+    await h.current.send('original request', 'demo'); h.flush();
+    assert.equal(h.current.attempts.length, 1);
+    assert.equal(h.current.attempts[0].recovered, true);
+    assert.equal(h.current.attempts[0].retryConfirmed, false);
+    await h.current.send('later draft', 'demo'); assert.equal(calls, 1);
+  }
+});

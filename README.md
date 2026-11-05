@@ -1,48 +1,37 @@
-# Motes · 微粒
+# Motes Lite · 微粒轻量版
 
-Motes 是一个通过对话创建、预览、迭代和保存单文件网页应用的轻量工作台。
+Motes Lite 是面向游客共享空间的轻量网页应用工作台：通过对话生成单文件 HTML，在隔离预览区操作、保存版本并按需发布。
 
-[在线体验](https://motes-yangjunmin.yjm1024.chatgpt.site/) · [GitHub 源码](https://github.com/YJM1024/motes) · [本地启动与迁移](docs/local-setup.md) · [架构](docs/architecture.md) · [当前验收状态](docs/acceptance.md#当前验收状态)
+**状态：Lite 本地浏览器流程与自动检查已通过，尚未部署。** 当前线上仍是完整版 v22：[在线体验](https://motes-yangjunmin.yjm1024.chatgpt.site/)。Lite 当前代码检查点为 `d00dd77`；329 项整套测试通过的基线是 `2153061`，后续 UI 小改另有定向测试与 TypeScript 检查。浏览器视口不是实体手机测试；旧 Service Worker 升级也未在浏览器中模拟。详细证据与边界见[验收记录](docs/acceptance.md)。
 
-当前生产为 **v22**，运行源码 `7491413ef0b138ebf73e87ed2842df617e336be2`。平台正式入口已更新为上方链接，现有项目和 slug 未变。历史版本还原后的预览重连修复已随 v22 部署；部署、CI 与线上验收范围见[验收说明](docs/acceptance.md)。机器可读摘要见[release manifest](docs/release-manifest.json)。
+完整功能可在[full-product 分支](https://github.com/YJM1024/motes/tree/full-product)查看；本地归档包位于 `D:\gpt\output\motes\motes-full-product.zip`。
 
-## 七步核心体验
+## Lite 核心路线
 
-1. 用自然语言描述一个小网页，创建应用。
-2. 在隔离预览区实际操作生成结果。
-3. 继续对话修改，逐轮保存代码版本。
-4. 刷新后回到项目和已保存版本。
-5. 查看历史版本，预览或还原指定版本。
-6. 按需分享固定版本或更新稳定发布链接。
-7. 导出独立 HTML，或备份后导入为新应用。
+1. 无需注册，进入公共游客空间；访客共享其中的作品和数据。
+2. 创建或选择项目，再创建或打开应用。
+3. 用自然语言描述要做的网页。
+4. 查看请求与保存状态：发送后等待服务端回执，收到成功响应后显示版本已保存。
+5. 在大预览区操作当前 HTML。
+6. 继续对话修改，查看只读源码和版本历史；恢复历史代码不会回滚 SDK 业务数据。
+7. 发布选定版本，复制稳定公开链接并在独立页面使用。
 
-## 能力与边界
+## 保留范围
 
-- 创建、讨论、候选比较、源码编辑、版本历史、运行诊断与主动修复。详细入口见[候选赛马](docs/candidates.md)、[源码与版本](docs/source-editor.md)、[讨论](docs/discussions.md)及[运行修复](docs/runtime-repair.md)。
-- 项目和应用管理、偏好继承、分享、模板与备份；参见[管理](docs/workspace-api.md)、[设置](docs/settings.md)、[分享](docs/sharing.md)、[模板](docs/templates.md)和[备份](docs/backup.md)。
-- 离线工作台可处理已缓存内容及有限示例；待同步内容由用户联网后手动同步，详见[离线工作台](docs/offline-workspace.md)。
-- 示例模式使用固定预设，不代表真实模型生成。真实 AI 能力需要服务端模型配置和可用额度；自动与 HTTP Smoke 默认不调用模型。
-- 应用是单文件 HTML。预览 iframe 不提供同源、弹窗、顶层导航或外部网络能力；不支持多文件工程、安装依赖或让生成应用读取服务端密钥。独立导出的 HTML 不再处于工作台 iframe 隔离范围内。
+- 复用现有 D1/API 和 iframe 预览，生成物仍是完整的单文件 HTML；不引入 AppSpec 或容器。
+- 应用显式通过 Motes SDK 写入的键值数据才会持久保存。普通表单输入、DOM 状态和计时器不会自动保存。
+- 手机界面可在聊天与预览间切换。Lite 使用网络；完整离线工作台仅在[完整版](https://github.com/YJM1024/motes/tree/full-product)提供。
+- 状态依据真实服务端回执和 iframe load 更新，不展示虚构的多 Agent 推理阶段，也不把请求发送说成服务端已接收。
+- 服务端无模型配置时，只提供标注明确、范围有限的三个示例；其他需求按不支持处理。真实模型调用需要服务端配置及额度，Lite 本轮验收不再增加模型调用。
 
-## 本地运行与验证
+## 完整版保留的功能
 
-要求 Node.js 24（最低 22.13）和 npm。在仓库根目录干净安装：
+Lite 不显示赛马、独立讨论、元素编辑、源码编辑器、复杂设置、模板、备份或离线工作台入口。这些功能和对应历史数据仍保留在 full-product 分支；切换界面不会主动删除旧版本、讨论、模板、运行数据或浏览器 IndexedDB 中的草稿与待处理队列。
 
-```sh
-npm ci
-npm run build
-npm test
-npm run typecheck
-```
+## 本地启动与验收
 
-新库迁移命令见[全新本地库步骤](docs/local-setup.md#全新本地库)；已有库只补未执行的迁移。HTTP Smoke 和数据安全边界见[本地启动说明](docs/local-setup.md)。
+本地依赖、数据库迁移和安全边界见[本地启动说明](docs/local-setup.md)。当前产品状态、恢复/数据检查及未测范围见[验收说明](docs/acceptance.md)。自动测试与类型检查已通过；浏览器与发布结论以验收记录为准。
 
-## 验证
+## 数据与安全
 
-自动测试、类型检查、HTTP 检查、浏览器操作和真实模型调用属于不同证据。测试通过不代表浏览器验收；示例 API 结果不代表真实模型质量。当前各项范围、结果和未完成检查见[验收说明](docs/acceptance.md#当前验收状态)。
-
-## 数据与保密
-
-共享模式中的访客共同查看和修改公共空间内容；不要在共享空间保存私人信息。只有应用显式通过运行数据 SDK 写入的键值会持久保存，普通 DOM 状态、表单输入和计时器不会自动保存。身份与数据模型见[共享运行数据](docs/shared-runtime.md)。
-
-模型 Key 仅配置在服务端本地秘密文件或部署秘密变量中，不提交 Git、不写入公开报告或客户端。工作空间备份可能包含需求和源码；分享或公开前请检查标题与版本内容。
+公共游客空间中的项目、HTML、对话和 SDK 数据对访客可见并可修改；不要存放个人或机密内容。模型 Key 只存在服务端秘密配置，不进入浏览器、生成 HTML 或 Git。退役旧 Service Worker 时保留原 IndexedDB、草稿和队列；不会把它们当作 lite 已迁移或已恢复的数据。

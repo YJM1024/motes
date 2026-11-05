@@ -65,6 +65,10 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
       if (current()) accept(attempt, result.project);
     } catch (e) {
       if (!current()) return;
+      if (e instanceof LiteApiError && e.status === 422 && attempt.mode === 'demo') {
+        write(removeFinishedAttempt(all.current, attempt)); active.current = null; setBusy(false);
+        setNotice('示例模式暂不支持这项需求，请编辑需求后再发送。原有成果和输入已保留。'); return;
+      }
       const message = e instanceof Error ? e.message : '结果尚未确认。';
       write(failOriginalAttempt(all.current, attempt, message, e instanceof LiteApiError && (e.retry === 'new' || [400, 422, 429].includes(e.status))));
       setNotice(message + ' 原成果和需求已保留。'); active.current = null; setBusy(false);
@@ -78,6 +82,7 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
   function dismiss(attempt: RecoveryAttempt) { const state = recovery.stateFor(attempt); if (attempt.retryConfirmed || state?.retry === 'new') write(removeFinishedAttempt(all.current, attempt)); }
   return { dismiss, attempts: attempts.filter(a => matchesContext(a, context)), busy, notice, recovery, send, stop };
 }
+
 
 
 
