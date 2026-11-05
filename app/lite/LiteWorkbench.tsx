@@ -59,7 +59,7 @@ export default function LiteWorkbench() {
       <aside className={`lite-sidebar ${sidebar ? 'is-open' : ''}`}>
         <div className="lite-sidebar-label"><span>我的项目</span><button className="lite-icon" title="新建项目" aria-label="新建项目" disabled={!w.session || w.loading} onClick={() => setGroupForm(!groupForm)}><Plus size={16}/></button></div>
         {groupForm && <form className="lite-group-form" onSubmit={createGroup}><input aria-label="项目名称" placeholder="项目名称" maxLength={80} value={groupName} onChange={e => setGroupName(e.target.value)} autoFocus/><button disabled={groupBusy || !groupName.trim()}>{groupBusy ? '创建中' : '创建'}</button></form>}
-        <div className="lite-groups">{w.snapshot?.projects.filter(p => !p.archived).map(p => <button className={p.id === w.groupId ? 'selected' : ''} key={p.id} onClick={() => { w.switchGroup(p.id); }}><span>▱</span><span>{p.name}</span><small>{p.appCount}</small></button>)}</div>
+        <div className="lite-groups">{w.snapshot?.projects.filter(p => !p.archived).map(p => <button className={p.id === w.groupId ? 'selected' : ''} key={p.id} onClick={() => { w.switchGroup(p.id); }}><span>▱</span><span>{p.name}</span><small>{w.snapshot?.apps.filter(a => a.projectId === p.id && !a.archived).length || 0}</small></button>)}</div>
         <div className="lite-sidebar-label"><span>{group?.name || '项目'}中的应用</span></div>
         <button className="lite-new-app" disabled={!w.session || w.loading} onClick={() => { w.create(); setPane('chat'); setSidebar(false); }}><Plus size={16}/>新建应用</button>
         <nav className="lite-apps" aria-label="应用列表">{apps.map(a => <button key={a.id} className={a.id === w.project?.id ? 'selected' : ''} onClick={() => { void w.open(a.id); setSidebar(false); }}><span className="lite-app-symbol">◇</span><span>{a.name}</span></button>)}{!apps.length && <p className="lite-note">这个项目还没有应用。从一句话开始。</p>}</nav>
@@ -93,6 +93,7 @@ export default function LiteWorkbench() {
     </div>
   </div>;
 }
+
 
 
 
