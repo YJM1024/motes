@@ -1,6 +1,6 @@
 # Lite 本地启动与验收
 
-当前生产仍是完整版 v22：[在线站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)。`exam-lite` 是尚未发布的本地分支；本地运行不会修改生产 D1。Lite 需要网络，不提供完整版的完整离线工作台。
+当前生产是 Motes Lite v24：[正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)，runtime source `f7fb42db030f06e725b28075ba2664580c65e46b`。本地运行不会修改生产 D1。Lite 需要网络，不提供完整版的完整离线工作台；完整版源码仍在[`full-product` branch](https://github.com/YJM1024/motes/tree/full-product)（`51a315f`）。
 
 ## 安装与本地数据库
 
@@ -37,7 +37,7 @@ npm test
 npm run typecheck
 ```
 
-测试发现以根目录 `tests/` 为必需入口，只收集该目录的顶层 `*.test.mjs`。完整版专属 UI 测试仍保留在 `full-product` 分支，已从 Lite 测试树移除，因此不会误运行。共享逻辑目录 `lib/motes/` 和纯管理筛选测试目录 `app/manage/` 若存在则纳入，Lite 移除管理 UI 后可没有 `app/manage/`。可选目录只有在不存在（`ENOENT`）时跳过，其他读取错误仍会失败；零测试文件也会失败。当前 62 个测试文件以最多 2 个并行文件进程执行；测试内的 Promise 并发、锁和幂等断言不变。Lite 保留适用的 API、数据恢复、SDK、安全边界和纯筛选测试。329 项完整测试与之后 Lite UI 小改后的定向检查分别见[验收记录](acceptance.md#当前状态)。旧 Service Worker 真实浏览器升级和实体手机测试尚未完成。
+测试发现以根目录 `tests/` 为必需入口，只收集该目录的顶层 `*.test.mjs`。完整版专属 UI 测试仍保留在 `full-product` 分支，已从 Lite 测试树移除，因此不会误运行。共享逻辑目录 `lib/motes/` 和纯管理筛选测试目录 `app/manage/` 若存在则纳入，Lite 移除管理 UI 后可没有 `app/manage/`。可选目录只有在不存在（`ENOENT`）时跳过，其他读取错误仍会失败；零测试文件也会失败。当前 62 个测试文件以最多 2 个并行文件进程执行；测试内的 Promise 并发、锁和幂等断言不变。Lite 保留适用的 API、数据恢复、SDK、安全边界和纯筛选测试。公开 CI 的 329 项结果以及 v24 同 SHA 原生测试、typecheck、build 见[验收记录](acceptance.md#当前状态)。旧 Service Worker 真实浏览器升级和实体手机测试尚未完成。
 
 ## 浏览器数据与 Service Worker
 

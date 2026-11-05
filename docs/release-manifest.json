@@ -1,25 +1,28 @@
 {
   "product": "Motes",
   "activeBranch": "exam-lite",
-  "liteStatus": "local-acceptance-passed-not-deployed",
+  "liteStatus": "v24-deployed",
   "production": {
-    "product": "full-product",
-    "version": "v22",
+    "product": "Motes Lite",
+    "version": "v24",
     "url": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-    "runtimeSource": "7491413ef0b138ebf73e87ed2842df617e336be2",
-    "deployment": "appgdep_6aeca50dcbfc8191b6f45e9983cf144b",
+    "runtimeSource": "f7fb42db030f06e725b28075ba2664580c65e46b",
+    "savedSiteId": "appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_4b5bfd5fce3c81918262d84ecee32dad",
+    "deployment": "appgdep_6aecba53fef48191bcecc25484d6f484",
     "environmentRevision": 4
   },
   "fullProductReference": {
     "branch": "https://github.com/YJM1024/motes/tree/full-product",
+    "commit": "51a315f35554705cd34b51e7d6a7598e36f0fa3d",
+    "baseline": "809bb58",
     "archive": "D:\\gpt\\output\\motes\\motes-full-product.zip"
   },
   "lite": {
     "branch": "exam-lite",
     "baseCommit": "809bb58",
-    "sourceCommit": "d00dd77458564e6f9b5da30be8aebd56d05435cf",
-    "deploymentStatus": "not-deployed",
-    "siteUrl": null,
+    "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b",
+    "deploymentStatus": "deployed-v24",
+    "siteUrl": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
     "realModelCallsThisLiteIteration": 0,
     "scope": {
       "sharedGuestWorkspace": true,
@@ -70,31 +73,84 @@
   "checks": {
     "fullProductBaseline": {
       "status": "published-and-archived",
-      "version": "v22",
-      "runtimeSource": "7491413ef0b138ebf73e87ed2842df617e336be2"
+      "branch": "full-product",
+      "commit": "51a315f35554705cd34b51e7d6a7598e36f0fa3d",
+      "baseline": "809bb58",
+      "historicalCiTestsPerPlatform": 375
     },
     "liteAutomatedSuite": {
       "status": "passed",
       "tests": 329,
       "failed": 0,
       "evidence": "D:\\gpt\\output\\motes\\lite-final-tests.log",
-      "sourceCommit": "215306135dc28fab24afc938f270026bce62e8fb",
-      "laterUiChanges": "Targeted tests and typecheck only; the full suite was not rerun after the d00dd77 UI-only changes."
+      "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b",
+      "nativePackageEvidence": "D:\\gpt\\output\\motes\\lite-final-package.log"
     },
-    "liteTypecheck": { "status": "passed", "sourceCommit": "d00dd77458564e6f9b5da30be8aebd56d05435cf", "command": "node node_modules/typescript/bin/tsc --noEmit" },
-    "liteBuild": "not-run-on-final-source",
+    "liteTypecheck": { "status": "passed", "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b", "command": "tsc --noEmit" },
+    "liteBuild": { "status": "passed", "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b", "evidence": "D:\\gpt\\output\\motes\\lite-final-package.log" },
+    "liteCi": {
+      "status": "passed",
+      "runId": 42072397135,
+      "url": "https://github.com/YJM1024/motes/actions/runs/42072397135",
+      "publicHead": "71a68fda89b9a4711aa40ff5ddf42047680803f9",
+      "tree": "3824c0e6eecd5d3e8e88a707b6aeb81e2965a19a",
+      "platforms": {
+        "ubuntu-latest": { "node": 24, "testsPassed": 329, "testsFailed": 0, "skipped": 0, "npmCi": "passed", "typecheck": "passed" },
+        "windows-latest": { "node": 24, "testsPassed": 329, "testsFailed": 0, "skipped": 0, "npmCi": "passed", "typecheck": "passed" }
+      },
+      "evidence": "D:\\gpt\\output\\motes\\lite-final-ci-check.json"
+    },
     "liteBrowserAndDataAcceptance": {
-      "status": "passed-local-browser",
-      "sourceCommit": "d00dd77458564e6f9b5da30be8aebd56d05435cf",
-      "origin": "http://127.0.0.1:5193",
-      "modelCalls": 0,
-      "evidence": "D:\\gpt\\output\\motes\\lite-browser-check.json",
-      "exportVerification": "D:\\gpt\\output\\motes\\lite-export-verification.json",
-      "screenshots": ["D:\\gpt\\output\\motes\\lite-desktop.jpg", "D:\\gpt\\output\\motes\\lite-mobile-chat.jpg", "D:\\gpt\\output\\motes\\lite-mobile-preview.jpg", "D:\\gpt\\output\\motes\\lite-mobile-history.jpg"],
-      "viewportWidths": [360, 390, 768, 1440],
+      "status": "passed",
+      "local": {
+        "sourceCommit": "d00dd77458564e6f9b5da30be8aebd56d05435cf",
+        "origin": "http://127.0.0.1:5193",
+        "modelCalls": 0,
+        "evidence": "D:\\gpt\\output\\motes\\lite-browser-check.json",
+        "exportVerification": "D:\\gpt\\output\\motes\\lite-export-verification.json",
+        "screenshots": ["D:\\gpt\\output\\motes\\lite-desktop.jpg", "D:\\gpt\\output\\motes\\lite-mobile-chat.jpg", "D:\\gpt\\output\\motes\\lite-mobile-preview.jpg", "D:\\gpt\\output\\motes\\lite-mobile-history.jpg"],
+        "viewportWidths": [360, 390, 768, 1440],
+        "shortViewport": [360, 450]
+      },
       "physicalPhoneTest": false,
       "installedServiceWorkerUpgradeBrowserTest": false
     },
-    "liteDeployment": "pending"
+    "liteProductionBrowser": {
+      "status": "passed",
+      "version": 24,
+      "runtimeSource": "f7fb42db030f06e725b28075ba2664580c65e46b",
+      "evidence": "D:\\gpt\\output\\motes\\lite-production-browser-check.json",
+      "checks": ["existing SDK value 7 loaded", "increment to 8 saved", "decrement to 7 saved", "refresh preserved same app and value 7", "project badge 10 matches 10 visible apps", "single preview iframe", "390px viewport without horizontal overflow"],
+      "additionalModelCalls": 0,
+      "screenshots": ["D:\\gpt\\output\\motes\\lite-production-live.jpg", "D:\\gpt\\output\\motes\\lite-production-mobile.jpg"]
+    },
+    "liteProductionDataIntegrity": {
+      "status": "passed",
+      "normalApps": 12,
+      "historicalVersions": 29,
+      "hashesUnchanged": true,
+      "evidence": "D:\\gpt\\output\\motes\\lite-production-after.json"
+    },
+    "liteProductionCleanup": {
+      "status": "completed-without-deletion",
+      "qaApplicationArchived": true,
+      "qaPublicationPaused": true,
+      "deletedRecords": 0,
+      "normalAppsUnchanged": 12,
+      "normalVersionsUnchanged": 29,
+      "evidence": "D:\\gpt\\output\\motes\\lite-production-final-cleanup.json"
+    },
+    "liteProductionZeroModelSmoke": {
+      "status": "passed",
+      "checks": 8,
+      "modelCalls": 0,
+      "evidence": "D:\\gpt\\output\\motes\\lite-production-core-smoke.json"
+    },
+    "previousModelQa": {
+      "product": "v23 UI; existing full-product QA data",
+      "checks": ["SDK value 7 to 8 and saved", "SDK value 8 to 7 and saved", "v24 refresh still reads 7 from same app"],
+      "newModelCallsInLiteRound": 0
+    },
+    "liteDeployment": { "status": "deployed", "version": "v24", "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b" }
   }
 }

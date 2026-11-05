@@ -2,9 +2,9 @@
 
 Motes Lite 是面向游客共享空间的轻量网页应用工作台：通过对话生成单文件 HTML，在隔离预览区操作、保存版本并按需发布。
 
-**状态：Lite 本地浏览器流程与自动检查已通过，尚未部署。** 当前线上仍是完整版 v22：[在线体验](https://motes-yangjunmin.yjm1024.chatgpt.site/)。Lite 当前代码检查点为 `d00dd77`；329 项整套测试通过的基线是 `2153061`，后续 UI 小改另有定向测试与 TypeScript 检查。浏览器视口不是实体手机测试；旧 Service Worker 升级也未在浏览器中模拟。详细证据与边界见[验收记录](docs/acceptance.md)。
+**状态：Motes Lite v24 已上线。** [正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)当前运行 runtime source `f7fb42db030f06e725b28075ba2664580c65e46b`。本地完整浏览器流程、CI 双平台 329 项测试、TypeScript 和原生 build 均通过。实体手机与已安装旧 Service Worker 升级尚未测试；完整证据和边界见[验收记录](docs/acceptance.md)。
 
-完整功能可在[full-product 分支](https://github.com/YJM1024/motes/tree/full-product)查看；本地归档包位于 `D:\gpt\output\motes\motes-full-product.zip`。
+完整功能仍保留在稳定的 [`full-product` 分支](https://github.com/YJM1024/motes/tree/full-product)（`51a315f`）；本地归档包位于 `D:\gpt\output\motes\motes-full-product.zip`。Lite 从 full-product 稳定基线 `809bb58` 精简，两个版本继续共享数据模型与 API。
 
 ## Lite 核心路线
 
