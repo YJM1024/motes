@@ -5,21 +5,23 @@ import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 const cache=new Map();
+const rootUrl=new URL('../',import.meta.url);
 async function load(file){
- if(cache.has(file))return cache.get(file);
- let source=await readFile(new URL('../'+file,import.meta.url),'utf8');
+ const fileUrl=file instanceof URL?file:new URL(file,rootUrl);
+ if(cache.has(fileUrl.href))return cache.get(fileUrl.href);
+ let source=await readFile(fileUrl,'utf8');
  source=source.replace(/import\s+['"][^'"]+\.css['"];?/g,'');
- const imports=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,file.endsWith('.tsx')?ts.ScriptKind.TSX:ts.ScriptKind.TS).statements.filter(ts.isImportDeclaration);
+ const imports=ts.createSourceFile(fileUrl.pathname,source,ts.ScriptTarget.Latest,true,fileUrl.pathname.endsWith('.tsx')?ts.ScriptKind.TSX:ts.ScriptKind.TS).statements.filter(ts.isImportDeclaration);
  for(const statement of imports){
   const name=statement.moduleSpecifier.text;let url;
   if(name.startsWith('@/'))url=await load(name.slice(2)+'.ts');
-  else if(name.startsWith('.'))url=await load(new URL(name+'.ts',new URL('../'+file,import.meta.url)).pathname.split('/mini-atoms/')[1]);
+  else if(name.startsWith('.'))url=await load(new URL(name+'.ts',fileUrl));
   else url=import.meta.resolve(name);
   source=source.replace(statement.moduleSpecifier.getText(),JSON.stringify(url));
  }
  let js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  js=js.replaceAll('"react/jsx-runtime"',JSON.stringify(import.meta.resolve('react/jsx-runtime')));
- const url='data:text/javascript;base64,'+Buffer.from(js).toString('base64');cache.set(file,url);return url;
+ const url='data:text/javascript;base64,'+Buffer.from(js).toString('base64');cache.set(fileUrl.href,url);return url;
 }
 const {createReactProject}=await import(await load('lib/motes/react-project.ts'));
 const {default:SourceViewer}=await import(await load('app/lite/LiteSourceViewer.tsx'));
