@@ -22,7 +22,29 @@ export { COOKIE, digest, owner } from './security';
 export function database(){if(!env.DB)throw new HttpError(503,'云端存储暂时不可用，请稍后重试。');return env.DB}
 export function modelNames(){return configuredModels(env)}
 export function modelName(){return defaultModel(env)}
-export async function payload(request:Request){assertOrigin(request);const declared=Number(request.headers.get('content-length')??0);if(declared>16000)throw new HttpError(413,'请求过长。');const text=await request.text();if(text.length>16000)throw new HttpError(413,'请求过长。');try {const value=JSON.parse(text);if(!value || typeof value!=='object'||Array.isArray(value))throw 0;return value as Record<string,unknown>}catch{throw new HttpError(400,'请求格式无效。')}}
+/** Windows local Workers need a small rejected body drained before reusing the
+ * transport. Bound both bytes and time; never parse or retain rejected input. */
+async function discardRejectedPayload(request:Request){
+  if(!request.body||request.body.locked)return;
+  const reader=request.body.getReader(),deadline=performance.now()+500;
+  let bytes=0,finished=false,timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+    await Promise.race([
+      (async()=>{while(bytes<16000&&performance.now()<deadline){const {done,value}=await reader.read();if(done){finished=true;return;}bytes+=value.byteLength;}})(),
+      new Promise<void>(resolve=>{timer=setTimeout(resolve,500)}),
+    ]);
+  }catch{/* Preserve the original rejection if the incoming stream fails. */}
+  finally{
+    clearTimeout(timer);
+    if(!finished)void reader.cancel().catch(()=>{});
+    reader.releaseLock();
+  }
+}
+export async function payload(request:Request){
+  try{assertOrigin(request);const declared=Number(request.headers.get('content-length')??0);if(declared>16000)throw new HttpError(413,'请求过长。');}
+  catch(error){await discardRejectedPayload(request).catch(()=>{});throw error;}
+  const text=await request.text();if(text.length>16000)throw new HttpError(413,'请求过长。');try {const value=JSON.parse(text);if(!value || typeof value!=='object'||Array.isArray(value))throw 0;return value as Record<string,unknown>}catch{throw new HttpError(400,'请求格式无效。')}
+}
 export function json(value:unknown,status=200,headers:Record<string,string>={}){return Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}})}
 export async function route(run:()=>Promise<Response>){
   const started=performance.now(),requestId=crypto.randomUUID();let response:Response;

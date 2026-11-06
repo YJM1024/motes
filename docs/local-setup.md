@@ -8,10 +8,13 @@
 
 ```sh
 npm ci
+node -e "const fs=require('node:fs'); if (!fs.existsSync('.dev.vars')) fs.copyFileSync('.dev.vars.example','.dev.vars',fs.constants.COPYFILE_EXCL)"
 npm run build
 npm run db:init:local
 npm run dev
 ```
+
+这一步只在 `.dev.vars` 不存在时复制示例，不会覆盖已有文件。示例中的模型 Key 为空；无需模型 Key 即可使用标注明确的 demo。共享游客配置与线上模式一致，访客共同读写同一空间。需要真实模型功能时，再在本地 `.dev.vars` 配置服务端模型 Key 和可用模型；不要提交此文件。
 
 `db:init:local` 要求先构建出 `dist/server/wrangler.json`，并且只为全新的本地 D1 按顺序应用 `drizzle/` 下顶层 SQL 迁移。它固定使用 `DB` 绑定、Wrangler `--local` 和 `.wrangler/state`，不会连接远程数据库。若该 state 目录中已有 SQLite 数据库，命令会拒绝初始化，避免重放迁移或覆盖已有数据。
 
@@ -27,7 +30,7 @@ npm run dev
 
 ## 游客空间与模型配置
 
-示例开发配置使用共享游客空间。同一公共空间内的访客可查看和修改彼此的项目、应用、对话，以及应用通过 Motes SDK 显式保存的业务数据。请勿存放个人或机密内容。
+同一公共空间内的访客可查看和修改彼此的项目、应用、对话，以及应用通过 Motes SDK 显式保存的业务数据。请勿存放个人或机密内容。
 
 没有服务端模型配置时，只能使用明确标注的本地示例。真实模型模式需要在本地秘密文件 `.dev.vars` 中配置服务端 Key 和可用模型；不要把 Key 放到浏览器、生成的页面、需求文本或 Git 中。
 

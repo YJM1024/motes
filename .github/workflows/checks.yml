@@ -20,6 +20,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
+      - name: Configure shared demo without a model key
+        run: node -e "const fs=require('node:fs'); fs.copyFileSync('.dev.vars.example','.dev.vars',fs.constants.COPYFILE_EXCL)"
       - run: npm run build
       - run: npm run db:init:local
       - run: npm run verify:http
