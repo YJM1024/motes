@@ -25,6 +25,25 @@ test('both model entry points send exactly one React output schema for new and e
       assert.ok(instructions.includes(editing?'motes.react.replace.v1':'motes.react.v1'));
       assert.ok(!instructions.includes(editing?'motes.react.v1':'motes.react.replace.v1'));
       for(const constraint of ['Tailwind','window.motes.data','expectedRevision','shared','import only from "react"','eval or Function','static complete'])assert.ok(instructions.includes(constraint),constraint);
+      for(const constraint of ['{value:null,revision:0,updatedAt:null}','normal first use','[] for a task list','retain revision 0','expectedRevision 0','Do not automatically write defaults','code="conflict"','do not make a saving effect depend on a status that it changes','visible success, conflict, or failure'])assert.ok(instructions.includes(constraint),constraint);
+    }finally{mocked.mock.restore();}
+  }
+});
+
+test('legacy HTML generation and workflow prompts receive the same SDK first-use and revision contract',async t=>{
+  const h=await workflowHarness();t.after(h.close);
+  const base=h.demo.generateDemo('番茄钟').html;
+  for(const workflow of [false,true]){
+    const calls=[];
+    const mocked=t.mock.method(globalThis,'fetch',async(_url,options)=>{
+      calls.push(JSON.parse(options.body));
+      if(workflow&&calls.length===1)return response(shortPlan);
+      return response(workflow?JSON.stringify(patch('<h1>专注，从这一刻开始</h1>','<h1>已更新标题</h1>')):base);
+    });
+    try{
+      const args=['修改标题',base,'mock-only','mock-model','',()=>{}];
+      if(workflow)await h.model.generateWorkflowModel(...args,async()=>{});else await h.model.generateModel(...args);
+      for(const constraint of ['{value:null,revision:0,updatedAt:null}','normal first use','retain revision 0','expectedRevision 0','Validate non-null stored values','Do not automatically write defaults','set(key,value,expectedRevision) returns {key,revision,updatedAt}','code="conflict"'])assert.ok(calls.at(-1).instructions.includes(constraint),constraint);
     }finally{mocked.mock.restore();}
   }
 });
