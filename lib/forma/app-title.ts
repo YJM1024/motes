@@ -1,7 +1,11 @@
 /** Extract display text only; generated HTML is never executed to name an app. */
+import {parseReactProject} from '../motes/react-project';
 export function initialAppTitle(html: string, prompt: string): string {
   const entities: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-  const raw = html.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1] ?? '';
+  const project=parseReactProject(html);
+  const raw = project
+    ? project.files['src/App.jsx'].match(/<h1\b[^>]*>\s*([^<>{]+)\s*<\/h1\s*>/i)?.[1]??''
+    : html.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1] ?? '';
   const decoded = raw.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (_, entity: string) => {
     if (!entity.startsWith('#')) return entities[entity.toLowerCase()];
     const value = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : Number(entity.slice(1));

@@ -3,6 +3,9 @@ import { snapshotPreferences } from '../motes/version-config';
 import { validElementContext,elementGenerationInstructions } from '../motes/element-selection';
 import { stageResult, stagedResult, commitGenerationResult } from '../motes/results';
 import { generateDemo } from './demo';
+import { generateReactDemo } from './react-demo';
+import { parseReactProject } from '../motes/react-project';
+import { patchReactDemo } from '../motes/react-patch';
 import { initialAppTitle } from './app-title';
 import { configuredModels, defaultModel } from './model-config';
 import { budgetReservation, usageReservation, usageCompletion, usageCheckpoint } from '../motes/usage';
@@ -11,6 +14,7 @@ import { readSettings, generationPreferences } from '../motes/settings';
 import { generateWorkflowModel, ModelError } from './model';
 import {generationProgress} from '../motes/generation-progress';
 import {applyHtmlPatch,demoPatch,checkGeneratedHtml} from '../motes/html-patch';
+import {renderApplicationHtml} from '../motes/react-render';
 import type { Project, Summary, Version } from './types';
 import { HttpError, digest, owner, visitor, assertOrigin } from './security';
 export { COOKIE, digest, owner } from './security';
@@ -91,7 +95,7 @@ export async function generate(request:Request){
   if(mode==='model'){if(body.model!==undefined&&!modelNames().includes(body.model as string))throw new HttpError(400,'该模型未在服务端可用白名单中。');selectedModel=typeof body.model==='string'?body.model:settings!.effective.model??selectedModel;}
   // Validate demo support before reserving capacity. Demo never silently invokes a model.
   let demo:ReturnType<typeof generateDemo>|undefined;
-  if(mode==='demo'){try{demo=generateDemo(prompt,base?.html)}catch(error){throw new HttpError(422,(error as Error).message)}}
+  if(mode==='demo'){try{demo=base&&!parseReactProject(base.html)?generateDemo(prompt,base.html):generateReactDemo(prompt,base?.html)}catch(error){throw new HttpError(422,(error as Error).message)}}
   if(!project&&(await listProjects(who)).length>=100)throw new HttpError(429,'当前浏览器最多创建 100 个项目。');
   const id=project?.id??crypto.randomUUID(),now=new Date().toISOString();
   const stateSql=(project?"EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=? AND current_version_id=?) AND (SELECT count(*) FROM forma_versions WHERE project_id=?)<60":"(SELECT count(*) FROM forma_projects WHERE owner=?)<100")+(managedProjectId?" AND EXISTS(SELECT 1 FROM motes_projects g JOIN motes_workspaces w ON w.id=g.workspace_id WHERE g.id=? AND w.owner=? AND g.archived=0)":"");
@@ -114,12 +118,14 @@ export async function generate(request:Request){
       // Local example planning: choose the fixed template/settings, never claim an AI call.
       await progress.set('plan','completed');
       await progress.set('execute','running');
-      if(base&&demo.html!==base.html)html=applyHtmlPatch(base.html,demoPatch(base.html,demo.html));
+      if(base&&demo.html!==base.html)html=parseReactProject(base.html)?patchReactDemo(base.html,demo.html):applyHtmlPatch(base.html,demoPatch(base.html,demo.html));
       else html=demo.html;
       await progress.set('execute','completed');
     }else html=await generateWorkflowModel(prompt,base?.html,env.OPENAI_API_KEY!,selectedModel!,generationPreferences(settings!.effective,!!base)+(elementContext?elementGenerationInstructions(elementContext):''),async value=>{observation=value;await usageCheckpoint(db,requestId,who,value).run()},(id,state)=>progress.set(id,state));
     await progress.set('check','running');
     checkGeneratedHtml(html);
+    // Compile JSX and Tailwind without executing generated code before staging.
+    await renderApplicationHtml(html);
     await progress.set('check','completed');
     await progress.set('save','running');
     const version:Version={id:crypto.randomUUID(),number:(project?.versions.at(-1)?.number??0)+1,prompt,summary:demo?.summary??'模型已生成新版本，请在预览中检查功能。',html,createdAt:new Date().toISOString(),mode,...mode==='model'?{model:selectedModel!}:{}};

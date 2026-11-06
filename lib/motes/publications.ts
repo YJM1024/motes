@@ -1,3 +1,5 @@
+import { applicationPreflight } from './application-preflight';
+import { renderApplicationHtml } from './react-render';
 import { database,json,payload } from '../forma/server';
 import { owner,digest,HttpError,isSharedOwner,sharedWorkspaceEnabled } from '../forma/security';
 import type { Publication } from './publication-types';
@@ -16,7 +18,13 @@ export async function managePublication(request:Request,appId:string){
  if(action==='unpublish'&&body.versionId!==undefined)throw new HttpError(400,'下线不接受版本变更。');
  const fingerprint=await digest(JSON.stringify(['publication-v1',appId,action,versionId,expected])),mode='publication-'+action;
  const prior=async()=>{const row=await db.prepare('SELECT owner,project_id,mode,fingerprint,status FROM forma_requests WHERE id=?').bind(requestId).first<{owner:string;project_id:string;mode:string;fingerprint:string;status:string}>();if(!row)return null;if(row.owner!==who||row.project_id!==appId||row.mode!==mode||row.fingerprint!==fingerprint||row.status!=='done')throw new HttpError(409,'发布请求编号已被使用。');return json({publication:await snapshot(who,appId),completed:true});};const old=await prior();if(old)return old;
- await own(who,appId);const now=new Date().toISOString(),token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');let first:D1PreparedStatement;
+ await own(who,appId);
+ if(action==='publish'){
+  const source=await db.prepare('SELECT v.html FROM forma_versions v JOIN forma_projects p ON p.id=v.project_id WHERE p.id=? AND p.owner=? AND v.id=?').bind(appId,who,versionId).first<{html:string}>();
+  if(!source)throw new HttpError(409,'发布状态、版本归属或源码大小已变化，请刷新发布状态后核对。');
+  try{await applicationPreflight(source.html);}catch(error){throw new HttpError(400,error instanceof Error?error.message:'此版本无法编译发布。');}
+ }
+ const now=new Date().toISOString(),token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');let first:D1PreparedStatement;
  if(action==='publish'&&expected===0)first=db.prepare('INSERT INTO motes_publications(app_id,version_id,title,token,published_at,updated_at,enabled,revision,last_request_id) SELECT p.id,v.id,substr(p.title,1,80),?,?,?,1,1,? FROM forma_projects p JOIN forma_versions v ON v.project_id=p.id WHERE p.id=? AND p.owner=? AND v.id=? AND length(v.html)<=180000 AND NOT EXISTS(SELECT 1 FROM motes_publications WHERE app_id=p.id)').bind(token,now,now,requestId,appId,who,versionId);
  else if(action==='publish')first=db.prepare('UPDATE motes_publications SET version_id=?,title=(SELECT substr(title,1,80) FROM forma_projects WHERE id=? AND owner=?),enabled=1,revision=revision+1,updated_at=?,last_request_id=? WHERE app_id=? AND revision=? AND EXISTS(SELECT 1 FROM forma_projects p JOIN forma_versions v ON v.project_id=p.id WHERE p.id=? AND p.owner=? AND v.id=? AND length(v.html)<=180000)').bind(versionId,appId,who,now,requestId,appId,expected,appId,who,versionId);
  else first=db.prepare('UPDATE motes_publications SET enabled=0,revision=revision+1,updated_at=?,last_request_id=? WHERE app_id=? AND revision=? AND EXISTS(SELECT 1 FROM forma_projects WHERE id=? AND owner=?)').bind(now,requestId,appId,expected,appId,who);
@@ -24,6 +32,6 @@ export async function managePublication(request:Request,appId:string){
  if(!results[0].meta.changes){const retry=await prior();if(retry)return retry;throw new HttpError(409,'发布状态、版本归属或源码大小已变化，请刷新发布状态后核对。');}
  return json({publication:await snapshot(who,appId),completed:true},expected===0?201:200);
 }
-export async function readPublishedVersion(token:string):Promise<SharedVersion|null>{if(!/^[a-f0-9]{64}$/.test(token))return null;const row=await database().prepare('SELECT pub.app_id,pub.version_id,pub.title,v.number,v.html,p.owner FROM motes_publications pub JOIN forma_versions v ON v.id=pub.version_id AND v.project_id=pub.app_id JOIN forma_projects p ON p.id=pub.app_id WHERE pub.token=? AND pub.enabled=1 AND length(v.html)<=180000').bind(token).first<{app_id:string;version_id:string;title:string;number:number;html:string;owner:string}>();if(!row)return null;const trustedRuntime=sharedWorkspaceEnabled()&&isSharedOwner(row.owner);return trustedRuntime?{appId:row.app_id,versionId:row.version_id,runtimeData:true,title:row.title,versionNumber:row.number,html:row.html}:{title:row.title,versionNumber:row.number,html:row.html};}
+export async function readPublishedVersion(token:string):Promise<SharedVersion|null>{if(!/^[a-f0-9]{64}$/.test(token))return null;const row=await database().prepare('SELECT pub.app_id,pub.version_id,pub.title,v.number,v.html,p.owner FROM motes_publications pub JOIN forma_versions v ON v.id=pub.version_id AND v.project_id=pub.app_id JOIN forma_projects p ON p.id=pub.app_id WHERE pub.token=? AND pub.enabled=1 AND length(v.html)<=180000').bind(token).first<{app_id:string;version_id:string;title:string;number:number;html:string;owner:string}>();if(!row)return null;const html=await renderApplicationHtml(row.html);const trustedRuntime=sharedWorkspaceEnabled()&&isSharedOwner(row.owner);return trustedRuntime?{appId:row.app_id,versionId:row.version_id,runtimeData:true,title:row.title,versionNumber:row.number,html}:{title:row.title,versionNumber:row.number,html};}
 export async function readPublication(token:string){const value=await readPublishedVersion(token);return value?{title:value.title,versionNumber:value.versionNumber,html:value.html}:null;}
 export async function getPublishedVersion(token:string){const value=await readPublication(token);return json(value??{error:'发布链接不可用，可能已下线或不存在。'},value?200:404,{'Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow, noarchive','X-Content-Type-Options':'nosniff'});}

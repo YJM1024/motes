@@ -49,7 +49,7 @@ test('actual restore handler reloads the iframe even when the selected history p
 async function publisher({ pending = null, versionId = 'v1', transport, removeThrows = false } = {}) {
   const output = { messages: [], requests: [], pending, publication: null, cleared: 0 }, storage = { setItem() {}, removeItem() { if (removeThrows) throw new Error('storage blocked'); output.cleared++; } };
   const clearPending = await functionFrom('../app/lite/LitePublication.tsx', 'clearPending', { sessionStorage: storage, key: 'key' });
-  const publish = await functionFrom('../app/lite/LitePublication.tsx', 'publish', { busy: false, ready: true, pending, versionId, publication: { revision: 2 }, crypto, publicationPreflight: () => ({ errors: [] }), html: '<html><body>ok</body></html>', setMessage: text => output.messages.push(text), setPending: body => output.pending = body, setBusy() {}, setPublication: value => output.publication = value, setConfirm() {}, sessionStorage: storage, key: 'key', mounted: { current: true }, path: '/api/projects/app/publication', clearPending, liteApi: async (path, body) => { output.requests.push({ path, body }); return transport(path, body); } });
+  const publish = await functionFrom('../app/lite/LitePublication.tsx', 'publish', { busy: false, ready: true, pending, versionId, publication: { revision: 2 }, crypto, applicationPreflight: async () => ({ errors: [] }), visibleVersion: { current: versionId }, html: '<html><body>ok</body></html>', setMessage: text => output.messages.push(text), setPending: body => output.pending = body, setBusy() {}, setPublication: value => output.publication = value, setConfirm() {}, sessionStorage: storage, key: 'key', mounted: { current: true }, path: '/api/projects/app/publication', clearPending, liteApi: async (path, body) => { output.requests.push({ path, body }); return transport(path, body); } });
   return { output, publish };
 }
 test('confirmed publication stays successful if browser storage cleanup throws', async () => {
@@ -75,4 +75,42 @@ test('preview reconciliation uses one keyed boundary for the iframe and SDK brid
   const key = group.openingElement.attributes.properties.find(a => ts.isJsxAttribute(a) && a.name.getText(tree) === 'key'); assert.equal(key?.initializer?.expression?.getText(tree), 'identity');
   const children = group.children.filter(ts.isJsxSelfClosingElement); assert.deepEqual(children.map(c => c.tagName.getText(tree)), ['iframe', 'LiteRuntimeDataBridge']);
   assert.equal(children.filter(child => child.attributes.properties.some(a => ts.isJsxAttribute(a) && a.name.getText(tree) === 'key')).length, 0, 'Duplicate keys on sibling iframe and bridge previously left live orphan iframes');
+});
+
+test('HTML export waits for the runnable artifact and discards exports after navigation', async () => {
+  let finish; const output = { downloads: [], blobs: [], notes: [], errors: [] };
+  const navigation = { current: 1 }, appRef = { current: 'app' };
+  const bindings = { exportApplicationHtml: (_source, html) => html, displayed: { html: 'react source' }, exporting: false, appRef,
+    w: { project: { id: 'app', title: 'app' }, navigation, setError: value => output.errors.push(value) },
+    setExporting() {}, renderApplicationHtml: () => new Promise(resolve => { finish = resolve; }),
+    URL: { createObjectURL: () => 'blob:artifact', revokeObjectURL() {} },
+    Blob: class { constructor(parts) { output.blobs.push(parts.join('')); } },
+    document: { createElement: () => ({ click() { output.downloads.push(this.download); } }) },
+    safeFilename, setTimeout() {}, setResultNote: text => output.notes.push(text) };
+  const download = await functionFrom('../app/lite/LiteWorkbench.tsx', 'download', bindings);
+  const first = download(); assert.equal(output.downloads.length, 0);
+  finish('<html>compiled React runtime</html>'); await first;
+  assert.deepEqual(output.blobs, ['<html>compiled React runtime</html>']); assert.deepEqual(output.downloads, ['app.html']);
+  assert.match(output.notes[0], /SDK.*临时/);
+  const stale = download(); navigation.current++; finish('<html>stale</html>'); await stale;
+  assert.equal(output.downloads.length, 1);
+});
+
+test('preview compilation ignores the previous application after cleanup and surfaces compiler errors', async () => {
+  const source = await readFile(new URL('../app/lite/LiteWorkbench.tsx', import.meta.url), 'utf8');
+  const tree = ts.createSourceFile('workbench.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let callback;
+  function visit(node) { if (ts.isCallExpression(node) && node.expression.getText(tree) === 'useEffect' && node.arguments[0]?.getText(tree).includes('void litePreview')) callback = node.arguments[0].getText(tree); ts.forEachChild(node, visit); }
+  visit(tree); assert.ok(callback);
+  const output = { results: [], errors: [] }, jobs = [];
+  const bindings = { displayed: { html: 'source' }, identity: 'app:v1:0', crypto,
+    window: { location: { origin: 'https://motes.test' } }, w: { session: { visibility: 'shared' }, navigation: { current: 1 } }, setLoaded() {},
+    setPreviewResult: result => output.results.push(result), setPreviewFailure: error => output.errors.push(error),
+    litePreview: () => new Promise((resolve, reject) => jobs.push({ resolve, reject })) };
+  const js = ts.transpileModule('const effect = ' + callback + '; return effect;', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const effect = new Function(...Object.keys(bindings), js)(...Object.values(bindings));
+  const cleanup = effect(); cleanup(); jobs[0].resolve('<html>obsolete</html>'); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(output.results, []);
+  effect(); jobs[1].reject(new Error('invalid JSX')); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(output.errors[0].message, 'invalid JSX'); assert.equal(output.errors[0].identity, 'app:v1:0');
 });

@@ -4,6 +4,8 @@ import { readExecutionProfile } from "./execution-profile.mjs";
 
 const [command, ...args] = process.argv.slice(2);
 if (!["dev", "build"].includes(command)) throw new Error("Expected dev or build.");
+// Compile installed React dependencies, never generated application source.
+await import(new URL("./build-react-runtime.mjs", import.meta.url).href);
 const managedLinux = readExecutionProfile() === "managed-linux";
 
 if (managedLinux && command === "build") {

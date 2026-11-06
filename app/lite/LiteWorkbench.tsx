@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Check, ChevronDown, Code2, Download, Eye, GitCompareArrows, History, LoaderCircle, Menu, MessageSquare, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useWorkspaceDraft } from '@/app/hooks/useWorkspaceDraft';
 import type { Project } from '@/lib/forma/types';
@@ -13,6 +13,9 @@ import LiteRuntimeDataBridge from './LiteRuntimeDataBridge';
 import LitePublication from './LitePublication';
 import LiteGenerationSteps from './LiteGenerationSteps';
 import LiteVersionDiff from './LiteVersionDiff';
+import LiteSourceViewer from './LiteSourceViewer';
+import { renderApplicationHtml } from '@/lib/motes/react-render';
+import { exportApplicationHtml } from '@/lib/motes/application-export';
 import './lite.css';
 const examples = [
   { title: '旅行预算', icon: '↗', text: '帮我做一个旅行预算规划工具，可以添加交通、住宿和餐饮支出，设置预算上限。' },
@@ -22,7 +25,7 @@ const examples = [
 export default function LiteWorkbench() {
   const w = useLiteWorkspace(), [mode, setMode] = useState<'demo' | 'model'>('demo'), [pane, setPane] = useState<'chat' | 'preview'>('chat');
   const [sidebar, setSidebar] = useState(false), [history, setHistory] = useState(false), [source, setSource] = useState(false), [diff, setDiff] = useState(false), [viewId, setViewId] = useState<string | null>(null), [reload, setReload] = useState(0);
-  const [groupForm, setGroupForm] = useState(false), [groupName, setGroupName] = useState(''), [groupBusy, setGroupBusy] = useState(false), [restoring, setRestoring] = useState(false), [loaded, setLoaded] = useState(false);
+  const [groupForm, setGroupForm] = useState(false), [groupName, setGroupName] = useState(''), [groupBusy, setGroupBusy] = useState(false), [restoring, setRestoring] = useState(false), [loadedIdentity, setLoaded] = useState('');
   const frameRef = useRef<HTMLIFrameElement>(null), chatScrollRef = useRef<HTMLDivElement>(null), appRef = useRef(w.project?.id), draft = useWorkspaceDraft(w.session?.workspaceId || null, 'lite:' + contextKey(w.context)); appRef.current = w.project?.id;
   const g = useLiteGeneration({ workspaceId: w.session?.workspaceId || null, context: w.context, baseVersionId: w.project?.currentVersionId, navigation: w.navigation, enabled: !w.loading,
     onAcceptedSend: attempt => draft.set(current => current.trim() === attempt.text.trim() ? '' : current),
@@ -35,13 +38,24 @@ export default function LiteWorkbench() {
   useEffect(() => { if (sendingRequestId) chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' }); }, [sendingRequestId]);
   const displayed = w.project?.versions.find(v => v.id === (viewId || w.project?.currentVersionId));
   const completionForProject = g.completed?.projectId === w.project?.id ? g.completed : null;
-  const identity = w.project && displayed ? previewIdentity(w.project.id, displayed.id, reload) : '';
-  const preview = useMemo(() => {
-    if (!displayed || typeof window === 'undefined') return null;
+  const identity = !w.loading && w.project && displayed ? previewIdentity(w.project.id, displayed.id, reload) + ':' + w.navigation.current : '';
+  const loaded = !!identity && loadedIdentity === identity;
+  const [previewResult, setPreviewResult] = useState<{ identity: string; channel: string; html: string } | null>(null);
+  const [previewFailure, setPreviewFailure] = useState<{ identity: string; message: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const preview = previewResult?.identity === identity ? previewResult : null;
+  const previewError = previewFailure?.identity === identity ? previewFailure.message : '';
+  useEffect(() => {
+    let active = true;
+    setLoaded('');
+    if (!displayed || !identity) return;
+    const navigation = w.navigation.current;
     const channel = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
-    return { channel, html: litePreview(displayed.html, channel, window.location.origin, w.session?.visibility === 'shared') };
+    void litePreview(displayed.html, channel, window.location.origin, w.session?.visibility === 'shared').then(html => {
+      if (active && navigation === w.navigation.current) { setPreviewResult({ identity, channel, html }); setPreviewFailure(null); }
+    }).catch(error => { if (active && navigation === w.navigation.current) setPreviewFailure({ identity, message: error instanceof Error ? error.message : '编译失败，请修改代码后重试。' }); });
+    return () => { active = false; };
   }, [identity, displayed, w.session?.visibility]);
-  useEffect(() => { setLoaded(false); }, [identity]);
   const apps = w.snapshot?.apps.filter(a => a.projectId === w.groupId && !a.archived) || [], group = w.snapshot?.projects.find(p => p.id === w.groupId);
   const canSend = !!w.session && !w.loading && !g.busy && !restoring && !g.attempts.length && !!draft.value.trim();
   function send() { if (!canSend) return; void g.send(draft.value, mode); }
@@ -55,8 +69,18 @@ export default function LiteWorkbench() {
     } catch (e) { if (appRef.current === appId && w.navigation.current === navigation) w.setError(e instanceof Error ? e.message : '还原失败。'); }
     finally { setRestoring(false); }
   }
-  function download() {
-    if (!displayed) return; const url = URL.createObjectURL(new Blob([displayed.html], { type: 'text/html;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = safeFilename(w.project?.title || 'motes-app'); a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function download() {
+    if (!displayed || exporting) return;
+    const appId = w.project?.id, navigation = w.navigation.current, title = w.project?.title || 'motes-app';
+    setExporting(true);
+    try {
+      const html = await renderApplicationHtml(displayed.html);
+      if (appRef.current !== appId || w.navigation.current !== navigation) return;
+      const url = URL.createObjectURL(new Blob([exportApplicationHtml(displayed.html, html)], { type: 'text/html;charset=utf-8' }));
+      const a = document.createElement('a'); a.href = url; a.download = safeFilename(title); a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setResultNote('已导出独立 HTML。离开工作台后 SDK 数据桥不可用，输入仅作临时使用。');
+    } catch (error) { if (appRef.current === appId && w.navigation.current === navigation) w.setError(error instanceof Error ? error.message : '编译失败，无法导出。'); }
+    finally { setExporting(false); }
   }
   async function createGroup(event: React.FormEvent) { event.preventDefault(); if (!groupName.trim()) return; setGroupBusy(true); try { await w.createGroup(groupName); setGroupForm(false); setGroupName(''); } catch (e) { w.setError(e instanceof Error ? e.message : '创建失败。'); } finally { setGroupBusy(false); } }
   return <div className="lite-shell">
@@ -71,7 +95,7 @@ export default function LiteWorkbench() {
         <div className="lite-sidebar-label"><span>{group?.name || '项目'}中的应用</span></div>
         <button className="lite-new-app" disabled={!w.session || w.loading} onClick={() => { w.create(); setPane('chat'); setSidebar(false); }}><Plus size={16}/>新建应用</button>
         <nav className="lite-apps" aria-label="应用列表">{apps.map(a => <button key={a.id} className={a.id === w.project?.id ? 'selected' : ''} onClick={() => { void w.open(a.id); setSidebar(false); }}><span className="lite-app-symbol">◇</span><span>{a.name}</span></button>)}{!apps.length && <p className="lite-note">这个项目还没有应用。从一句话开始。</p>}</nav>
-        <div className="lite-sidebar-bottom"><span>想法 → 页面 → 可运行链接</span><small>单文件 HTML · 云端保存</small></div>
+        <div className="lite-sidebar-bottom"><span>想法 → 页面 → 可运行链接</span><small>React + Tailwind · 云端保存</small></div>
       </aside>
       <main className="lite-workbench">
         <div className="lite-mobile-tabs"><button aria-pressed={pane === 'chat'} onClick={() => setPane('chat')}><MessageSquare size={15}/>聊天</button><button aria-pressed={pane === 'preview'} onClick={() => setPane('preview')}><Eye size={15}/>预览{displayed ? ` · v${displayed.number}` : ''}</button></div>
@@ -79,7 +103,7 @@ export default function LiteWorkbench() {
         <section className={`lite-chat ${pane === 'chat' ? 'mobile-active' : ''}`} aria-label="创作对话">
           <div className="lite-panel-header"><div><span className="lite-eyebrow">CREATE WITH MOTES</span><h1>{w.project?.title || '把想法变成小应用'}</h1></div><span className="lite-status-pill">{g.busy ? '处理中' : w.loading ? '连接中' : '准备就绪'}</span></div>
           <div className="lite-chat-scroll" ref={chatScrollRef}>
-            {!w.project && !g.attempts.length && <div className="lite-welcome"><div className="lite-orbit"><Sparkles size={25}/></div><h2>你想做点什么？</h2><p>描述一个想法，生成可交互的页面。<br/>再聊几句，把细节慢慢做好。</p><div className="lite-examples">{examples.map(example => <button key={example.title} onClick={() => draft.set(example.text)}><span>{example.icon}</span>{example.title}<small>↗</small></button>)}</div></div>}
+            {!w.project && !g.attempts.length && <div className="lite-welcome"><div className="lite-orbit"><Sparkles size={25}/></div><h2>你想做点什么？</h2><p>描述一个想法，生成可交互的页面。<br/>新建默认使用 React + Tailwind。<br/>已有应用沿用原有技术继续修改。</p><div className="lite-examples">{examples.map(example => <button key={example.title} onClick={() => draft.set(example.text)}><span>{example.icon}</span>{example.title}<small>↗</small></button>)}</div></div>}
             {w.project?.versions.map(v => <article className="lite-message-pair" key={v.id}><div className="lite-user-message">{v.prompt}</div><div className="lite-assistant-message"><span className="lite-message-avatar">✣</span><div><strong><Check size={14}/>已保存 v{v.number}<small>{v.mode === 'demo' ? '示例生成' : v.mode === 'manual' ? '手工版本' : 'AI 生成'}</small></strong><p>{v.summary}</p>{completionForProject && completionForProject.versionId === v.id && <LiteGenerationSteps progress={completionForProject.progress}/>}<button onClick={() => { setViewId(v.id); setPane('preview'); }}>查看这一版 <Eye size={12}/></button></div></div></article>)}
             {g.attempts.map(attempt => { const status = g.recovery.stateFor(attempt), retry = attempt.retryConfirmed || status?.retry === 'new' || status?.retry === 'same' || status?.retry === 'save'; return <article className="lite-message-pair" key={attempt.id}><div className="lite-user-message">{attempt.text}</div><div className="lite-attempt" role="status"><strong>{attempt.state === 'sending' ? <><LoaderCircle size={15} className="lite-spin"/>请求已发出，等待响应</> : '原请求需要核对'}</strong>{g.progress?.requestId === attempt.requestId && <LiteGenerationSteps progress={g.progress}/>}<p>{status?.message || attempt.error || '接收、生成与保存状态尚未确认。'}</p>{attempt.state === 'sending' ? <button onClick={g.stop}>停止本页等待</button> : <div><button disabled={g.busy} onClick={() => g.recovery.checkAgain()}>再次核对</button>{retry && <button disabled={g.busy} onClick={() => void g.send(attempt.text, attempt.mode, attempt)}>{status?.retry === 'save' ? '仅重试保存' : status?.retry === 'same' ? '沿用原编号重试' : '重新发送原需求'}</button>}{(attempt.retryConfirmed || status?.retry === 'new') && <button disabled={g.busy} onClick={() => g.dismiss(attempt)}>结束此请求，编辑新需求</button>}</div>}<details><summary>请求记录</summary><code>{attempt.requestId}</code><p>停止等待不会保证取消服务端执行。核对结果前不重复生成。</p></details></div></article>; })}
             {g.notice && <p className="lite-note" role="status">{g.notice}</p>}{resultNote && <p className="lite-note" role="status">{resultNote}</p>}
@@ -99,16 +123,17 @@ export default function LiteWorkbench() {
           </form>
         </section>
         <section className={`lite-preview-panel ${pane === 'preview' ? 'mobile-active' : ''}`} aria-label="应用预览">
-          <div className="lite-panel-header lite-preview-header"><div className="lite-preview-title"><span className="lite-preview-dot"/><strong>实时预览</strong>{displayed && <span className="lite-version-pill">v{displayed.number}{displayed.id !== w.project?.currentVersionId ? ' · 历史预览' : ' · 当前'}</span>}</div><div className="lite-preview-tools"><button aria-label="版本历史" title="版本历史" disabled={!w.project} onClick={() => { setHistory(!history); setSource(false); setDiff(false); }}><History size={16}/></button><button aria-label="版本对比" title="版本对比" disabled={!w.project} onClick={() => { setDiff(true); setHistory(false); setSource(false); }}><GitCompareArrows size={16}/></button><button aria-label="查看代码" title="查看代码" disabled={!displayed} onClick={() => { setSource(!source); setHistory(false); setDiff(false); }}><Code2 size={16}/></button><button aria-label="导出 HTML" title="导出 HTML" disabled={!displayed} onClick={download}><Download size={16}/></button><button aria-label="重新载入预览" title="重新载入预览" disabled={!displayed} onClick={() => setReload(n => n + 1)}><RotateCcw size={16}/></button></div></div>
-          {displayed && <div className="lite-preview-meta"><span>{loaded ? <><Check size={13}/>预览已加载 · 请检查实际功能</> : '正在载入预览…'}</span>{w.session?.visibility === 'shared' && <small>仅通过 SDK 显式保存的业务数据会持久保留</small>}</div>}
+          <div className="lite-panel-header lite-preview-header"><div className="lite-preview-title"><span className="lite-preview-dot"/><strong>实时预览</strong>{displayed && <span className="lite-version-pill">v{displayed.number}{displayed.id !== w.project?.currentVersionId ? ' · 历史预览' : ' · 当前'}</span>}</div><div className="lite-preview-tools"><button aria-label="版本历史" title="版本历史" disabled={!w.project} onClick={() => { setHistory(!history); setSource(false); setDiff(false); }}><History size={16}/></button><button aria-label="版本对比" title="版本对比" disabled={!w.project} onClick={() => { setDiff(true); setHistory(false); setSource(false); }}><GitCompareArrows size={16}/></button><button aria-label="查看代码" title="查看代码" disabled={!displayed} onClick={() => { setSource(!source); setHistory(false); setDiff(false); }}><Code2 size={16}/></button><button aria-label="导出 HTML" title="导出 HTML" disabled={!displayed || exporting} onClick={() => void download()}><Download size={16}/></button><button aria-label="重新载入预览" title="重新载入预览" disabled={!displayed} onClick={() => setReload(n => n + 1)}><RotateCcw size={16}/></button></div></div>
+          {displayed && <div className="lite-preview-meta"><span>{loaded ? <><Check size={13}/>预览已加载 · 请检查实际功能</> : previewError ? '编译失败' : preview ? '正在载入预览…' : '正在编译预览…'}</span>{w.session?.visibility === 'shared' && <small>仅通过 SDK 显式保存的业务数据会持久保留</small>}</div>}
           <div className="lite-preview-stage">
             {w.loading && <div className="lite-loading"><LoaderCircle className="lite-spin" size={22}/>正在读取云端工作空间…</div>}
-            {preview && displayed && w.project ? <Fragment key={identity}><iframe ref={frameRef} title={`${w.project.title} v${displayed.number} 预览`} sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" srcDoc={preview.html} onLoad={() => setLoaded(true)}/><LiteRuntimeDataBridge frameRef={frameRef} appId={w.project.id} versionId={displayed.id} channel={preview.channel} enabled={w.session?.visibility === 'shared'}/></Fragment> : <div className="lite-empty-preview"><div className="lite-window-illustration"><div><i/><i/><i/></div><span>✣</span><b/><b/></div><h2>下一份作品，从这里开始</h2><p>在左侧描述需求，应用会出现在这里。<br/>可以操作、继续修改，再发布成公开链接。</p><span className="lite-empty-label">你的想法，值得一个可以运行的版本</span></div>}
+            {displayed && !preview ? <div className="lite-loading" role={previewError ? "alert" : "status"}>{previewError || <><LoaderCircle className="lite-spin" size={22}/>正在编译预览…</>}</div> : preview && displayed && w.project ? <Fragment key={identity}><iframe ref={frameRef} title={`${w.project.title} v${displayed.number} 预览`} sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" srcDoc={preview.html} onLoad={() => setLoaded(identity)}/><LiteRuntimeDataBridge frameRef={frameRef} appId={w.project.id} versionId={displayed.id} channel={preview.channel} enabled={w.session?.visibility === 'shared'}/></Fragment> : <div className="lite-empty-preview"><div className="lite-window-illustration"><div><i/><i/><i/></div><span>✣</span><b/><b/></div><h2>下一份作品，从这里开始</h2><p>在左侧描述需求，应用会出现在这里。<br/>可以操作、继续修改，再发布成公开链接。</p><span className="lite-empty-label">你的想法，值得一个可以运行的版本</span></div>}
             {history && w.project && <div className="lite-overlay"><header><strong>代码历史</strong><button aria-label="关闭历史" onClick={() => setHistory(false)}><X size={17}/></button></header><p>查看历史只切换预览；继续修改仍基于当前保存版。还原会重新载入页面，未保存的临时输入会重置。</p>{[...w.project.versions].reverse().map(v => <div className="lite-history-item" key={v.id}><button className={displayed?.id === v.id ? 'selected' : ''} onClick={() => setViewId(v.id)}><strong>v{v.number}{v.id === w.project?.currentVersionId ? ' · 当前保存' : ''}</strong><span>{v.prompt}</span><small>{new Date(v.createdAt).toLocaleString('zh-CN')}</small></button>{v.id !== w.project?.currentVersionId && <button disabled={restoring || g.busy || !!g.attempts.length} onClick={() => void restore(v.id)}><RotateCcw size={13}/>{restoring ? '还原中' : '还原此版'}</button>}</div>)}</div>}
             {diff && w.project && <LiteVersionDiff versions={w.project.versions} currentVersionId={w.project.currentVersionId} onClose={() => setDiff(false)}/>}
-            {source && displayed && <div className="lite-overlay lite-source"><header><strong>HTML · v{displayed.number}</strong><button aria-label="关闭代码" onClick={() => setSource(false)}><X size={17}/></button></header><p>只读完整源码。导出的 HTML 独立运行时不连接工作台数据桥。</p><pre><code>{displayed.html}</code></pre></div>}
+            {source && displayed && <LiteSourceViewer key={displayed.id} html={displayed.html} number={displayed.number} onClose={() => setSource(false)}/>}
+
           </div>
-          {displayed && w.project && <LitePublication key={w.project.id} appId={w.project.id} versionId={displayed.id} number={displayed.number} html={displayed.html}/>}
+          {displayed && w.project && !w.loading && <LitePublication key={w.project.id} appId={w.project.id} versionId={displayed.id} number={displayed.number} html={displayed.html}/>}
         </section>
       </main>
     </div>

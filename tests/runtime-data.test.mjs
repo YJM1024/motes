@@ -34,10 +34,7 @@ async function harness() {
     const url = new URL('../lib/' + file + '.ts', import.meta.url);
     let source = await readFile(url, 'utf8');
     source = source.replace("import { env } from 'cloudflare:workers';", `const env=globalThis[${JSON.stringify(key)}];`);
-    for (const match of [...source.matchAll(/(?:from\s+)(['"])(\.[^'"]+)\1/g)]) {
-      const target = new URL(match[2] + '.ts', url);
-      source = source.replaceAll(match[1] + match[2] + match[1], JSON.stringify(await moduleUrl(target.pathname.split('/lib/').at(-1).replace(/\.ts$/, ''))));
-    }
+    for(const declaration of ts.createSourceFile('module.ts',source,ts.ScriptTarget.Latest,true).statements.filter(n=>(ts.isImportDeclaration(n)||ts.isExportDeclaration(n))&&n.moduleSpecifier).toReversed()){if(declaration.importClause?.isTypeOnly||declaration.isTypeOnly)continue;const spec=declaration.moduleSpecifier.text;const target=new URL(spec+'.ts',new URL('../lib/'+file+'.ts',import.meta.url));const resolved=spec.startsWith('.')?await moduleUrl(target.pathname.split('/lib/').at(-1).replace(/\.ts$/,'')):import.meta.resolve(spec);source=source.slice(0,declaration.moduleSpecifier.getStart())+JSON.stringify(resolved)+source.slice(declaration.moduleSpecifier.end);}
     const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
     const result = 'data:text/javascript;base64,' + Buffer.from(js).toString('base64');
     cache.set(file, result);

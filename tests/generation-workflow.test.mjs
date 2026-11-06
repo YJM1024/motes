@@ -4,6 +4,7 @@ import {workflowHarness} from './helpers/workflow-harness.mjs';
 
 const response=(text,tokens=3)=>Response.json({status:'completed',model:'mock-model',usage:{input_tokens:tokens,output_tokens:tokens+1,total_tokens:tokens*2+1},output:[{content:[{type:'output_text',text}]}]});
 const patch=(search,replace)=>({format:'motes.replace.v1',edits:[{search,replace}]});
+const reactPatch=(search,replace)=>({format:'motes.react.replace.v1',edits:[{path:'src/App.jsx',search,replace}]});
 const shortPlan='1. Preserve the shared counter and data key. 2. Update only the heading. 3. Check document structure.';
 
 test('precise patches are atomic, uniquely matched against the original and bounded',async t=>{
@@ -86,7 +87,7 @@ test('saved and failed requests expose real phases; failed patch preserves immut
       const checkpoint=h.sqlite.prepare("SELECT call_count,total_tokens,usage_complete FROM motes_model_usage WHERE status='running'").get();
       assert.equal(checkpoint.call_count,1);assert.equal(checkpoint.total_tokens,7);assert.equal(checkpoint.usage_complete,0);
     }
-    return n%2===1?response(shortPlan):response(JSON.stringify(patch('<h1>专注，从这一刻开始</h1>','<h1>更新标题</h1>')));
+    return n%2===1?response(shortPlan):response(JSON.stringify(reactPatch('专注，从这一刻开始','更新标题')));
   });
   const id=crypto.randomUUID(),saved=await h.generate({mode:'model',prompt:'修改标题',projectId:project.id,baseVersionId:base.id,requestId:id});assert.equal(saved.status,200);
   assert.equal(saved.data.project.versions.length,2);assert.deepEqual(saved.data.project.versions[0],base);
@@ -114,11 +115,26 @@ test('old requests omit progress and expired running steps are derived as failed
 
 test('save failure keeps the result; retry saves the same snapshot without another model call',async t=>{
   const h=await workflowHarness();t.after(h.close);let calls=0;
-  t.mock.method(globalThis,'fetch',async()=>{calls++;return response(calls===1?shortPlan:h.demo.generateDemo('番茄钟').html)});
+  t.mock.method(globalThis,'fetch',async()=>{calls++;return response(calls===1?shortPlan:JSON.stringify(h.reactProject.parseReactProject(h.reactDemo.generateReactDemo('番茄钟').html)))});
   h.sqlite.exec("CREATE TRIGGER fail_save BEFORE INSERT ON forma_versions BEGIN SELECT RAISE(ABORT,'mock failure'); END");
   const body={mode:'model',prompt:'番茄钟',requestId:crypto.randomUUID()},failed=await h.generate(body);assert.equal(failed.status,503);
   const waiting=await h.get(body.requestId);assert.equal(waiting.status,'save_pending');assert.deepEqual(waiting.progress.steps.map(s=>s.state),['completed','completed','completed','pending']);
   h.sqlite.exec('DROP TRIGGER fail_save');const saved=await h.generate(body);assert.equal(saved.status,200);assert.equal(calls,2);
   const done=await h.get(body.requestId);assert.ok(done.progress.steps.every(s=>s.state==='completed'));
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,1);
+});
+
+test('new model apps use React source JSON; compiler failure stops check before saving with both calls accounted',async t=>{
+  const h=await workflowHarness();t.after(h.close);let calls=0;
+  const project=h.reactProject.parseReactProject(h.reactDemo.generateReactDemo('任务看板').html);
+  project.files['src/App.jsx']="import bad from 'untrusted-package';export default ()=>null;";
+  t.mock.method(globalThis,'fetch',async(_url,options)=>{
+    const input=JSON.parse(options.body);calls++;
+    if(calls===2){assert.match(input.instructions,/motes.react.v1/);assert.match(input.instructions,/Tailwind/);}
+    return response(calls===1?shortPlan:JSON.stringify(project));
+  });
+  const requestId=crypto.randomUUID(),result=await h.generate({mode:'model',prompt:'任务看板',requestId});
+  assert.equal(result.status,502);assert.equal(calls,2);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,0);
+  const receipt=await h.get(requestId);assert.deepEqual(receipt.progress.steps.map(s=>s.state),['completed','completed','failed','pending']);
+  const usage=h.sqlite.prepare('SELECT * FROM motes_model_usage WHERE request_id=?').get(requestId);assert.equal(usage.call_count,2);assert.equal(usage.usage_complete,1);assert.equal(usage.status,'failed');
 });

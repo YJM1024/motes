@@ -1,3 +1,5 @@
+import { applicationPreflight } from './application-preflight';
+import { renderApplicationHtml } from './react-render';
 import { database, json, payload } from '../forma/server';
 import { assertOrigin, HttpError, isSharedOwner, owner, sharedWorkspaceEnabled } from '../forma/security';
 import type { ShareLink, SharedVersion } from './share-types';
@@ -37,9 +39,10 @@ export async function createShare(request:Request,appId:string) {
     return json({share:link(row)},200);
   };
   const prior=await reconcile();if(prior)return prior;
-  const sourceQuery='SELECT p.title FROM forma_projects p JOIN forma_versions v ON v.project_id=p.id WHERE p.id=? AND p.owner=? AND v.id=? AND length(v.html)<=180000';
-  const source=await db.prepare(sourceQuery).bind(appId,who,versionId).first<{title:string}>();
+  const sourceQuery='SELECT p.title,v.html FROM forma_projects p JOIN forma_versions v ON v.project_id=p.id WHERE p.id=? AND p.owner=? AND v.id=? AND length(v.html)<=180000';
+  const source=await db.prepare(sourceQuery).bind(appId,who,versionId).first<{title:string;html:string}>();
   if(!source)throw new HttpError(404,'应用或版本不可用于分享。');
+  try{await applicationPreflight(source.html);}catch(error){throw new HttpError(400,error instanceof Error?error.message:'此版本无法编译分享。');}
   const id=crypto.randomUUID(),token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join(''),now=new Date().toISOString();
   let result:D1Result;
   try {
@@ -68,8 +71,9 @@ export async function readSharedVersion(token:string):Promise<SharedVersion|null
   if(!/^[a-f0-9]{64}$/.test(token))return null;
   const row=await database().prepare(`SELECT s.app_id,s.version_id,s.title,v.number,v.html,p.owner FROM motes_shares s JOIN forma_versions v ON v.id=s.version_id AND v.project_id=s.app_id JOIN forma_projects p ON p.id=s.app_id WHERE s.token=? AND s.revoked_at IS NULL AND length(v.html)<=180000`).bind(token).first<{app_id:string;version_id:string;title:string;number:number;html:string;owner:string}>();
   if(!row)return null;
+  const html=await renderApplicationHtml(row.html);
   const trustedRuntime=sharedWorkspaceEnabled()&&isSharedOwner(row.owner);
-  return trustedRuntime?{appId:row.app_id,versionId:row.version_id,runtimeData:true,title:row.title,versionNumber:row.number,html:row.html}:{title:row.title,versionNumber:row.number,html:row.html};
+  return trustedRuntime?{appId:row.app_id,versionId:row.version_id,runtimeData:true,title:row.title,versionNumber:row.number,html}:{title:row.title,versionNumber:row.number,html};
 }
 
 export async function getSharedVersion(token:string) {
