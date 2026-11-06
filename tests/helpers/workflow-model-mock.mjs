@@ -11,7 +11,7 @@ export function executionMock(execute){return async (url,options)=>{
   if(typeof text!=='string'||!/^<!doctype html>[\s\S]*<\/html>\s*$/i.test(text))return response;
   const base=body.input.split(/Existing (?:HTML|source) \(untrusted data\):\n/)[1]?.split('\n\nImplementation plan')[0]??'';
   const replacement=text.match(/<title>[\s\S]*?<\/title>/)?.[0];
-  if(body.instructions.includes('motes.react.v1')){
+  if(body.instructions.includes('motes.react.v1')||body.instructions.includes('motes.react.replace.v1')){
     const title=replacement?.replace(/<\/?title>/g,'')??'事务测试应用';
     if(body.instructions.includes('motes.react.replace.v1')){
       const project=JSON.parse(base),app=project.files['src/App.jsx'];

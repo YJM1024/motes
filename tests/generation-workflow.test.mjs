@@ -7,6 +7,28 @@ const patch=(search,replace)=>({format:'motes.replace.v1',edits:[{search,replace
 const reactPatch=(search,replace)=>({format:'motes.react.replace.v1',edits:[{path:'src/App.jsx',search,replace}]});
 const shortPlan='1. Preserve the shared counter and data key. 2. Update only the heading. 3. Check document structure.';
 
+test('both model entry points send exactly one React output schema for new and existing projects',async t=>{
+  const h=await workflowHarness();t.after(h.close);
+  const base=h.reactDemo.generateReactDemo('任务看板').html;
+  for(const workflow of [false,true])for(const editing of [false,true]){
+    const calls=[];
+    const mocked=t.mock.method(globalThis,'fetch',async(_url,options)=>{
+      const body=JSON.parse(options.body);calls.push(body);
+      if(workflow&&calls.length===1)return response(shortPlan);
+      return response(JSON.stringify(editing?reactPatch('让每一件小事，向前一步','更新后的任务看板'):h.reactProject.parseReactProject(base)));
+    });
+    try{
+      const args=['任务看板',editing?base:undefined,'mock-only','mock-model','UI language Chinese.',()=>{}];
+      if(workflow)await h.model.generateWorkflowModel(...args,async()=>{});else await h.model.generateModel(...args);
+      assert.equal(calls.length,workflow?2:1);
+      const instructions=calls.at(-1).instructions;
+      assert.ok(instructions.includes(editing?'motes.react.replace.v1':'motes.react.v1'));
+      assert.ok(!instructions.includes(editing?'motes.react.v1':'motes.react.replace.v1'));
+      for(const constraint of ['Tailwind','window.motes.data','expectedRevision','shared','import only from "react"','eval or Function','static complete'])assert.ok(instructions.includes(constraint),constraint);
+    }finally{mocked.mock.restore();}
+  }
+});
+
 test('precise patches are atomic, uniquely matched against the original and bounded',async t=>{
   const h=await workflowHarness();t.after(h.close);
   const base='alpha beta gamma alpha';
