@@ -1,0 +1,95 @@
+{
+  "product": "Motes Lite",
+  "version": 33,
+  "production": {
+    "status": "deployed",
+    "url": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
+    "publicRuntimeCommit": "69e717b754bf31f880b02876fd83d644fe9d5a8b",
+    "localSourceCommit": "ccfadb63babb8988b45f5ef526c629865b71b612",
+    "sourceTree": "970add2e40633807af2da7b6c7e40d3017b9d790",
+    "environmentRevision": 4
+  },
+  "ci": {
+    "status": "passed",
+    "run": "https://github.com/YJM1024/motes/actions/runs/42172794313",
+    "platforms": ["ubuntu-latest", "windows-latest"],
+    "testsPerPlatform": { "passed": 386, "failed": 0, "skipped": 0 },
+    "typecheck": "passed",
+    "build": "passed",
+    "freshLocalD1Initialization": "passed",
+    "httpChecks": {
+      "passed": 8,
+      "visibility": "shared",
+      "runtimeRevision": 1,
+      "modelCalls": 0
+    }
+  },
+  "browser": {
+    "viewport": "390x844",
+    "workbenchNoHorizontalOverflow": true,
+    "versionDiffNoHorizontalOverflow": true,
+    "sourcePanelNoHorizontalOverflow": true,
+    "applicationPreviewIframes": 1,
+    "sourcePanelFiles": 7
+  },
+  "realModel": {
+    "runtimeSplit": { "v32Requests": 4, "v33Requests": 2 },
+    "requestPosts": 6,
+    "providerCalls": 12,
+    "providerCallsPerRequest": 2,
+    "inputTokens": 20083,
+    "outputTokens": 10880,
+    "usageComplete": true,
+    "extraHiddenRetries": 0,
+    "cases": {
+      "game2048": {
+        "firstVersion": "failed_persistence",
+        "gameplayObserved": true,
+        "observedScore": 16,
+        "persistedBestScore": 4,
+        "persistedRevision": 1,
+        "blueButtonComputedColor": "oklch(0.488 0.243264 264.376)",
+        "secondVersion": "blue_button_patch_and_version_restore_observed",
+        "saveDefectResolved": false,
+        "note": "The v33 prompt-constraint change does not retroactively repair this saved application's save-effect defect."
+      },
+      "taskList": {
+        "firstVersion": "failed_on_null_initial_sdk_value",
+        "secondVersion": "create_complete_delete_and_reload_observed",
+        "completedItemsAfterReload": 1,
+        "sdkRevision": 4
+      },
+      "tipCalculator": {
+        "initialVersion": "create_and_shared_save_observed",
+        "patchVersion": "functional_patch_observed",
+        "inputs": { "bill": 120, "tipPercent": 10, "people": 3 },
+        "tip": 12,
+        "total": 132,
+        "perPerson": 44,
+        "inputsRetainedAfterPatch": true,
+        "publicPageReadObserved": true,
+        "sdkRevision": 1
+      }
+    },
+    "overall": "mixed_outcomes; game persistence and task initialization failed on first version; task repair and calculator scopes passed observation; game save defect remains"
+  },
+  "productionCleanup": {
+    "action": "archive_only",
+    "qaAppsArchived": 3,
+    "qaVersionsRetained": 6,
+    "originalAppsUnchanged": 13,
+    "originalVersionsUnchanged": 32,
+    "visibleAfterCleanup": { "qaAppsHidden": true, "ordinaryApps": 13, "ordinaryGroups": 2 },
+    "newAppDefaultsToRealModelWhenConfigured": true,
+    "businessDataRevisionsPreserved": { "game": 1, "taskList": 4, "calculator": 1 },
+    "calculatorPublicationRemainsPaused": true,
+    "deletedRecords": 0,
+    "extraModelRequests": 0,
+    "evidence": "v33-production-cleanup.json"
+  },
+  "limits": [
+    "A saved model response does not by itself prove application behavior.",
+    "The game version restore and color patch do not count as repair of its persistence defect.",
+    "Observed task and calculator behavior is limited to the operations listed above."
+  ]
+}

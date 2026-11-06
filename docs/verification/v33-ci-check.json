@@ -1,0 +1,142 @@
+{
+  "checkedAt": "2026-11-06T06:15:46.384Z",
+  "status": "passed",
+  "runId": 42172794313,
+  "url": "https://github.com/YJM1024/motes/actions/runs/42172794313",
+  "publicRuntimeCommit": "69e717b754bf31f880b02876fd83d644fe9d5a8b",
+  "localRuntimeCommit": "ccfadb63babb8988b45f5ef526c629865b71b612",
+  "sourceTree": "970add2e40633807af2da7b6c7e40d3017b9d790",
+  "testsPerPlatform": {
+    "total": 386,
+    "pass": 386,
+    "fail": 0,
+    "skipped": 0
+  },
+  "platforms": [
+    {
+      "jobId": 127744287834,
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm ci",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm test",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run typecheck",
+          "conclusion": "success"
+        },
+        {
+          "name": "Configure shared demo without a model key",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run build",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run db:init:local",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run verify:http",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "jobId": 127744288053,
+      "name": "test (windows-latest)",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm ci",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm test",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run typecheck",
+          "conclusion": "success"
+        },
+        {
+          "name": "Configure shared demo without a model key",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run build",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run db:init:local",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run verify:http",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "http": {
+    "checks": 8,
+    "modelCalls": 0,
+    "visibility": "shared",
+    "runtimeRevision": 1
+  },
+  "note": "Each hosted CI runner performed npm ci, tests, typecheck, production build, fresh local database initialization and real HTTP checks."
+}

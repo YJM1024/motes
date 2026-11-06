@@ -1,563 +1,82 @@
 {
-  "product": "Motes",
-  "activeBranch": "exam-lite",
-  "liteStatus": "v29-deployed",
+  "product": "Motes Lite",
+  "version": 33,
+  "status": "deployed",
   "production": {
-    "product": "Motes Lite",
-    "version": "v29",
     "url": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-    "deployment": "appgdep_6aed45d2ff1881918d4d35a34a0ea90f",
-    "environmentRevision": 4,
-    "deployedPublicSourceSha": "2c0257945e80bc2fa4b1735855f905e0a5be0cc1",
-    "localDeploymentCommit": "3a8a28583391e051d111ba258f6ac0bda0d3d891",
-    "sourceTree": "2f965fe8100488a92b334fc7ace694a9cbc31b28",
-    "savedSiteVersionId": "appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_f32ddf54b7688191bef6d0a0fd00eb21",
-    "testedPublicHeadSha": "c96dd62bf553a29a64c988c34748439f58288309",
-    "localTestEquivalentCommit": "20f4dea",
-    "testEquivalentNote": "Local commit contains test fixes only."
+    "publicRuntimeCommit": "69e717b754bf31f880b02876fd83d644fe9d5a8b",
+    "localSourceCommit": "ccfadb63babb8988b45f5ef526c629865b71b612",
+    "sourceTree": "970add2e40633807af2da7b6c7e40d3017b9d790",
+    "environmentRevision": 4
   },
-  "fullProductReference": {
-    "branch": "https://github.com/YJM1024/motes/tree/full-product",
-    "commit": "51a315f35554705cd34b51e7d6a7598e36f0fa3d",
-    "baseline": "809bb58",
-    "archive": "D:\\gpt\\output\\motes\\motes-full-product.zip"
+  "ci": {
+    "run": "https://github.com/YJM1024/motes/actions/runs/42172794313",
+    "status": "passed",
+    "platforms": ["ubuntu-latest", "windows-latest"],
+    "testsPerPlatform": { "passed": 386, "failed": 0, "skipped": 0 },
+    "typecheck": "passed",
+    "build": "passed",
+    "freshLocalD1Initialization": "passed",
+    "http": { "checks": 8, "visibility": "shared", "runtimeRevision": 1, "modelCalls": 0 }
   },
-  "lite": {
-    "branch": "exam-lite",
-    "baseCommit": "809bb58",
-    "deploymentStatus": "deployed-v29",
-    "siteUrl": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-    "sourceFormat": "React 19.2.6 + Tailwind CSS 4.2.1; existing single-file HTML remains supported",
-    "editableReactFiles": [
-      "src/App.jsx",
-      "src/index.css"
-    ],
-    "scaffold": {
-      "editableFiles": 2,
-      "sourcePanelFiles": 7,
-      "standaloneVite": "7.3.7",
-      "arbitraryNpmDependencies": false
-    },
-    "hostBuild": "Vinext/Vite 8 unchanged",
-    "previewAndExport": "The pure-JavaScript compile stage parses JSX/modules and builds real Tailwind CSS without CDN and does not execute generated App source. The compiled app runs only inside the isolated preview/public-page iframe; standalone exported HTML runs when opened.",
-    "sdk": "Host bridge available in workbench preview and public page; standalone HTML shows temporary, non-persistent status",
-    "htmlExport": "Self-contained; old HTML exports retain their prior output",
-    "unsupported": [
-      "arbitrary npm dependencies",
-      "containers",
-      "arbitrary multi-file projects",
-      "login",
-      "ZIP"
-    ]
+  "browser": {
+    "viewport": "390x844",
+    "workbenchNoHorizontalOverflow": true,
+    "versionDiffNoHorizontalOverflow": true,
+    "sourcePanelNoHorizontalOverflow": true,
+    "applicationPreviewIframes": 1
   },
-  "checks": {
-    "liteAutomatedSuite": {
-      "status": "passed",
-      "passed": 365,
-      "total": 365,
-      "evidence": "D:\\gpt\\output\\motes\\react\\tests-final.log"
-    },
-    "liteTypecheck": {
-      "status": "passed",
-      "evidence": "D:\\gpt\\output\\motes\\react\\ci-check.json"
-    },
-    "liteBuild": {
-      "status": "passed",
-      "evidence": "D:\\gpt\\output\\motes\\react\\deployment-check.json"
-    },
-    "liteCi": {
-      "status": "passed",
-      "runId": 42156106740,
-      "url": "https://github.com/YJM1024/motes/actions/runs/42156106740",
-      "platforms": {
-        "ubuntu-latest": {
-          "npmCi": "passed",
-          "test": "passed",
-          "typecheck": "passed",
-          "testsPassed": 365,
-          "testsSkipped": 0
-        },
-        "windows-latest": {
-          "npmCi": "passed",
-          "test": "passed",
-          "typecheck": "passed",
-          "testsPassed": 365,
-          "testsSkipped": 0
-        }
+  "realModel": {
+    "requests": 6,
+    "providerCalls": 12,
+    "providerCallsPerRequest": 2,
+    "runtimeSplit": { "v32Requests": 4, "v33Requests": 2 },
+    "inputTokens": 20083,
+    "outputTokens": 10880,
+    "allUsageComplete": true,
+    "hiddenRetries": 0,
+    "result": "mixed; do not claim all cases passed",
+    "cases": {
+      "game2048": {
+        "firstVersion": "gameplay observed to score 16; SDK save failed; persisted best score remained 4 at revision 1",
+        "secondVersion": "blue button patch and v2-v1-v2 restore observed; persistence defect remained",
+        "v33PromptChangeRepairsExistingApp": false
       },
-      "testedPublicHeadSha": "c96dd62bf553a29a64c988c34748439f58288309",
-      "localTestEquivalentCommit": "20f4dea",
-      "testEquivalentNote": "Only test-loader changes."
-    },
-    "productionReactCreateAndPatch": {
-      "status": "passed",
-      "requestIds": [
-        "e76b6db0-bc58-473d-b3e1-0377a7b78e30",
-        "87c2f2ca-f6a3-4727-88a8-25999860eb13"
-      ],
-      "sourcePatch": {
-        "file": "src/App.jsx",
-        "deletedLines": 1,
-        "addedLines": 1
+      "taskList": {
+        "firstVersion": "failed when SDK missing-key null was treated as invalid",
+        "secondVersion": "create, complete, delete and reload observed; 1 completed task remained at revision 4"
       },
-      "sdkCountAfterPatch": 1,
-      "dataContinuityScope": "Count remained 1 across this patch only; does not assert complete continuity.",
-      "providerCalls": 4,
-      "totalTokens": 5308,
-      "usageComplete": 1,
-      "realModelEvidence": "D:\\gpt\\output\\motes\\react\\real-model-check.json",
-      "savedSiteVersionId": "appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_f32ddf54b7688191bef6d0a0fd00eb21",
-      "qaAppId": "bf3a552e-ef35-48b5-ac9d-bf71d02b4d8c"
-    },
-    "standaloneReactScaffold": {
-      "status": "passed",
-      "react": "19.2.6",
-      "tailwindCss": "4.2.1",
-      "vite": "7.3.7",
-      "files": 7,
-      "editableFiles": [
-        "src/App.jsx",
-        "src/index.css"
-      ],
-      "commands": {
-        "npm install": "passed",
-        "npm run build": "passed"
-      },
-      "evidence": "D:\\gpt\\output\\motes\\react\\scaffold-build-check.json",
-      "arbitraryNpmDependencies": false
-    },
-    "reactHtmlExport": {
-      "status": "local-independent-browser-interaction-verified",
-      "bytes": 214080,
-      "sameExportFunction": true,
-      "physicalIabDownloadObserved": false,
-      "evidence": "D:\\gpt\\output\\motes\\react\\export-evidence.json"
-    },
-    "restorePublishResponsive": {
-      "status": "passed",
-      "completed": [
-        "Production React v2 to v1 to v2 restore flow",
-        "Final mobile v2 to v1 to v2 restore flow; iframe count read back as 1 both times",
-        "390×844 workbench, React source selector and version diff without horizontal overflow",
-        "Single preview iframe"
-      ],
-      "measurements": {
-        "threeSelectControlsRightAtMostPx": 364,
-        "sourceFileSelectorRightPx": 189
-      },
-      "evidence": "D:\\gpt\\output\\motes\\react\\browser-check.json",
-      "screenshots": [
-        "D:\\gpt\\output\\motes\\react\\production-react-mobile.png",
-        "D:\\gpt\\output\\motes\\react\\production-react-source-mobile.png",
-        "D:\\gpt\\output\\motes\\react\\production-react-diff-mobile.png"
-      ]
-    },
-    "dataCleanup": {
-      "status": "passed",
-      "completed": true,
-      "noDeletes": true,
-      "noGenerationRequests": true,
-      "evidence": "D:\\gpt\\output\\motes\\react\\cleanup-and-continuity.json",
-      "production": {
-        "activeApps": 13,
-        "activeVersions": 32,
-        "matchedOriginalBaseline": true,
-        "qaAppArchived": true,
-        "qaGroupArchived": true,
-        "qaVersionsPreserved": true,
-        "businessDataPreserved": true,
-        "runtime": {
-          "key": "qa.react.counter",
-          "value": {
-            "count": 1
-          },
-          "revision": 1
-        },
-        "qaAppId": "bf3a552e-ef35-48b5-ac9d-bf71d02b4d8c",
-        "baselineSource": "production-before.json"
-      },
-      "local": {
-        "origin": "http://127.0.0.1:5186",
-        "qaAppId": "7f0cf5c1-dacf-47c0-a136-1a7188f7d24a",
-        "qaGroupId": "f9936266-0128-4a9f-8901-cb2188c4eabf",
-        "activeAppsBefore": 21,
-        "activeAppsAfter": 20,
-        "activeVersionsBefore": 48,
-        "activeVersionsAfter": 46,
-        "originalSourceHashesUnchanged": true,
-        "qaHistoryPreserved": true,
-        "businessDataPreserved": true,
-        "runtimeRevision": 2
+      "tipCalculator": {
+        "createAndPatch": "observed within stated scope",
+        "inputs": { "bill": 120, "tipPercent": 10, "people": 3 },
+        "tip": 12,
+        "total": 132,
+        "perPerson": 44,
+        "inputsRetainedAfterPatch": true,
+        "sharedReloadAndPublicPageRead": true,
+        "revision": 1
       }
-    },
-    "productionReactPublicPage": {
-      "status": "passed",
-      "version": "v2",
-      "sharedSdkCount": 1,
-      "note": "The public React v2 page read the shared SDK value."
     }
+  },
+  "publicEvidence": {
+    "summary": "verification/v33-final-evidence.json",
+    "realModelDetails": "verification/v33-real-model-check.json",
+    "ciDetails": "verification/v33-ci-check.json"
+  },
+  "productionCleanup": {
+    "status": "completed_archive_only",
+    "archivedQaApps": 3,
+    "retainedQaVersions": 6,
+    "originalAppsUnchanged": 13,
+    "originalVersionsUnchanged": 32,
+    "businessDataPreservedAtRevisions": { "game": 1, "taskList": 4, "tipCalculator": 1 },
+    "calculatorPublicationRemainsPaused": true,
+    "deletedRecords": 0,
+    "extraModelRequests": 0,
+    "evidence": "verification/v33-production-cleanup.json"
   },
   "history": {
-    "v27": {
-      "production": {
-        "product": "Motes Lite",
-        "version": "v27",
-        "url": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-        "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
-        "savedSiteId": "appgprj_6ae0c67ba1908191991ab6eb2cedf783~appgver_cd6ea61e396481918f62afa072161f56",
-        "deployment": "appgdep_6aecccb8c5c08191b6565e9c75c1ef34",
-        "environmentRevision": 4,
-        "publicRuntimeSha": "5cca8498f601e7d028f9afba036034089f951f2a"
-      },
-      "lite": {
-        "branch": "exam-lite",
-        "baseCommit": "809bb58",
-        "deploymentStatus": "deployed-v27",
-        "siteUrl": "https://motes-yangjunmin.yjm1024.chatgpt.site/",
-        "realModelCallsThisLiteIteration": 4,
-        "scope": {
-          "sharedGuestWorkspace": true,
-          "singleFileHtml": true,
-          "appSpecOrContainer": false,
-          "businessDataPersistence": "explicit SDK writes only",
-          "completeOfflineMode": false,
-          "advancedRaceDiscussionEditorSettingsTemplatesBackupUi": false
-        },
-        "testScopeExclusions": [
-          {
-            "path": "tests/artifact-card-controls.test.mjs",
-            "feature": "Full ArtifactCard interaction controls",
-            "reason": "Component removed from Lite; recover from full-product."
-          },
-          {
-            "path": "tests/artifact-workspace-actions.test.mjs",
-            "feature": "Full Home page artifact card callbacks",
-            "reason": "Full Home page UI removed; recover from full-product."
-          },
-          {
-            "path": "tests/build-attempt-feedback.test.mjs",
-            "feature": "Full BuildAttemptFeedback component",
-            "reason": "Component removed; Lite receipt state is covered by tests/lite-workbench.test.mjs and tests/lite-safety-review.test.mjs."
-          },
-          {
-            "path": "tests/candidate-waiting.test.mjs",
-            "feature": "Full compare-page waiting UI",
-            "reason": "Compare UI removed; candidate API behavior remains tested in tests/candidates.test.mjs."
-          },
-          {
-            "path": "tests/composer-race-guard.test.mjs",
-            "feature": "Full Home page race composer guard",
-            "reason": "Race composer removed from Lite."
-          },
-          {
-            "path": "tests/inline-race-workspace.test.mjs",
-            "feature": "Full inline race workspace UI",
-            "reason": "Race UI removed; pure race and candidate domain tests remain."
-          },
-          {
-            "path": "tests/offline-changes-panel.test.mjs",
-            "feature": "Full offline changes panel",
-            "reason": "Complete offline UI is full-only; Lite Service Worker retirement has separate tests."
-          },
-          {
-            "path": "tests/offline-lifecycle.test.mjs",
-            "feature": "Full offline component lifecycle",
-            "reason": "Offline UI components removed; offline engine/runtime domain tests remain."
-          },
-          {
-            "path": "tests/offline-sync-status.test.mjs",
-            "feature": "Full offline sync status component",
-            "reason": "Component removed from Lite."
-          },
-          {
-            "path": "tests/offline-workspace-controls.test.mjs",
-            "feature": "Full offline workspace controls",
-            "reason": "Component removed from Lite."
-          },
-          {
-            "path": "tests/page-demo-copy.test.mjs",
-            "feature": "Full Home page demo-mode UI",
-            "reason": "Old Home UI removed; bounded Lite demos and unsupported prompts are covered by lite workbench tests."
-          },
-          {
-            "path": "tests/page-offline-status.test.mjs",
-            "feature": "Full Home offline labels and sync callbacks",
-            "reason": "Offline Home UI removed; offline engine and retirement domain tests remain."
-          },
-          {
-            "path": "tests/palette-picker-events.test.mjs",
-            "feature": "Full palette picker UI",
-            "reason": "Theme and palette UI removed from Lite."
-          },
-          {
-            "path": "tests/preview-controls-layout.test.mjs",
-            "feature": "Full preview control component layout",
-            "reason": "Full preview controls removed; Lite workbench behavior is covered separately."
-          },
-          {
-            "path": "tests/race-preview.test.mjs",
-            "feature": "Full race preview component and Home UI",
-            "reason": "Race UI removed; pure race presentation/domain tests remain."
-          },
-          {
-            "path": "tests/restore-preview-lifecycle.test.mjs",
-            "feature": "Full Home restore callback lifecycle",
-            "reason": "Tests extracted callbacks from removed Home UI; Lite restore/reload lifecycle is covered in tests/lite-safety-review.test.mjs."
-          },
-          {
-            "path": "tests/stop-waiting.test.mjs",
-            "feature": "Full discussion component stop-waiting UI",
-            "reason": "Discussion UI removed; request recovery and save_pending domain behavior remains tested."
-          },
-          {
-            "path": "tests/ui-palette-tokens.test.mjs",
-            "feature": "Full theme palette and motion UI",
-            "reason": "Complex theme UI removed from Lite."
-          },
-          {
-            "path": "tests/workspace-callbacks.test.mjs",
-            "feature": "Full backup, source editor, and version tools UI callbacks",
-            "reason": "Those panels are removed; generic saved-result and workspace domain tests remain."
-          },
-          {
-            "path": "tests/workspace-navigation.test.mjs",
-            "feature": "Full Home sidebar and recovery callback wiring",
-            "reason": "Tests inspect removed Home UI; generic recovery, draft and outcome modules remain covered independently."
-          },
-          {
-            "path": "tests/workspace-status-component.test.mjs",
-            "feature": "Full workspace status component",
-            "reason": "Component removed from Lite; workspace status model tests remain."
-          },
-          {
-            "path": "tests/host-locale.test.mjs (translated native option subtest)",
-            "feature": "Full pages' translated select-option values",
-            "reason": "The subtest scanned removed pages/components; pure locale catalog and interpolation tests remain in the same file."
-          },
-          {
-            "path": "tests/native-navigation.test.mjs (settings navigation subtests)",
-            "feature": "Full settings leave guards and page-link structure",
-            "reason": "Settings UI removed; the retained composer draft persistence subtest still runs."
-          }
-        ],
-        "testScopeAdaptations": [
-          {
-            "path": "tests/compare-handoff.test.mjs",
-            "change": "Retains the three pure handoff validation, expiry/scope, and stale-target tests; removes only the deleted CandidateModeEntry component test."
-          },
-          {
-            "path": "tests/candidates.test.mjs (no-key demo test preview assertions)",
-            "change": "Retained candidate API demo/safety coverage and moved the preview contract check to LiteWorkbench, litePreview, and the shared preview-document policy."
-          },
-          {
-            "path": "tests/preview-headers.test.mjs",
-            "change": "Retained the installed Vinext response/header and preview security assertions, with LiteWorkbench and shared-page as the current preview surfaces."
-          }
-        ],
-        "testRestoreInstructions": "Full UI tests are preserved on the full-product branch at baseline 809bb58946ceb83b7312216294d553be8f114c62. On exam-lite, recover an original test file with: git restore --source=full-product -- tests/<path>. Run the complete restored suite on the full-product branch. The Lite runner intentionally discovers only top-level tests/*.test.mjs, lib/motes/*.test.mjs, and app/manage/*.test.mjs.",
-        "testRunner": {
-          "maxFileConcurrency": 2,
-          "rationale": "The default 15 concurrent file workers caused Node Zone Allocation OOM and spawn ENOMEM on this host; test-internal concurrency remains unchanged."
-        },
-        "publicRuntimeSha": "5cca8498f601e7d028f9afba036034089f951f2a",
-        "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
-        "capabilities": {
-          "generationPhases": [
-            "plan",
-            "execute",
-            "check",
-            "save"
-          ],
-          "newAppOutput": "complete single-file HTML",
-          "existingAppEdits": "strict local replacement patches; atomic validation; original version retained on failure",
-          "demoPlanning": "local preset; no model call",
-          "versionDiff": "actual line additions, removals and context; bounded work; explicit over-budget state; optional display-only wrapping",
-          "codeStreaming": false,
-          "login": false,
-          "zipExport": false
-        },
-        "modelWorkflow": {
-          "typicalUpstreamCallsPerRequest": 2,
-          "rounds": 2,
-          "providerCalls": 4,
-          "totalTokens": 4769,
-          "usageAccounting": "per-request token totals aggregated; native local D1 confirms 2 calls per round and complete usage; HTTP receipts do not expose per-line callCount",
-          "verification": "HTML button background changed from #6941c6 to #2563eb; all other script bytes unchanged; SDK count 1 and revision 1 persisted across code edit",
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\real-model-check.json",
-          "nativeUsageEvidence": "D:\\gpt\\output\\motes\\workflow\\real-model-native-usage.json"
-        }
-      },
-      "checks": {
-        "fullProductBaseline": {
-          "status": "published-and-archived",
-          "branch": "full-product",
-          "commit": "51a315f35554705cd34b51e7d6a7598e36f0fa3d",
-          "baseline": "809bb58",
-          "historicalCiTestsPerPlatform": 375
-        },
-        "liteAutomatedSuite": {
-          "status": "passed",
-          "tests": 349,
-          "failed": 0,
-          "skipped": 0,
-          "testedCommit": "1b9111e",
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\tests.log",
-          "followupSpecializedTests": {
-            "passed": 12,
-            "scope": "final chat-scroll adjustment"
-          }
-        },
-        "liteTypecheck": {
-          "status": "passed",
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\tests.log"
-        },
-        "liteBuild": {
-          "status": "passed",
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\tests.log"
-        },
-        "liteCi": {
-          "status": "passed",
-          "runId": 42085802534,
-          "url": "https://github.com/YJM1024/motes/actions/runs/42085802534",
-          "publicHead": "5cca8498f601e7d028f9afba036034089f951f2a",
-          "exactRuntime": true,
-          "result": "success",
-          "platforms": {
-            "ubuntu-latest": {
-              "node": 24,
-              "npmCi": "passed",
-              "test": "passed",
-              "typecheck": "passed"
-            },
-            "windows-latest": {
-              "node": 24,
-              "npmCi": "passed",
-              "test": "passed",
-              "typecheck": "passed"
-            }
-          },
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\ci-check.json"
-        },
-        "liteBrowserAndDataAcceptance": {
-          "status": "passed",
-          "origin": "local browser",
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\local-core-smoke.json",
-          "screenshots": [
-            "D:\\gpt\\output\\motes\\workflow\\local-steps-mobile.png",
-            "D:\\gpt\\output\\motes\\workflow\\local-diff-mobile.png"
-          ],
-          "checks": [
-            "visible four-step workflow",
-            "send clears input",
-            "422 restores editable input",
-            "version diff and same-version empty state",
-            "diff wrapping",
-            "390px no horizontal overflow",
-            "360x450 composer bottom at 403.84px",
-            "patch and restore preserve user task",
-            "single preview iframe"
-          ]
-        },
-        "liteProductionBrowser": {
-          "status": "passed",
-          "version": 27,
-          "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
-          "checks": [
-            "counter v2 restored to v1 then returned to v2",
-            "SDK count remained 1",
-            "single preview iframe",
-            "390px preview and version diff without horizontal overflow",
-            "version selectors positioned within viewport",
-            "demo send collapses welcome and shows completed steps",
-            "390px version selectors at x=26..182 and x=207..364"
-          ],
-          "evidence": [
-            "D:\\gpt\\output\\motes\\workflow\\browser-check.json",
-            "D:\\gpt\\output\\motes\\workflow\\production-counter-mobile.png",
-            "D:\\gpt\\output\\motes\\workflow\\production-diff-mobile.png",
-            "D:\\gpt\\output\\motes\\workflow\\production-final-steps.png"
-          ]
-        },
-        "liteProductionDataIntegrity": {
-          "status": "passed",
-          "normalApps": 13,
-          "historicalVersions": 32,
-          "differenceCount": 0,
-          "fields": [
-            "app ID",
-            "current version",
-            "version number",
-            "HTML hash"
-          ],
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\cleanup-and-continuity.json"
-        },
-        "liteProductionCleanup": {
-          "status": "completed-without-deletion",
-          "productionQaAppsArchived": 2,
-          "productionQaGroupArchived": true,
-          "localQaGroupAndAppsArchived": true,
-          "qaDataPreserved": true,
-          "localTasksAndHtmlVersionsPreserved": true,
-          "deletedRecords": 0,
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\cleanup-and-continuity.json"
-        },
-        "liteProductionZeroModelSmoke": {
-          "status": "passed",
-          "version": 26,
-          "finalRuntime27": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
-          "uiOnlyNote": "v27 adds chat UI changes; core HTTP smoke was run against v26",
-          "checks": 8,
-          "modelCalls": 0,
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\production-core-smoke.json"
-        },
-        "liteProductionCoreSmoke": {
-          "status": "passed",
-          "version": 26,
-          "finalRuntime27": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
-          "uiOnlyNote": "v27 adds chat UI changes; core HTTP smoke was run against v26",
-          "checks": 8,
-          "modelCalls": 0,
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\production-core-smoke.json"
-        },
-        "sourceArchive": {
-          "status": "see-external-delivery-manifest",
-          "path": "D:\\gpt\\output\\motes\\motes-source.zip",
-          "verificationManifest": "D:\\gpt\\output\\motes\\delivery.json"
-        },
-        "realModelWorkflow": {
-          "status": "passed",
-          "testedRuntime": 26,
-          "finalRuntime": 27,
-          "delta": "UI-only chat scroll and welcome visibility changes",
-          "rounds": 2,
-          "providerCalls": 4,
-          "totalTokens": 4769,
-          "nativeUsageConfirmedPerRound": {
-            "providerCalls": 2,
-            "usageComplete": true
-          },
-          "evidence": "D:\\gpt\\output\\motes\\workflow\\real-model-check.json",
-          "nativeUsageEvidence": "D:\\gpt\\output\\motes\\workflow\\real-model-native-usage.json"
-        },
-        "historicalV24": {
-          "deploymentVersion": 24,
-          "runtimeSource": "f7fb42db030f06e725b28075ba2664580c65e46b",
-          "historicalModelCallsThisIteration": 0,
-          "historicalBrowserEvidence": "D:\\gpt\\output\\motes\\lite-production-browser-check.json",
-          "historicalIntegrity": {
-            "normalApps": 12,
-            "historicalVersions": 29,
-            "hashesUnchanged": true
-          },
-          "sourceCommit": "f7fb42db030f06e725b28075ba2664580c65e46b"
-        },
-        "liteDeployment": {
-          "status": "deployed",
-          "version": 27,
-          "runtimeSource": "81a84e76d7fa25d6635668dfd3615c9c1bd91c18",
-          "publicRuntimeSha": "5cca8498f601e7d028f9afba036034089f951f2a"
-        }
-      }
-    }
+    "previousAcceptance": "history/acceptance-v29.md",
+    "previousManifest": "history/release-manifest-v29.json"
   }
 }

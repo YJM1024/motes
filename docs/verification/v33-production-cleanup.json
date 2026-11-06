@@ -1,0 +1,49 @@
+{
+  "result": "completed",
+  "action": "Archived only the three final QA apps and their QA group; no applications or versions were deleted.",
+  "groupName": "QA 收尾真实验收",
+  "apps": [
+    {
+      "name": "2048 数字合并",
+      "archived": true,
+      "versionCount": 2
+    },
+    {
+      "name": "我的任务清单",
+      "archived": true,
+      "versionCount": 2
+    },
+    {
+      "name": "小费计算器",
+      "archived": true,
+      "versionCount": 2
+    }
+  ],
+  "counts": {
+    "originalAppsUnchanged": 13,
+    "originalVersionsUnchanged": 32,
+    "qaAppsArchived": 3,
+    "qaVersionsRetained": 6
+  },
+  "businessData": {
+    "game": {
+      "revision": 1,
+      "preserved": true
+    },
+    "tasks": {
+      "revision": 4,
+      "preserved": true
+    },
+    "calculator": {
+      "revision": 1,
+      "preserved": true
+    }
+  },
+  "calculatorPublication": {
+    "pausedBeforeCleanup": true,
+    "remainedPaused": true
+  },
+  "baselineHashesAndCurrentVersionsUnchanged": true,
+  "noDeletes": true,
+  "proofSha256": "7c730bfda7c8a2157216ff1f6a7a8398c2611507cf4546906a492e7c9e15fc15"
+}
