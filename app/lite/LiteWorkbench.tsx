@@ -4,7 +4,7 @@ import { ArrowUp, Check, ChevronDown, Code2, Download, Eye, GitCompareArrows, Hi
 import { useWorkspaceDraft } from '@/app/hooks/useWorkspaceDraft';
 import type { Project } from '@/lib/forma/types';
 import { contextKey } from '@/lib/motes/recovery-state';
-import { useLiteWorkspace } from './useLiteWorkspace';
+import { selectLiteMode, useLiteWorkspace } from './useLiteWorkspace';
 import { useLiteGeneration } from './useLiteGeneration';
 import { liteApi } from './api';
 import { litePreview } from './preview';
@@ -24,6 +24,14 @@ const examples = [
 ];
 export default function LiteWorkbench() {
   const w = useLiteWorkspace(), [mode, setMode] = useState<'demo' | 'model'>('demo'), [pane, setPane] = useState<'chat' | 'preview'>('chat');
+  const modeChosen = useRef(false);
+  useEffect(() => {
+    if (!w.session || modeChosen.current) return;
+    let saved: string | null = null;
+    try { saved = sessionStorage.getItem('motes-lite-mode'); } catch {}
+    setMode(selectLiteMode(saved, w.session));
+  }, [w.session]);
+  useEffect(() => { if (mode === 'model' && (!w.session || w.session.mode !== 'model' || !w.session.model)) setMode('demo'); }, [mode, w.session]);
   const [sidebar, setSidebar] = useState(false), [history, setHistory] = useState(false), [source, setSource] = useState(false), [diff, setDiff] = useState(false), [viewId, setViewId] = useState<string | null>(null), [reload, setReload] = useState(0);
   const [groupForm, setGroupForm] = useState(false), [groupName, setGroupName] = useState(''), [groupBusy, setGroupBusy] = useState(false), [restoring, setRestoring] = useState(false), [loadedIdentity, setLoaded] = useState('');
   const frameRef = useRef<HTMLIFrameElement>(null), chatScrollRef = useRef<HTMLDivElement>(null), appRef = useRef(w.project?.id), draft = useWorkspaceDraft(w.session?.workspaceId || null, 'lite:' + contextKey(w.context)); appRef.current = w.project?.id;
@@ -109,7 +117,7 @@ export default function LiteWorkbench() {
             {g.notice && <p className="lite-note" role="status">{g.notice}</p>}{resultNote && <p className="lite-note" role="status">{resultNote}</p>}
           </div>
           <form className="lite-composer" onSubmit={e => { e.preventDefault(); send(); }}>
-            <div className="lite-mode"><select aria-label="生成模式" value={mode} onChange={e => setMode(e.target.value as 'demo' | 'model')} disabled={g.busy}><option value="demo">示例模式</option>{w.session?.mode === 'model' && <option value="model">真实 AI · {w.session.model}</option>}</select><small>{mode === 'demo' ? '不调用模型' : '需求与当前代码将发送给模型'}</small></div>
+            <div className="lite-mode"><select aria-label="生成模式" value={mode} onChange={e => { const next = e.target.value as 'demo' | 'model'; modeChosen.current = true; setMode(next); try { sessionStorage.setItem('motes-lite-mode', next); } catch {} }} disabled={g.busy}><option value="demo">示例模式</option>{w.session?.mode === 'model' && w.session.model && <option value="model">真实 AI · {w.session.model}</option>}</select><small>{mode === 'demo' ? w.session?.mode === 'model' && !w.session.model ? '当前空间没有可用模型，使用示例模式；不调用模型' : '不调用模型' : '需求与当前代码将发送给模型'}</small></div>
             <div className="lite-input-wrap">
               <textarea aria-label="应用需求" aria-describedby="lite-composer-hint" placeholder={w.project ? '继续描述你想修改的地方…' : '例如：做一个可以保存支出的旅行预算工具…'} value={draft.value} onChange={e => draft.set(e.target.value)} onKeyDown={e => {
                 if (e.key === 'Enter' && e.ctrlKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {

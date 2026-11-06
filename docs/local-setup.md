@@ -1,19 +1,27 @@
-# Lite 本地启动与验收
+# 本地启动
 
-访问[正式站点](https://motes-yangjunmin.yjm1024.chatgpt.site/)。本地运行不会修改生产 D1。Lite 需要网络，不提供完整版的完整离线工作台；完整版源码仍在[`full-product` branch](https://github.com/YJM1024/motes/tree/full-product)（`51a315f`）。历史发布验收信息见[验收记录](acceptance.md)。
+线上体验入口为 [Motes Lite](https://motes-yangjunmin.yjm1024.chatgpt.site/)。本地启动使用独立本地 D1，不会自动连接或修改生产库。Lite 需要网络；完整离线工作台仍在[完整版](https://github.com/YJM1024/motes/tree/full-product)。
 
-## 安装与本地数据库
+## 环境与安装
 
-需要 Node.js 24（最低 22.13）和 npm。从仓库根目录运行：
+当前项目本地启动按 Node.js 24 与 npm 编写。仓库声明的最低 Node 版本为 22.13；推荐使用 Node 24，以匹配当前依赖与构建环境。从仓库根目录安装依赖并构建：
 
 ```sh
 npm ci
 npm run build
 ```
 
-`npm run dev` 和 `npm run build` 会先通过 `scripts/run-framework.mjs` 执行 `scripts/build-react-runtime.mjs`，使用已安装的可信 React 依赖准备预览 runtime，再启动开发服务或构建宿主。该步骤不执行生成的 App 源码。此准备需要先安装仓库依赖。宿主使用项目原有 Vinext/Vite 8 工具链；导出的轻量 React 工程则固定使用独立 Vite 7.3.7，不替换宿主构建器。
+开发启动命令会先构建预览所需的可信 React runtime，再启动宿主开发服务：
 
-构建生成本地 Wrangler 配置 `dist/server/wrangler.json`。仅对新建的本地 D1 按文件名顺序应用全部迁移：
+```sh
+npm run dev
+```
+
+默认访问 `http://127.0.0.1:5173/`，具体地址以终端输出为准。构建 runtime 时处理的是已安装的可信 React 依赖；不会在构建期间执行生成的 App 源码。生成应用只在隔离预览 iframe 中运行。
+
+## 创建并迁移本地 D1
+
+构建会生成 `dist/server/wrangler.json`。首次启动前，新建本地 D1 并按迁移文件名顺序应用 SQL。当前仓库未提供跨平台的自动迁移入口；以下批量示例适用于 Windows PowerShell：
 
 ```powershell
 Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | ForEach-Object {
@@ -22,29 +30,16 @@ Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | 
 }
 ```
 
-此命令只用于全新本地库。已有库先备份 `.wrangler/state`，只补尚未执行的迁移；不要清空数据库或对生产执行 `--remote`。数据库 schema/API 与完整版兼容，lite 是界面缩减，不是新数据模型。
+该批量命令只适用于全新本地库。已有本地库先备份 `.wrangler/state`，核对已应用迁移后，只补未执行的迁移；不要清空数据库，也不要对生产环境使用 `--remote`。不要重跑或改写已应用的旧迁移。数据库结构继续兼容 Motes 完整版使用的数据模型。
 
-本轮新增迁移为 `0017_stale_millenium_guard.sql` 和 `0018_strong_leech.sql`。若已有本地库已应用至 `0016`，按顺序只应用 `0017`、`0018` 及其后的尚未执行迁移；不要覆盖、重跑或改写已应用的旧迁移。确认迁移状态后再启动服务。
+## 游客空间与模型配置
 
-## 启动
+示例开发配置使用共享游客空间。同一公共空间内的访客可查看和修改彼此的项目、应用、对话，以及应用通过 Motes SDK 显式保存的业务数据。请勿存放个人或机密内容。
 
-```sh
-npm run dev
-```
+没有服务端模型配置时，只能使用明确标注的本地示例。真实模型模式需要在本地秘密文件 `.dev.vars` 中配置服务端 Key 和可用模型；不要把 Key 放到浏览器、生成的页面、需求文本或 Git 中。
 
-通常打开 `http://127.0.0.1:5173/`，以终端显示地址为准。示例 `.dev.vars.example` 默认使用共享游客空间；同一工作区中的访问者能看到和修改彼此内容。请勿放入私人数据。没有服务端模型 Key 时只能使用标注明确的有限 demo；真实模型功能需在本地秘密文件 `.dev.vars` 中配置服务端 Key 和可用模型，不能把 Key 交给游客或提交 Git。
+## 数据行为
 
-## 自动检查
+恢复历史代码版本只切换当前代码版本，不会回滚应用 SDK 业务数据。普通表单输入与页面 DOM 状态不会自动保存。公开发布链接可被访问，发布前应检查应用内容。退役旧 Service Worker 不会清除旧 IndexedDB、草稿或待处理队列；本地启动不会代替真实浏览器升级后的恢复验收。
 
-```sh
-npm test
-npm run typecheck
-```
-
-测试发现以根目录 `tests/` 为必需入口，只收集该目录的顶层 `*.test.mjs`。完整版专属 UI 测试仍保留在 `full-product` 分支，已从 Lite 测试树移除，因此不会误运行。共享逻辑目录 `lib/motes/` 和纯管理筛选测试目录 `app/manage/` 若存在则纳入，Lite 移除管理 UI 后可没有 `app/manage/`。可选目录只有在不存在（`ENOENT`）时跳过，其他读取错误仍会失败；零测试文件也会失败。Lite 保留适用的 API、数据恢复、SDK、安全边界和纯筛选测试。当前测试运行情况、typecheck、原生 build 及验收范围见[验收记录](acceptance.md)。旧 Service Worker 真实浏览器升级和实体手机测试尚未完成。
-
-## 浏览器数据与 Service Worker
-
-退役旧 Service Worker 时只解除旧 Worker 的拦截，不清除旧 IndexedDB、草稿或待处理队列。不要用“清除站点数据”排除兼容问题；真实浏览器更新后保留与恢复仍需单独验收。完整离线工作台仅在[完整版分支](https://github.com/YJM1024/motes/tree/full-product)提供。
-
-版本恢复只切换当前 HTML 版本，不回滚应用通过 SDK 显式写入的业务数据。普通输入和页面 DOM 状态不会自动持久化；发布链接公开可访问，发布前应检查内容。
+项目范围与工作流见[项目说明](project-overview.md)和[生成工作流](generation-workflow.md)。

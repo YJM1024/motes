@@ -6,6 +6,13 @@ import type { RecoveryContext } from '@/lib/motes/recovery-state';
 import { liteApi } from './api';
 import { validLiteProject } from './state';
 export type LiteSession = { workspaceId: string; visibility: 'shared' | 'private'; mode: 'demo' | 'model'; model: string | null };
+export function selectLiteMode(saved: string | null, session: LiteSession): 'demo' | 'model' {
+  if (session.mode !== 'model' || !session.model) return 'demo';
+  return saved === 'demo' || saved === 'model' ? saved : 'model';
+}
+export function selectedLiteApp(apps: WorkspaceSnapshot['apps'], groupId: string, savedAppId?: string, contextId?: string) {
+  return savedAppId && !contextId ? apps.find(app => app.id === savedAppId && !app.archived && app.projectId === groupId) : undefined;
+}
 export function useLiteWorkspace() {
   const [session, setSession] = useState<LiteSession | null>(null), [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
   const [project, setProject] = useState<Project | null>(null), [groupId, setGroupId] = useState(''), [newContext, setNewContext] = useState('');
@@ -26,7 +33,7 @@ export function useLiteWorkspace() {
         try { saved = JSON.parse(sessionStorage.getItem('motes-lite-selection:' + current.workspaceId) || '{}'); } catch {}
         const group = next.projects.find(g => g.id === saved?.groupId && !g.archived)?.id || next.workspace.defaultProjectId;
         setSession(current); setSnapshot(next); setGroupId(group); setNewContext(typeof saved?.contextId === 'string' ? saved.contextId : crypto.randomUUID());
-        const app = next.apps.find(a => a.id === saved?.appId && !a.archived && a.projectId === group) || (!saved?.contextId ? next.apps.find(a => !a.archived && a.projectId === group) : undefined);
+        const app = selectedLiteApp(next.apps, group, saved?.appId, saved?.contextId);
         if (app) { const result = await liteApi<{ project: Project }>('/api/projects/' + app.id, undefined, controller.signal); if (!validLiteProject(result.project, app.id)) throw new Error('应用保存记录尚未完整返回。'); if (active) setProject(result.project); }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : '连接失败。'); }
       finally { if (active) setLoading(false); }

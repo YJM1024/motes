@@ -35,10 +35,27 @@ test('malformed success response is rejected instead of claiming that an applica
   try { globalThis.fetch = async () => new Response('<html>temporary gateway</html>', { status: 200 }); await assert.rejects(liteApi('/api/projects/a'), /有效结果/); }
   finally { globalThis.fetch = before; }
 });
+const selectLiteMode = await functionFrom('../app/lite/useLiteWorkspace.ts', 'selectLiteMode', {});
+const selectedLiteApp = await functionFrom('../app/lite/useLiteWorkspace.ts', 'selectedLiteApp', {});
+test('mode defaults to a real available model, remembers an explicit demo choice, and safely falls back without a model', () => {
+  const available = { workspaceId: 'w', visibility: 'private', mode: 'model', model: 'model-a' };
+  assert.equal(selectLiteMode(null, available), 'model');
+  assert.equal(selectLiteMode('demo', available), 'demo');
+  assert.equal(selectLiteMode('model', { ...available, model: null }), 'demo');
+  assert.equal(selectLiteMode('model', { ...available, mode: 'demo' }), 'demo');
+});
+test('workspace entry restores only an explicitly saved app and does not select the oldest app for a new visitor', () => {
+  const apps = [{ id: 'old', projectId: 'group', archived: false }, { id: 'chosen', projectId: 'group', archived: false }, { id: 'archived', projectId: 'group', archived: true }];
+  assert.equal(selectedLiteApp(apps, 'group'), undefined);
+  assert.equal(selectedLiteApp(apps, 'group', undefined, 'draft-context'), undefined);
+  assert.equal(selectedLiteApp(apps, 'group', 'chosen')?.id, 'chosen');
+  assert.equal(selectedLiteApp(apps, 'group', 'old', 'draft-context'), undefined);
+  assert.equal(selectedLiteApp(apps, 'group', 'archived'), undefined);
+});
 async function functionFrom(path, name, bindings) {
   const text = await readFile(new URL(path, import.meta.url), 'utf8'), tree = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); let selected;
   function visit(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === name) selected = node.getText(tree); ts.forEachChild(node, visit); } visit(tree); assert.ok(selected, name);
-  const js = ts.transpileModule(selected + '\nreturn ' + name + ';', { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
+  const js = ts.transpileModule(selected.replace(/^export\s+/, '') + '\nreturn ' + name + ';', { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
   return new Function(...Object.keys(bindings), js)(...Object.values(bindings));
 }
 test('actual restore handler reloads the iframe even when the selected history page is already displayed', async () => {
