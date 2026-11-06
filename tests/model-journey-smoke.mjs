@@ -1,9 +1,10 @@
 // Explicit opt-in: two generation rounds (plan + execute each; at most four provider calls), never retried. Uses only the existing app API.
 // node tests/model-journey-smoke.mjs --run-two-calls D:/gpt/output/motes/stable-model-http.json
 import assert from 'node:assert/strict';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
+import { applicationArtifact, assertPublishedApplication } from './helpers/application-artifact.mjs';
 
 assert.equal(process.argv[2], '--run-two-calls', 'Explicit --run-two-calls is required');
 // Exact canonical URL returned by the existing Site's v22 deployment.
@@ -15,7 +16,6 @@ const cookies = new Map();
 let appId, publication;
 await mkdir(dirname(output), { recursive: true });
 const save = () => writeFile(output, JSON.stringify(report, null, 2) + '\n');
-const hash = value => createHash('sha256').update(value).digest('hex');
 async function call(client, path, body, expected = 200) {
   if (path === '/api/generate') {
     assert.equal(body.mode, 'model'); assert.ok(report.modelPosts < 2, 'Never exceed two model POSTs');
@@ -44,8 +44,11 @@ const path = () => '/api/projects/' + appId;
 const runtime = (client, action, versionId, extra = {}, expected = 200) => call(client, '/api/runtime-data', { action, appId, versionId, key: 'qa.counter.v1', ...extra }, expected);
 async function exportVersion(version) {
   const file = resolve(dirname(output), `stable-model-${appId}-v${version.number}.html`);
-  await writeFile(file, version.html);
-  (report.versions ??= []).push({ id: version.id, number: version.number, mode: version.mode, model: version.model ?? 'unknown', htmlSha256: hash(version.html), htmlBytes: Buffer.byteLength(version.html), file });
+  const artifact = await applicationArtifact(version.html);
+  await writeFile(file, artifact.exportedHtml);
+  const { sourceSha256, sourceBytes, renderedHtmlSha256, renderedHtmlBytes, exportedHtmlSha256, exportedHtmlBytes } = artifact;
+  (report.versions ??= []).push({ id: version.id, number: version.number, mode: version.mode, model: version.model ?? 'unknown', sourceSha256, sourceBytes, renderedHtmlSha256, renderedHtmlBytes, exportedHtmlSha256, exportedHtmlBytes, file });
+  return artifact;
 }
 try {
   const a = await call('a', '/api/session'), b = await call('b', '/api/session');
@@ -59,14 +62,14 @@ try {
   await call('a', '/api/workspace', { action: 'app.update', appId, name: marker });
   assert.equal(first.versions.length, 1); const v1 = first.versions[0]; assert.equal(v1.mode, 'model');
   assert.ok(/motes/.test(v1.html)); assert.ok(v1.html.includes('qa.counter.v1'));
-  await exportVersion(v1); report.checks.push('model generation returned saved v1 HTML with requested SDK key (static evidence only)');
+  const artifactV1 = await exportVersion(v1); report.checks.push('model generation returned saved v1 source with requested SDK key; exported compiled standalone HTML (static evidence only)');
   assert.equal((await runtime('a', 'get', v1.id)).revision, 0);
   assert.equal((await runtime('a', 'set', v1.id, { value: { count: 7 }, expectedRevision: 0 })).revision, 1);
   assert.deepEqual((await runtime('b', 'get', v1.id)).value, { count: 7 });
   const second = (await call('a', '/api/generate', { mode: 'model', prompt: '保留完整计数器与qa.counter.v1共享数据结构、SDK读取及revision冲突保护。增加“减一”按钮，主色改为紫色。保持原标题与其余功能；只做局部精确替换补丁，禁止重写整页。', projectId: appId, baseVersionId: v1.id, requestId: randomUUID() })).project;
   assert.equal(second.versions.length, 2); assert.deepEqual(second.versions[0], v1);
   const v2 = second.versions.find(v => v.id === second.currentVersionId); assert.equal(v2.mode, 'model'); assert.notEqual(v2.html, v1.html);
-  await exportVersion(v2);
+  const artifactV2 = await exportVersion(v2);
   const refreshed = (await call('b', path())).project;
   assert.deepEqual(refreshed.versions, second.versions); assert.equal(refreshed.currentVersionId, v2.id);
   assert.deepEqual((await runtime('b', 'get', v2.id)).value, { count: 7 });
@@ -79,10 +82,10 @@ try {
   report.checks.push('restore v1 and return v2 preserve both HTML versions and shared business data');
   publication = (await call('a', path() + '/publication', { action: 'publish', versionId: v1.id, expectedRevision: 0, requestId: randomUUID() }, 201)).publication;
   const publicApi = '/api/publications/' + publication.path.split('/').at(-1);
-  assert.equal((await call('anonymous', publicApi)).html, v1.html);
+  assertPublishedApplication(await call('anonymous', publicApi), artifactV1);
   publication = (await call('a', path() + '/publication', { action: 'publish', versionId: v2.id, expectedRevision: publication.revision, requestId: randomUUID() })).publication;
-  assert.equal((await call('anonymous', publicApi)).html, v2.html);
-  report.checks.push('publication receipts and anonymous exact HTML for pinned v1 then explicit v2 update');
+  assertPublishedApplication(await call('anonymous', publicApi), artifactV2);
+  report.checks.push('publication receipts and anonymous exact compiled HTML for pinned v1 then explicit v2 update');
   const usageAfter = await call('a', '/api/usage');
   assert.equal(usageAfter.tokens.recordedCalls - usageBefore.tokens.recordedCalls, 4, 'Two rounds each make separate planning and execution calls');
   report.providerCallsObserved = usageAfter.tokens.recordedCalls - usageBefore.tokens.recordedCalls;

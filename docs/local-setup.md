@@ -2,35 +2,28 @@
 
 线上体验入口为 [Motes Lite](https://motes-yangjunmin.yjm1024.chatgpt.site/)。本地启动使用独立本地 D1，不会自动连接或修改生产库。Lite 需要网络；完整离线工作台仍在[完整版](https://github.com/YJM1024/motes/tree/full-product)。
 
-## 环境与安装
+## 环境、初始化与启动
 
-当前项目本地启动按 Node.js 24 与 npm 编写。仓库声明的最低 Node 版本为 22.13；推荐使用 Node 24，以匹配当前依赖与构建环境。从仓库根目录安装依赖并构建：
+当前项目本地启动按 Node.js 24 与 npm 编写。仓库声明的最低 Node 版本为 22.13；推荐使用 Node 24，以匹配当前依赖与构建环境。从仓库根目录运行：
 
 ```sh
 npm ci
 npm run build
-```
-
-开发启动命令会先构建预览所需的可信 React runtime，再启动宿主开发服务：
-
-```sh
+npm run db:init:local
 npm run dev
 ```
 
-默认访问 `http://127.0.0.1:5173/`，具体地址以终端输出为准。构建 runtime 时处理的是已安装的可信 React 依赖；不会在构建期间执行生成的 App 源码。生成应用只在隔离预览 iframe 中运行。
+`db:init:local` 要求先构建出 `dist/server/wrangler.json`，并且只为全新的本地 D1 按顺序应用 `drizzle/` 下顶层 SQL 迁移。它固定使用 `DB` 绑定、Wrangler `--local` 和 `.wrangler/state`，不会连接远程数据库。若该 state 目录中已有 SQLite 数据库，命令会拒绝初始化，避免重放迁移或覆盖已有数据。
 
-## 创建并迁移本地 D1
+默认访问 `http://127.0.0.1:5173/`，具体地址以终端输出为准。构建预览 runtime 时处理已安装的可信 React 依赖，不会在构建期间执行生成的 App 源码；生成应用只在隔离预览 iframe 中运行。
 
-构建会生成 `dist/server/wrangler.json`。首次启动前，新建本地 D1 并按迁移文件名顺序应用 SQL。当前仓库未提供跨平台的自动迁移入口；以下批量示例适用于 Windows PowerShell：
+## 已有本地数据库
 
-```powershell
-Get-ChildItem -LiteralPath ./drizzle -Filter '*.sql' -File | Sort-Object Name | ForEach-Object {
-  node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file $_.FullName
-  if ($LASTEXITCODE -ne 0) { throw "本地迁移失败：$($_.Name)" }
-}
-```
+已有本地库先备份 `.wrangler/state` 并核对迁移状态，只补尚未执行的迁移。不要对已有库运行 fresh 初始化，不要清空数据库，也不要重跑或改写已应用的旧迁移。若 fresh 初始化中途失败，先检查 state 和迁移进度，再手工处理未执行的迁移；再次运行初始化会因本地 SQLite 文件而拒绝。不要对生产环境执行远程迁移。数据库结构继续兼容 Motes 完整版使用的数据模型。
 
-该批量命令只适用于全新本地库。已有本地库先备份 `.wrangler/state`，核对已应用迁移后，只补未执行的迁移；不要清空数据库，也不要对生产环境使用 `--remote`。不要重跑或改写已应用的旧迁移。数据库结构继续兼容 Motes 完整版使用的数据模型。
+## 本地 HTTP 验收
+
+完成 `npm run build` 和全新数据库的 `npm run db:init:local` 后，运行 `npm run verify:http`；已有本地库不要重新初始化。验收命令会启动自己的构建后 Worker，使用随机本地端口运行现有示例 HTTP 流程，并在结束或失败时关闭自己启动的服务，不占用已有开发端口。验收仅使用示例模式，不调用模型；报告写入忽略提交的 `outputs/` 目录。HTTP 检查通过不代表浏览器交互已经验收。
 
 ## 游客空间与模型配置
 

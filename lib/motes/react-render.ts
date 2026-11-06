@@ -21,6 +21,9 @@ function compileJs(source:string):{code:string;candidates:string[]} {
       if((node.type==='ImportDeclaration'||node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration')&&node.source&&(node.source as Node).value!=='react')fail();
     });
     const output=transform(jsx,{transforms:['imports']}).code;
+    // Parse in the actual runtime scope too: user declarations must not collide
+    // with the CommonJS bindings supplied by the host wrapper.
+    parse('(()=>{const exports={};const require=()=>{};\n'+output+'\n})();',{ecmaVersion:'latest',sourceType:'script'});
     const tree=parse(output,{ecmaVersion:'latest',sourceType:'script'});
     let hasDefault=false;const candidates=new Set<string>();
     walk(tree,node=>{

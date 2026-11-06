@@ -97,6 +97,55 @@ test('invalid planning stops before execution; structural checks reject broken d
   assert.equal(globalThis.workflowExecuted,false);delete globalThis.workflowExecuted;
 });
 
+test('malformed provider output is reported as output failure rather than connection or storage',async t=>{
+  const h=await workflowHarness();t.after(h.close);
+  for(const payload of [null,{status:'completed',output:{}},{status:'completed',output:[null]},{status:'completed',output:[{content:{}}]},{status:'completed',output:[{content:[null]}]},{status:'completed',output:[{content:[{type:'output_text',text:42}]}]},'invalid-json']){
+    const mocked=t.mock.method(globalThis,'fetch',async()=>payload==='invalid-json'?new Response('{broken',{headers:{'content-type':'application/json'}}):Response.json(payload));
+    try{
+      const requestId=crypto.randomUUID(),failed=await h.generate({mode:'model',prompt:'任务看板',requestId});
+      assert.equal(failed.status,502);assert.match(failed.data.error,/模型返回的数据格式无效/);assert.equal(failed.data.retry,'new');
+      const usage=h.sqlite.prepare('SELECT error_code,call_count FROM motes_model_usage WHERE request_id=?').get(requestId);
+      assert.equal(usage.error_code,'output');assert.equal(usage.call_count,1);
+      assert.deepEqual((await h.get(requestId)).progress.steps.map(s=>s.state),['failed','pending','pending','pending']);
+    }finally{mocked.mock.restore();}
+  }
+  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,0);
+});
+
+test('provider error status remains authoritative when the error body is null',async t=>{
+  const h=await workflowHarness();t.after(h.close);
+  for(const [status,expectedStatus,code] of [[429,429,'rate_limit'],[401,503,'authentication'],[503,502,'upstream']]){
+    const mocked=t.mock.method(globalThis,'fetch',async()=>Response.json(null,{status}));
+    try{
+      const requestId=crypto.randomUUID(),failed=await h.generate({mode:'model',prompt:'任务看板',requestId});
+      assert.equal(failed.status,expectedStatus);
+      assert.equal(h.sqlite.prepare('SELECT error_code FROM motes_model_usage WHERE request_id=?').get(requestId).error_code,code);
+    }finally{mocked.mock.restore();}
+  }
+});
+
+test('successive React patches preserve prior snapshots, unrelated source and shared business data',async t=>{
+  const h=await workflowHarness();t.after(h.close);
+  const created=await h.generate({mode:'demo',prompt:'任务看板',requestId:crypto.randomUUID()});
+  const project=created.data.project,base=project.versions[0];
+  h.sqlite.prepare('INSERT INTO motes_app_runtime_data VALUES(?,?,?,?,?)').run(project.id,'tasks','[{"id":"keep","done":true}]',3,new Date().toISOString());
+  let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{
+    calls++;
+    if(calls%2)return response(shortPlan);
+    return response(JSON.stringify(calls===2?reactPatch('让每一件小事，向前一步','第一次修改'):reactPatch('第一次修改','第二次修改')));
+  });
+  const first=await h.generate({mode:'model',prompt:'修改标题',projectId:project.id,requestId:crypto.randomUUID()});
+  assert.equal(first.status,200);
+  const second=await h.generate({mode:'model',prompt:'再次修改标题',projectId:project.id,requestId:crypto.randomUUID()});
+  assert.equal(second.status,200);assert.equal(calls,4);
+  const versions=second.data.project.versions;
+  assert.equal(versions.length,3);assert.deepEqual(versions.slice(0,2),first.data.project.versions);assert.deepEqual(versions[0],base);
+  const original=h.reactProject.parseReactProject(base.html).files;
+  for(const [index,title] of [[1,'第一次修改'],[2,'第二次修改']])assert.deepEqual(h.reactProject.parseReactProject(versions[index].html).files,{...original,'src/App.jsx':original['src/App.jsx'].replace('让每一件小事，向前一步',title)});
+  assert.deepEqual({...h.sqlite.prepare('SELECT value_json,revision FROM motes_app_runtime_data WHERE app_id=? AND data_key=?').get(project.id,'tasks')},{value_json:'[{"id":"keep","done":true}]',revision:3});
+});
+
 test('saved and failed requests expose real phases; failed patch preserves immutable HTML and business data',async t=>{
   const h=await workflowHarness();t.after(h.close);
   const initial=await h.generate({mode:'demo',prompt:'番茄钟',requestId:crypto.randomUUID()});assert.equal(initial.status,200);
@@ -158,5 +207,5 @@ test('new model apps use React source JSON; compiler failure stops check before 
   const requestId=crypto.randomUUID(),result=await h.generate({mode:'model',prompt:'任务看板',requestId});
   assert.equal(result.status,502);assert.equal(calls,2);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_versions').get().n,0);
   const receipt=await h.get(requestId);assert.deepEqual(receipt.progress.steps.map(s=>s.state),['completed','completed','failed','pending']);
-  const usage=h.sqlite.prepare('SELECT * FROM motes_model_usage WHERE request_id=?').get(requestId);assert.equal(usage.call_count,2);assert.equal(usage.usage_complete,1);assert.equal(usage.status,'failed');
+  const usage=h.sqlite.prepare('SELECT * FROM motes_model_usage WHERE request_id=?').get(requestId);assert.equal(usage.call_count,2);assert.equal(usage.usage_complete,1);assert.equal(usage.status,'failed');assert.equal(usage.error_code,'output');
 });

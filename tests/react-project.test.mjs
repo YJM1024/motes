@@ -58,3 +58,13 @@ test('compilation rejects malformed JSX, missing default export, forbidden modul
     const f=files();f['src/index.css']=css;await assert.rejects(render.renderApplicationHtml(project.createReactProject(f)));
   }
 });
+
+test('compilation rejects top-level bindings that conflict with the hosted runtime wrapper',async()=>{
+  for(const binding of ['const exports={};','let require;','var exports;','function require(){}']){
+    const f=files();f['src/App.jsx']=binding+'\nexport default ()=> <div>Application</div>;';
+    await assert.rejects(render.renderApplicationHtml(project.createReactProject(f)),/编译检查/);
+  }
+  // Nested component bindings have their own scope and remain valid.
+  const f=files();f['src/App.jsx']='export default function App(){const exports="ok";const require="local";return <div>{exports}{require}</div>}';
+  await assert.doesNotReject(render.renderApplicationHtml(project.createReactProject(f)));
+});
