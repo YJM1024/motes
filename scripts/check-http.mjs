@@ -64,6 +64,10 @@ export async function verifyHttp({ root = fileURLToPath(new URL('../', import.me
   const wrangler = path.join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
   const smokeFile = path.join(root, 'tests', 'smoke.mjs');
   const state = path.join(root, '.wrangler', 'state');
+  const envFile = path.join(root, '.dev.vars');
+  let envArgs = [];
+  try { await access(envFile);envArgs = ['--env-file', envFile]; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   for (const required of [config, loader, wrangler, smokeFile, state]) {
     try { await access(required); } catch { throw new Error('Run npm run build and npm run db:init:local before npm run verify:http.'); }
   }
@@ -77,7 +81,7 @@ export async function verifyHttp({ root = fileURLToPath(new URL('../', import.me
   interrupted.catch(() => {});
   let worker, smoke;
   try {
-    worker = ownedProcess(['--import', pathToFileURL(loader).href, wrangler, 'dev', '--config', config, '--local', '--persist-to', state, '--ip', '127.0.0.1', '--port', '0', '--inspector-port', '0'], root, ['ignore', 'pipe', 'pipe']);
+    worker = ownedProcess(['--import', pathToFileURL(loader).href, wrangler, 'dev', '--config', config, '--local', '--persist-to', state, '--ip', '127.0.0.1', '--port', '0', '--inspector-port', '0', ...envArgs], root, ['ignore', 'pipe', 'pipe']);
     // Drain diagnostics without copying possible local environment values to reports.
     worker.child.stderr.resume();
     const origin = await bounded(Promise.race([readyOrigin(worker, controller.signal), interrupted]), startupTimeoutMs, 'Built Worker did not become ready before the startup deadline');

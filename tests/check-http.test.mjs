@@ -20,6 +20,7 @@ async function fixture(t, mode = 'success') {
     import {spawn} from 'node:child_process';
     const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true});
     writeFileSync('pids.json',JSON.stringify([process.pid,child.pid]));
+    writeFileSync('argv.json',JSON.stringify(process.argv.slice(2)));
     if(${JSON.stringify(mode)}==='early-exit'){child.kill();process.exit(3);}
     const server=createServer((request,response)=>{response.setHeader('Content-Type','application/json');response.end('{"mode":"demo"}');});
     server.listen(0,'127.0.0.1',()=>{
@@ -60,6 +61,23 @@ test('HTTP verification uses its random owned Worker and stops the Worker proces
   const report = JSON.parse(await readFile(result.report, 'utf8'));
   assert.equal(path.dirname(result.report), path.join(root, 'outputs'));
   assert.deepEqual(report, { passed: true, origin: result.origin, modelCalls: 0 });
+  const args = JSON.parse(await readFile(path.join(root, 'argv.json'), 'utf8'));
+  assert.ok(!args.includes('--env-file'));assert.ok(!args.includes('--remote'));
+  await assertStopped(root);
+});
+
+test('HTTP verification passes only the existing root env-file path to its local Worker', async t => {
+  const root = await fixture(t), envFile = path.join(root, '.dev.vars');
+  const sentinel = 'test-only-value-never-on-command-line';
+  await writeFile(envFile, 'OPENAI_API_KEY=' + sentinel + '\nMOTES_WORKSPACE_VISIBILITY=shared\n');
+  await verifyHttp({ root, startupTimeoutMs: 10000, smokeTimeoutMs: 10000 });
+  const args = JSON.parse(await readFile(path.join(root, 'argv.json'), 'utf8'));
+  assert.equal(args[args.indexOf('--env-file') + 1], envFile);
+  assert.equal(args.filter(arg => arg === '--env-file').length, 1);
+  assert.ok(args.includes('--local'));assert.ok(!args.includes('--remote'));
+  assert.ok(!JSON.stringify(args).includes(sentinel));assert.ok(!JSON.stringify(args).includes('OPENAI_API_KEY='));
+  assert.equal(await readFile(path.join(root, 'dist/server/wrangler.json'), 'utf8'), '{}');
+  assert.equal(await readFile(envFile, 'utf8'), 'OPENAI_API_KEY=' + sentinel + '\nMOTES_WORKSPACE_VISIBILITY=shared\n');
   await assertStopped(root);
 });
 
