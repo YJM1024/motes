@@ -63,9 +63,9 @@ npm run db:init:local
 npm run dev
 ```
 
-访问地址以终端输出为准。示例配置可直接运行本地示例；真实模型模式需要在本地 `.dev.vars` 中配置服务端模型密钥与模型名称。该文件已被 Git 忽略。
+默认开发地址为 `http://127.0.0.1:5173/`，以终端输出为准。示例配置可直接运行本地示例；真实模型模式在本地 `.dev.vars` 中配置 `OPENAI_API_KEY` 与 `OPENAI_MODEL`，可选用 `OPENAI_MODELS` 设置模型白名单。示例中 `MOTES_WORKSPACE_VISIBILITY=shared` 表示游客公共空间。`.dev.vars` 已被 Git 忽略。
 
-`db:init:local` 用于全新的本地数据库。已有数据库的迁移方式见[本地启动说明](docs/local-setup.md)。
+`db:init:local` 只初始化全新的本地 D1，使用 `.wrangler/state`，不连接生产库。已有库先备份该目录、核对迁移状态，再仅应用尚未执行的 SQL 迁移。
 
 ## 工程检查
 
@@ -84,13 +84,7 @@ CI 在 Ubuntu 与 Windows 上运行测试、类型检查、构建、全新本地
 2. **P1：错误定位与恢复。** 提供更具体的源码位置、补丁冲突与数据冲突指引，改善请求核对和保存重试体验。
 3. **P2：工程能力扩展。** 根据实际需求支持受控多文件工程与独立工程导出，再评估个人空间和更丰富的运行环境。
 
-## 文档与目录
-
-- [项目说明](docs/project-overview.md)：产品流程、完成范围和关键取舍。
-- [架构设计](docs/architecture.md)：工作台、生成服务、数据与预览边界。
-- [生成与版本流程](docs/generation-workflow.md)：连续修改、版本恢复、发布与导出。
-- [应用数据 SDK](docs/shared-runtime.md)：业务数据读写与 revision。
-- [本地启动](docs/local-setup.md)：环境配置、D1 初始化与工程检查。
+## 目录结构
 
 | 目录 | 内容 |
 | --- | --- |

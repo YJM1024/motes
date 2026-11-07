@@ -71,7 +71,7 @@ export async function prepareLocalDb(root) {
   const stateRoot = path.join(projectRoot, ".wrangler", "state");
   const existing = await sqliteFiles(stateRoot);
   if (existing.length > 0) {
-    throw new Error("检测到 .wrangler/state 中已有 SQLite 数据库。为避免重放迁移或影响旧库，已拒绝 fresh 初始化；请按 docs/local-setup.md 的已有库说明处理。");
+    throw new Error("检测到 .wrangler/state 中已有 SQLite 数据库。为避免重放迁移或影响旧库，已拒绝 fresh 初始化；请按 README.md 的已有库说明处理。");
   }
 
   return migrations.map(name => ({
