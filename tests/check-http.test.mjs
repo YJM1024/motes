@@ -19,6 +19,13 @@ async function fixture(t, mode = 'success') {
     import {writeFileSync} from 'node:fs';
     import {spawn} from 'node:child_process';
     const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true});
+    // Reap the fixture child before the fake Worker exits on POSIX. Otherwise
+    // an exited orphan can briefly remain a zombie and look alive to kill(pid,0).
+    process.once('SIGTERM',()=>{
+      child.once('exit',()=>process.exit(0));
+      child.kill('SIGTERM');
+      if(child.exitCode!==null||child.signalCode!==null)process.exit(0);
+    });
     writeFileSync('pids.json',JSON.stringify([process.pid,child.pid]));
     writeFileSync('argv.json',JSON.stringify(process.argv.slice(2)));
     if(${JSON.stringify(mode)}==='early-exit'){child.kill();process.exit(3);}
