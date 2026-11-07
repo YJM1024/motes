@@ -20,6 +20,13 @@ next-env.d.ts
 # Test output
 /coverage/
 
+# Internal review notes and generated release evidence
+/docs/verification/
+/docs/history/
+/docs/acceptance*.md
+/docs/release-manifest*.json
+/docs/nonfunctional-verification.md
+
 # Package-manager logs
 npm-debug.log*
 yarn-debug.log*
