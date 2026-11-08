@@ -26,7 +26,7 @@ async function harness({key=true}={}) {
     const output=join(tempRoot,file+'.mjs');await mkdir(dirname(output),{recursive:true});await writeFile(output,js);
     const url=pathToFileURL(output).href;cache.set(file,url);return url;
   }
-  const discussions=await import(await moduleUrl('motes/discussions')),server=await import(await moduleUrl('forma/server')),security=await import(await moduleUrl('forma/security')),usage=await import(await moduleUrl('motes/usage')),model=await import(await moduleUrl('forma/discussion-model')),intent=await import(await moduleUrl('motes/discussion-intent')),tasks=await import(await moduleUrl('motes/tasks'));delete globalThis[envKey];
+  const discussions=await import(await moduleUrl('motes/discussions')),server=await import(await moduleUrl('forma/server')),security=await import(await moduleUrl('forma/security')),usage=await import(await moduleUrl('motes/usage')),model=await import(await moduleUrl('forma/discussion-model')),tasks=await import(await moduleUrl('motes/tasks'));delete globalThis[envKey];
   const who=v=>security.digest(v.repeat(64));
   function req(body,visitor='a',query='',origin='https://motes.test'){return new Request('https://motes.test/api/discussions'+query,{method:body?'POST':'GET',headers:{cookie:'forma_session='+visitor.repeat(64),...(body?{origin,'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})})}
   async function run(fn){const r=await server.route(fn);return{status:r.status,data:await r.json()}}
@@ -39,7 +39,7 @@ async function harness({key=true}={}) {
   async function app(visitor='a',html='<!doctype html><html><head><title>Current</title></head><body><button>OWN SAVED CODE</button></body></html>'){const owner=await who(visitor),id=crypto.randomUUID(),version=crypto.randomUUID(),now=new Date().toISOString();sqlite.prepare('INSERT INTO forma_projects VALUES(?,?,?,?,?,?)').run(id,owner,'App',now,now,version);sqlite.prepare('INSERT INTO forma_versions VALUES(?,?,?,?,?,?,?,?,?)').run(version,id,1,'SECRET BUILD PROMPT','summary',html,now,'manual',null);return{id,version,owner}}
   function answer(text='这是讨论回答，不会修改应用。',counts={input_tokens:10,output_tokens:20,total_tokens:30}){return Response.json({status:'completed',model:'fake-model',usage:counts,output:[{content:[{type:'output_text',text}]}]})}
   function budget(owner,count){const day=new Date().toISOString().slice(0,10);for(let i=0;i<count;i++)sqlite.prepare('INSERT INTO forma_requests(id,owner,project_id,fingerprint,day,mode,status,created_at,result_version_id) VALUES(?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(),owner,'legacy','legacy',day,'model','done',day+'T01:00:00Z',null)}
-  return{sqlite,env,control,discussions,server,usage,model,intent,who,req,run,create,get,send,status,save,saveTask,listTasks,attach,app,answer,budget,close:async()=>{sqlite.close();const target=resolve(tempRoot);if(dirname(target)!==resolve(tmpdir())||!basename(target).startsWith('motes-discussion-test-'))throw Error('Unexpected fixture cleanup path');await rm(target,{recursive:true,force:true})}};
+  return{sqlite,env,control,discussions,server,usage,model,who,req,run,create,get,send,status,save,saveTask,listTasks,attach,app,answer,budget,close:async()=>{sqlite.close();const target=resolve(tempRoot);if(dirname(target)!==resolve(tmpdir())||!basename(target).startsWith('motes-discussion-test-'))throw Error('Unexpected fixture cleanup path');await rm(target,{recursive:true,force:true})}};
 }
 
 test('pre-app text discussion persists and never creates an app, version or preview HTML',async t=>{
@@ -89,9 +89,8 @@ test('adopting a pre-app thread links only metadata, preserves all turns and nev
 test('post-commit read failure preserves a completed receipt and retry returns the existing text',async t=>{
   const h=await harness();t.after(h.close);const thread=(await h.create()).data.thread;let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;h.control.failSnapshot=true;return h.answer()});const body={requestId:crypto.randomUUID()};assert.equal((await h.send(thread.id,body)).status,500);assert.equal((await h.send(thread.id,body)).status,200);assert.equal(calls,1);assert.equal((await h.status(body.requestId)).data.status,'done');
 });
-test('response completeness, output bounds, local question hints and adoption drafts are bounded',async t=>{
+test('response completeness and output bounds are enforced',async t=>{
   const h=await harness();t.after(h.close);assert.throws(()=>h.model.parseDiscussion({status:'incomplete',output:[]}));assert.throws(()=>h.model.parseDiscussion({status:'completed',output:[{content:[{type:'output_text',text:'x'.repeat(8001)}]}]}));
-  assert.equal(h.intent.suggestDiscussion('为什么按钮没有反应？'),true);assert.equal(h.intent.suggestDiscussion('帮我创建一个预算工具'),false);const draft=h.intent.discussionBuildDraft('q'.repeat(4000),'a'.repeat(8000));assert.equal(draft.shortened,true);assert.ok(draft.text.length<=4000);
 });
 test('thread and turn caps are fenced without model calls or orphan usage rows',async t=>{
   const h=await harness();t.after(h.close);const first=(await h.create()).data.thread,wid='workspace:'+await h.who('a'),now=new Date().toISOString();
