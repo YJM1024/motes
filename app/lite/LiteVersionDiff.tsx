@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { compareLines } from '../../lib/motes/line-diff';
 import './version-diff.css';
 import './source-viewer.css';
@@ -31,7 +32,7 @@ export default function LiteVersionDiff({ versions, currentVersionId, onClose }:
   const select = (side: 'before' | 'after', id: string) => side === 'before' ? setBeforeId(id) : setAfterId(id);
 
   return <div className="lite-overlay lite-version-diff" role="dialog" aria-modal="true" aria-labelledby="lite-version-diff-title">
-    <header><strong id="lite-version-diff-title">版本差异</strong><button type="button" aria-label="关闭版本差异" onClick={onClose}>关闭</button></header>
+    <header><strong id="lite-version-diff-title">版本差异</strong><button type="button" className="lite-return-preview" onClick={onClose}><ArrowLeft size={14} aria-hidden="true"/>返回预览</button></header>
     <div className="lite-diff-pickers">
       <label>基准版本<select value={before?.id ?? ''} onChange={event => select('before', event.target.value)} disabled={ordered.length < 2}><option value="">选择版本</option>{ordered.map(version => <option key={version.id} value={version.id}>版本 {version.number}</option>)}</select></label>
       <span aria-hidden="true">→</span>
