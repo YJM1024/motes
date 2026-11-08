@@ -26,3 +26,9 @@ jobs:
       - run: npm run build
       - run: npm run db:init:local
       - run: npm run verify:http
+      - name: Install browser for business acceptance
+        if: matrix.os == 'ubuntu-latest'
+        run: npx playwright install --with-deps chromium
+      - name: Verify browser business flows
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run verify:business

@@ -8,7 +8,7 @@ export default function LiteGenerationSteps({ progress }: { progress: Generation
   return <ol className="lite-generation-steps" aria-label="生成步骤">
     {progress.steps.map(step => <li key={step.id} className={`is-${step.state}`} aria-current={step.state === 'running' ? 'step' : undefined}>
       {step.state === 'completed' ? <Check size={13}/> : step.state === 'running' ? <LoaderCircle size={13}/> : step.state === 'failed' ? <CircleAlert size={13}/> : <Circle size={13}/>}
-      <span>{labels[step.id]} <small>{states[step.state]}</small></span>
+      <span title={step.id === 'check' ? '结构与编译检查，不代表业务功能验收通过' : undefined}>{labels[step.id]} <small>{states[step.state]}</small></span>
     </li>)}
   </ol>;
 }
