@@ -30,9 +30,34 @@ test('empty first use, real UI mutations, reload, code modification and restore 
   const frame = preview(page); await expect(frame.getByRole('listitem')).toHaveCount(0);
   await frame.getByLabel('任务名称').fill('准备面试'); await frame.getByRole('button', { name: '添加任务', exact: true }).click(); await saved(page);
   await frame.getByRole('checkbox').check(); await saved(page);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width < 800) await page.locator('.lite-mobile-tabs').getByRole('button', { name: /^预览/ }).click();
+    await frame.getByLabel('任务名称').fill('尚未提交的草稿');
+    for (const name of ['版本历史', '查看代码', '版本对比']) {
+      const toggle = page.getByRole('button', { name, exact: true });
+      await toggle.click(); await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      for (const other of ['版本历史', '查看代码', '版本对比'].filter(other => other !== name)) await expect(page.getByRole('button', { name: other, exact: true })).toHaveAttribute('aria-pressed', 'false');
+      const back = page.getByRole('button', { name: '返回预览', exact: true });
+      if (name === '查看代码') await page.locator('.lite-source').evaluate(panel => { panel.scrollTop = panel.scrollHeight; });
+      await expect(back).toBeInViewport(); await back.click();
+      await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      await expect(frame.getByLabel('任务名称')).toHaveValue('尚未提交的草稿');
+    }
+    await frame.getByLabel('任务名称').fill('');
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.reload(); await expect(frame.getByRole('checkbox')).toBeChecked(); await expect(frame.getByText('准备面试', { exact: true })).toBeVisible();
   ({ project } = await post(page, '/api/projects/' + project.id + '/source', { requestId: crypto.randomUUID(), baseVersionId: project.currentVersionId, expectedCurrentVersionId: project.currentVersionId, html: createReactProject({ 'src/App.jsx': taskSource.replace('任务清单</h1>', '任务清单 · 新版</h1>'), 'src/index.css': '@import "tailwindcss";' }) }));
   await page.reload(); await expect(frame.getByRole('heading', { name: '任务清单 · 新版' })).toBeVisible(); await expect(frame.getByRole('checkbox')).toBeChecked();
+  await page.getByRole('button', { name: '版本历史', exact: true }).click();
+  await page.locator('.lite-history-item').getByRole('button', { name: /^v2/ }).click();
+  await expect(page.locator('.lite-overlay')).toHaveCount(0);
+  await expect(frame.getByRole('heading', { name: '任务清单', exact: true })).toBeVisible();
+  await expect(page.locator('.lite-version-pill')).toHaveText('v2 · 历史预览');
+  await page.getByRole('button', { name: '查看代码', exact: true }).click();
+  await page.getByRole('button', { name: '返回预览', exact: true }).click();
+  await expect(page.locator('.lite-version-pill')).toHaveText('v2 · 历史预览');
   await post(page, '/api/projects/' + project.id + '/restore', { versionId: original }); await page.reload();
   await expect(frame.getByRole('heading', { name: '任务清单', exact: true })).toBeVisible(); await expect(frame.getByRole('checkbox')).toBeChecked();
 });
