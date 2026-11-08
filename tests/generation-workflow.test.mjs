@@ -21,6 +21,21 @@ test('both model entry points send exactly one React output schema for new and e
       const args=['任务看板',editing?base:undefined,'mock-only','mock-model','UI language Chinese.',()=>{}];
       if(workflow)await h.model.generateWorkflowModel(...args,async()=>{});else await h.model.generateModel(...args);
       assert.equal(calls.length,workflow?2:1);
+      if(workflow)assert.equal(calls[0].text,undefined,'Planning remains plain text');
+      const format=calls.at(-1).text?.format;
+      assert.equal(format?.type,'json_schema');assert.equal(format.strict,true);
+      assert.equal(format.schema.additionalProperties,false);
+      assert.deepEqual(format.schema.required,editing?['format','edits']:['format','files']);
+      assert.deepEqual(format.schema.properties.format.enum,[editing?'motes.react.replace.v1':'motes.react.v1']);
+      if(editing){
+        const edits=format.schema.properties.edits;
+        assert.equal(edits.minItems,1);assert.equal(edits.maxItems,40);
+        assert.deepEqual(edits.items.properties.path.enum,['src/App.jsx','src/index.css']);
+        assert.equal(edits.items.additionalProperties,false);
+      }else{
+        assert.deepEqual(format.schema.properties.files.required,['src/App.jsx','src/index.css']);
+        assert.equal(format.schema.properties.files.additionalProperties,false);
+      }
       const instructions=calls.at(-1).instructions;
       assert.ok(instructions.includes(editing?'motes.react.replace.v1':'motes.react.v1'));
       assert.ok(!instructions.includes(editing?'motes.react.v1':'motes.react.replace.v1'));
@@ -43,6 +58,13 @@ test('legacy HTML generation and workflow prompts receive the same SDK first-use
     try{
       const args=['修改标题',base,'mock-only','mock-model','',()=>{}];
       if(workflow)await h.model.generateWorkflowModel(...args,async()=>{});else await h.model.generateModel(...args);
+      if(workflow){
+        assert.equal(calls[0].text,undefined);
+        const format=calls.at(-1).text.format;
+        assert.equal(format.type,'json_schema');assert.equal(format.strict,true);
+        assert.deepEqual(format.schema.properties.format.enum,['motes.replace.v1']);
+        assert.deepEqual(format.schema.properties.edits.items.required,['search','replace']);
+      }else assert.equal(calls.at(-1).text,undefined,'Legacy full HTML remains a text response');
       for(const constraint of ['{value:null,revision:0,updatedAt:null}','normal first use','retain revision 0','expectedRevision 0','Validate non-null stored values','Do not automatically write defaults','set(key,value,expectedRevision) returns {key,revision,updatedAt}','code="conflict"'])assert.ok(calls.at(-1).instructions.includes(constraint),constraint);
     }finally{mocked.mock.restore();}
   }

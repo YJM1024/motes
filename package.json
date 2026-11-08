@@ -11,11 +11,12 @@
     "typecheck": "tsc --noEmit",
     "dev": "node scripts/run-framework.mjs dev",
     "build": "node scripts/run-framework.mjs build",
-    "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0 --env-file .dev.vars",
+    "start": "node scripts/start-local.mjs",
     "db:init:local": "node scripts/init-local-db.mjs",
     "verify:http": "node scripts/check-http.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "verify:business": "playwright test"
   },
   "dependencies": {
     "acorn": "8.16.0",
@@ -28,14 +29,14 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "sucrase": "3.35.1",
-    "tailwindcss": "4.2.1",
     "tailwind-merge": "3.6.0",
+    "tailwindcss": "4.2.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "esbuild": "0.28.0",
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260515.1",
+    "@playwright/test": "1.65.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
@@ -43,6 +44,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
+    "esbuild": "0.28.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.3.4",
     "json-rpc-2.0": "1.7.1",

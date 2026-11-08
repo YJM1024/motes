@@ -90,7 +90,7 @@ test('preview reconciliation uses one keyed boundary for the iframe and SDK brid
   const group = groups.find(node => node.children.some(child => ts.isJsxSelfClosingElement(child) && child.tagName.getText(tree) === 'iframe'));
   assert.ok(group, 'The iframe and its data bridge must share a replaceable lifecycle boundary');
   const key = group.openingElement.attributes.properties.find(a => ts.isJsxAttribute(a) && a.name.getText(tree) === 'key'); assert.equal(key?.initializer?.expression?.getText(tree), 'identity');
-  const children = group.children.filter(ts.isJsxSelfClosingElement); assert.deepEqual(children.map(c => c.tagName.getText(tree)), ['iframe', 'LiteRuntimeDataBridge']);
+  const children = group.children.filter(ts.isJsxSelfClosingElement); assert.deepEqual(children.map(c => c.tagName.getText(tree)), ['iframe', 'LiteRuntimeDataBridge', 'LiteRuntimeDiagnostics']);
   assert.equal(children.filter(child => child.attributes.properties.some(a => ts.isJsxAttribute(a) && a.name.getText(tree) === 'key')).length, 0, 'Duplicate keys on sibling iframe and bridge previously left live orphan iframes');
 });
 
