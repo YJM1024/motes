@@ -12,6 +12,7 @@ async function post(page, path, body) {
 }
 async function fixture(page, source) {
   const session = await (await page.request.get('/api/session')).json();
+  expect(session.visibility, 'Browser acceptance requires the shared demo from the root .dev.vars file').toBe('shared');
   const workspace = await (await page.request.get('/api/workspace')).json();
   let { project } = await post(page, '/api/generate', { prompt: '任务看板', mode: 'demo', requestId: crypto.randomUUID(), managedProjectId: workspace.workspace.defaultProjectId });
   if (source) ({ project } = await post(page, '/api/projects/' + project.id + '/source', { requestId: crypto.randomUUID(), baseVersionId: project.currentVersionId, expectedCurrentVersionId: project.currentVersionId, html: createReactProject({ 'src/App.jsx': source, 'src/index.css': '@import "tailwindcss";' }) }));
@@ -74,6 +75,7 @@ test('runtime exceptions in a compiled app surface in the workbench and prepare 
 
 test('fixed budget and timer examples have working business actions and data survives refresh', async ({ page }) => {
   const session = await (await page.request.get('/api/session')).json();
+  expect(session.visibility, 'Browser acceptance requires the shared demo from the root .dev.vars file').toBe('shared');
   const workspace = await (await page.request.get('/api/workspace')).json();
   const { project } = await post(page, '/api/generate', { mode: 'demo', prompt: '旅行预算', requestId: crypto.randomUUID(), managedProjectId: workspace.workspace.defaultProjectId });
   await page.addInitScript(({ id, groupId, appId }) => sessionStorage.setItem('motes-lite-selection:' + id, JSON.stringify({ groupId, appId })), { id: session.workspaceId, groupId: workspace.workspace.defaultProjectId, appId: project.id });
