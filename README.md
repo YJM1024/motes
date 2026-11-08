@@ -45,31 +45,3 @@
 1. **P0：生成可靠性。** 扩大真实业务断言、连续修改和数据兼容覆盖，优先解决生成后不能正常使用的问题。
 2. **P1：错误恢复与交互。** 完善源码定位、补丁／数据冲突提示和请求恢复，让失败原因与下一步操作更清楚。
 3. **P2：扩展工程能力。** 在现有流程稳定后支持受控多文件与独立工程导出，再评估个人空间和后台任务。
-
-## 本地运行与检查
-
-推荐 Node.js 24 与 npm。先将 `.dev.vars.example` 复制为 `.dev.vars`；空密钥可使用示例模式，真实 AI 需设置 `OPENAI_API_KEY`、`OPENAI_MODEL`，可选 `OPENAI_MODELS` 白名单。`.dev.vars` 已被 Git 忽略。
-
-```sh
-npm ci
-npm run build
-npm run db:init:local
-npm run dev
-```
-
-默认地址为 `http://127.0.0.1:5173/`，以终端输出为准。`db:init:local` 仅用于全新本地 D1；已有库先备份 `.wrangler/state`，再核对并应用未执行的迁移。
-
-```sh
-npm test
-npm run typecheck
-npm run build
-npm run verify:http
-npm run lint
-# 首次执行浏览器业务回归时安装 Chromium
-npx playwright install chromium
-npm run verify:business
-```
-
-CI 覆盖 Ubuntu 与 Windows 的安装、lint、测试、类型检查、构建、D1 初始化及 HTTP 检查；Ubuntu 另执行保存刷新、代码恢复、冲突和失败反馈等浏览器业务回归。自动回归不调用付费模型，真实模型生成效果需单独核验。
-
-主要目录：`app/lite/` 为工作台，`app/api/` 为接口，`lib/forma/` 与 `lib/motes/` 为生成及业务逻辑，`db/`、`drizzle/` 为数据与迁移，`scripts/`、`tests/` 为构建和验证。

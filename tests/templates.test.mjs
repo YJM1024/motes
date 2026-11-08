@@ -19,13 +19,13 @@ async function harness() {
     const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
     const url = 'data:text/javascript;base64,' + Buffer.from(js).toString('base64'); cache.set(file, url); return url;
   }
-  const templates = await import(await moduleUrl('motes/templates')), server = await import(await moduleUrl('forma/server')), security = await import(await moduleUrl('forma/security')), draft = await import(await moduleUrl('motes/template-draft')); delete globalThis[envKey];
+  const templates = await import(await moduleUrl('motes/templates')), server = await import(await moduleUrl('forma/server')), security = await import(await moduleUrl('forma/security')); delete globalThis[envKey];
   async function call(body, { visitor = 'a', query = '', origin = 'https://motes.test' } = {}) {
     const request = new Request('https://motes.test/api/templates' + query, { method: body ? 'POST' : 'GET', headers: { cookie: 'forma_session=' + visitor.repeat(64), ...(body ? { origin, 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const r = await server.route(() => body ? templates.manageTemplates(request) : templates.getTemplates(request)); return { status: r.status, data: await r.json() };
   }
   const createBody = (overrides = {}) => ({ action: 'create', name: 'Travel Budget', prompt: '做一个旅行预算工具', requestId: crypto.randomUUID(), ...overrides });
-  return { sqlite, control, call, createBody, draft, who: v => security.digest(v.repeat(64)), close: () => sqlite.close() };
+  return { sqlite, control, call, createBody, who: v => security.digest(v.repeat(64)), close: () => sqlite.close() };
 }
 
 test('personal CRUD persists, builtins stay read-only and no model calls or app writes occur', async t => {
@@ -90,13 +90,6 @@ test('a post-commit snapshot outage reconciles the same completed create', async
   const h = await harness(); t.after(h.close); const body = h.createBody(); h.control.failRead = true;
   assert.equal((await h.call(body)).status, 500); const retry = await h.call(body); assert.equal(retry.status, 200); assert.equal(retry.data.total, 1);
   assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM forma_requests').get().n, 1);
-});
-test('draft composition preserves the current draft only on explicit append and rejects overflow', async t => {
-  const h = await harness(); t.after(h.close);
-  assert.equal(h.draft.composeTemplateDraft('my draft', 'template', 'append'), 'my draft\n\ntemplate');
-  assert.equal(h.draft.composeTemplateDraft('my draft', 'template', 'replace'), 'template');
-  assert.equal(h.draft.composeTemplateDraft('', 'template', 'append'), 'template');
-  assert.throws(() => h.draft.composeTemplateDraft('a'.repeat(3999), 'template', 'append'), /4000/);
 });
 test('0005 migration only declares the private template table and preserves the 0004 schema chain', async t => {
   const h = await harness(); t.after(h.close); const sql = await readFile(new URL('../drizzle/0005_personal_prompt_templates.sql', import.meta.url), 'utf8');
