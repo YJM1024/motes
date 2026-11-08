@@ -107,7 +107,7 @@ export default function LiteWorkbench() {
       </aside>
       <main className="lite-workbench">
         <div className="lite-mobile-tabs"><button aria-pressed={pane === 'chat'} onClick={() => setPane('chat')}><MessageSquare size={15}/>聊天</button><button aria-pressed={pane === 'preview'} onClick={() => setPane('preview')}><Eye size={15}/>预览{displayed ? ` · v${displayed.number}` : ''}</button></div>
-        {w.error && <div className="lite-error" role="alert">{w.error}<button onClick={() => w.session ? void w.refresh().catch(e => w.setError(e.message)) : w.reconnect()}>重新连接</button></div>}
+        {w.error && <div className="lite-error" role="alert">{w.error}<button onClick={() => void w.reconnect()}>重新连接</button></div>}
         <section className={`lite-chat ${pane === 'chat' ? 'mobile-active' : ''}`} aria-label="创作对话">
           <div className="lite-panel-header"><div><span className="lite-eyebrow">CREATE WITH MOTES</span><h1>{w.project?.title || '把想法变成小应用'}</h1></div><span className="lite-status-pill">{g.busy ? '处理中' : w.loading ? '连接中' : '准备就绪'}</span></div>
           <div className="lite-chat-scroll" ref={chatScrollRef}>
