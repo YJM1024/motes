@@ -10,7 +10,6 @@ function makeApp(kind: string, theme: string, color: string, amount: string): st
   const card = theme === 'dark' ? 'rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm' : 'rounded-2xl border border-violet-100 bg-white p-5 shadow-sm';
   const button = `rounded-xl bg-${accent}-600 px-4 py-2.5 font-semibold text-white transition hover:bg-${accent}-700 disabled:opacity-50`;
   const input = `w-full rounded-xl border border-violet-200 bg-transparent px-3 py-2.5 outline-none focus:border-${accent}-500 focus:ring-2 focus:ring-${accent}-200`;
-  const title = kind === 'budget' ? '旅行预算计算器' : kind === 'tasks' ? '我的任务看板' : '专注番茄钟';
   const metadata = `/* forma-react-demo:kind=${kind};theme=${theme};color=${color};amount=${amount} */`;
   const common = `const key = ${JSON.stringify(kind === 'budget' ? 'demo.budget.v1' : kind === 'tasks' ? 'demo.tasks.v1' : 'demo.timer.v1')};
   const [ready, setReady] = useState(false), [message, setMessage] = useState('正在连接共享数据…');

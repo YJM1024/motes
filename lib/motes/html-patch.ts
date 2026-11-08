@@ -28,7 +28,7 @@ export function demoPatch(base:string,next:string):HtmlPatch {
   if(before.length!==after.length)throw new Error('示例模板结构已变化，请创建新示例。');
   const edits:{search:string;replace:string}[]=[];
   for(let i=0;i<before.length;i++)if(before[i]!==after[i]){
-    let start=i,end=i+1,search=before.slice(start,end).join('');
+    const end=i+1; let start=i,search=before.slice(start,end).join('');
     while(base.indexOf(search)!==base.lastIndexOf(search)&&start>0){start--;search=before.slice(start,end).join('');}
     if(edits.some(e=>search.includes(e.search)))throw new Error('示例补丁存在歧义，请创建新示例。');
     edits.push({search,replace:after.slice(start,end).join('')});

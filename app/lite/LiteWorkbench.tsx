@@ -1,6 +1,6 @@
 'use client';
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, ChevronDown, Code2, Download, Eye, GitCompareArrows, History, LoaderCircle, Menu, MessageSquare, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowUp, Check, Code2, Download, Eye, GitCompareArrows, History, LoaderCircle, Menu, MessageSquare, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useWorkspaceDraft } from '@/app/hooks/useWorkspaceDraft';
 import type { Project } from '@/lib/forma/types';
 import { contextKey } from '@/lib/motes/recovery-state';
@@ -23,30 +23,27 @@ const examples = [
   { title: '番茄钟', icon: '◷', text: '帮我做一个番茄钟，支持专注倒计时、暂停和重新开始。' },
 ];
 export default function LiteWorkbench() {
-  const w = useLiteWorkspace(), [mode, setMode] = useState<'demo' | 'model'>('demo'), [pane, setPane] = useState<'chat' | 'preview'>('chat');
-  const modeChosen = useRef(false);
-  useEffect(() => {
-    if (!w.session || modeChosen.current) return;
-    let saved: string | null = null;
-    try { saved = sessionStorage.getItem('motes-lite-mode'); } catch {}
-    setMode(selectLiteMode(saved, w.session));
-  }, [w.session]);
-  useEffect(() => { if (mode === 'model' && (!w.session || w.session.mode !== 'model' || !w.session.model)) setMode('demo'); }, [mode, w.session]);
+  const w = useLiteWorkspace(), [preferredMode, setMode] = useState<string | null>(() => {
+    try { return typeof window === 'undefined' ? null : sessionStorage.getItem('motes-lite-mode'); } catch { return null; }
+  }), [pane, setPane] = useState<'chat' | 'preview'>('chat');
+  const mode = w.session ? selectLiteMode(preferredMode, w.session) : 'demo';
   const [sidebar, setSidebar] = useState(false), [history, setHistory] = useState(false), [source, setSource] = useState(false), [diff, setDiff] = useState(false), [viewId, setViewId] = useState<string | null>(null), [reload, setReload] = useState(0);
   const [groupForm, setGroupForm] = useState(false), [groupName, setGroupName] = useState(''), [groupBusy, setGroupBusy] = useState(false), [restoring, setRestoring] = useState(false), [loadedIdentity, setLoaded] = useState('');
-  const frameRef = useRef<HTMLIFrameElement>(null), chatScrollRef = useRef<HTMLDivElement>(null), appRef = useRef(w.project?.id), draft = useWorkspaceDraft(w.session?.workspaceId || null, 'lite:' + contextKey(w.context)); appRef.current = w.project?.id;
-  const g = useLiteGeneration({ workspaceId: w.session?.workspaceId || null, context: w.context, baseVersionId: w.project?.currentVersionId, navigation: w.navigation, enabled: !w.loading,
+  const frameRef = useRef<HTMLIFrameElement>(null), chatScrollRef = useRef<HTMLDivElement>(null), appRef = useRef(w.project?.id), draft = useWorkspaceDraft(w.session?.workspaceId || null, 'lite:' + contextKey(w.context));
+  useLayoutEffect(() => { appRef.current = w.project?.id; }, [w.project?.id]);
+  const g = useLiteGeneration({ workspaceId: w.session?.workspaceId || null, context: w.context, baseVersionId: w.project?.currentVersionId, navigation: w.navigation, navigationVersion: w.navigationVersion, enabled: !w.loading,
     onAcceptedSend: attempt => draft.set(current => current.trim() === attempt.text.trim() ? '' : current),
     onExplicitRejection: attempt => draft.set(current => current.trim() ? current : attempt.text),
     onSaved: (project, attempt) => { const nextDraft = draft.value.trim() === attempt.text.trim() ? "" : draft.value; if (!attempt.projectId && nextDraft) { draft.writeTo("lite:" + contextKey({ projectId: project.id }), nextDraft); draft.set(""); } else draft.set(current => current.trim() === attempt.text.trim() ? "" : current); w.adopt(project); setViewId(null); setReload(n => n + 1); setPane('preview'); void w.refresh().catch(() => {}); } });
   const [resultNote, setResultNote] = useState('');
   const scope = contextKey(w.context);
-  useEffect(() => { setViewId(null); setSource(false); setHistory(false); setDiff(false); setResultNote(''); }, [scope]);
+  const [viewScope, setViewScope] = useState(scope);
+  if (viewScope !== scope) { setViewScope(scope); setViewId(null); setSource(false); setHistory(false); setDiff(false); setResultNote(''); }
   const sendingRequestId = g.attempts.find(attempt => attempt.state === 'sending')?.requestId ?? null;
   useEffect(() => { if (sendingRequestId) chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' }); }, [sendingRequestId]);
   const displayed = w.project?.versions.find(v => v.id === (viewId || w.project?.currentVersionId));
   const completionForProject = g.completed?.projectId === w.project?.id ? g.completed : null;
-  const identity = !w.loading && w.project && displayed ? previewIdentity(w.project.id, displayed.id, reload) + ':' + w.navigation.current : '';
+  const identity = !w.loading && w.project && displayed ? previewIdentity(w.project.id, displayed.id, reload) + ':' + w.navigationVersion : '';
   const loaded = !!identity && loadedIdentity === identity;
   const [previewResult, setPreviewResult] = useState<{ identity: string; channel: string; html: string } | null>(null);
   const [previewFailure, setPreviewFailure] = useState<{ identity: string; message: string } | null>(null);
@@ -55,7 +52,6 @@ export default function LiteWorkbench() {
   const previewError = previewFailure?.identity === identity ? previewFailure.message : '';
   useEffect(() => {
     let active = true;
-    setLoaded('');
     if (!displayed || !identity) return;
     const navigation = w.navigation.current;
     const channel = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
@@ -63,7 +59,7 @@ export default function LiteWorkbench() {
       if (active && navigation === w.navigation.current) { setPreviewResult({ identity, channel, html }); setPreviewFailure(null); }
     }).catch(error => { if (active && navigation === w.navigation.current) setPreviewFailure({ identity, message: error instanceof Error ? error.message : '编译失败，请修改代码后重试。' }); });
     return () => { active = false; };
-  }, [identity, displayed, w.session?.visibility]);
+  }, [identity, displayed, w.session?.visibility, w.navigation]);
   const apps = w.snapshot?.apps.filter(a => a.projectId === w.groupId && !a.archived) || [], group = w.snapshot?.projects.find(p => p.id === w.groupId);
   const canSend = !!w.session && !w.loading && !g.busy && !restoring && !g.attempts.length && !!draft.value.trim();
   function send() { if (!canSend) return; void g.send(draft.value, mode); }
@@ -117,7 +113,7 @@ export default function LiteWorkbench() {
             {g.notice && <p className="lite-note" role="status">{g.notice}</p>}{resultNote && <p className="lite-note" role="status">{resultNote}</p>}
           </div>
           <form className="lite-composer" onSubmit={e => { e.preventDefault(); send(); }}>
-            <div className="lite-mode"><select aria-label="生成模式" value={mode} onChange={e => { const next = e.target.value as 'demo' | 'model'; modeChosen.current = true; setMode(next); try { sessionStorage.setItem('motes-lite-mode', next); } catch {} }} disabled={g.busy}><option value="demo">示例模式</option>{w.session?.mode === 'model' && w.session.model && <option value="model">真实 AI · {w.session.model}</option>}</select><small>{mode === 'demo' ? w.session?.mode === 'model' && !w.session.model ? '当前空间没有可用模型，使用示例模式；不调用模型' : '不调用模型' : '需求与当前代码将发送给模型'}</small></div>
+            <div className="lite-mode"><select aria-label="生成模式" value={mode} onChange={e => { const next = e.target.value as 'demo' | 'model'; setMode(next); try { sessionStorage.setItem('motes-lite-mode', next); } catch {} }} disabled={g.busy}><option value="demo">示例模式</option>{w.session?.mode === 'model' && w.session.model && <option value="model">真实 AI · {w.session.model}</option>}</select><small>{mode === 'demo' ? w.session?.mode === 'model' && !w.session.model ? '当前空间没有可用模型，使用示例模式；不调用模型' : '不调用模型' : '需求与当前代码将发送给模型'}</small></div>
             <div className="lite-input-wrap">
               <textarea aria-label="应用需求" aria-describedby="lite-composer-hint" placeholder={w.project ? '继续描述你想修改的地方…' : '例如：做一个可以保存支出的旅行预算工具…'} value={draft.value} onChange={e => draft.set(e.target.value)} onKeyDown={e => {
                 if (e.key === 'Enter' && e.ctrlKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {

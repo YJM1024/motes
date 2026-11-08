@@ -20,7 +20,7 @@ function workspaceHarness(transport, selection = {}) {
     useRef(initial) { const i = index++; return cells[i] ??= { current: initial }; },
     useEffect(callback, deps) { const i = index++, previous = effects[i]; if (!previous || deps.some((d, n) => !Object.is(d, previous.deps[n]))) { effects[i] = { deps, cleanup: previous?.cleanup }; pending.push({ i, callback }); } },
   };
-  const bindings = { ...react, ...stateModule, crypto, AbortController, liteApi: async path => {
+  const bindings = { ...react, useLayoutEffect: react.useEffect, ...stateModule, crypto, AbortController, liteApi: async path => {
     if (path === '/api/session') return { workspaceId: 'workspace', visibility: 'shared', mode: 'demo', model: null };
     if (path === '/api/workspace') return snapshot;
     return transport(path);
