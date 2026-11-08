@@ -18,6 +18,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run lint -- --max-warnings=0
       - run: npm test
       - run: npm run typecheck
       - name: Configure shared demo without a model key

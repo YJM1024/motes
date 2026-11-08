@@ -92,7 +92,7 @@ test('transaction rolls back copy on storage error and same request remains safe
   h.sqlite.exec('DROP TRIGGER fail_copy');assert.equal((await h.request(a.id,body)).status,201);
 });
 
-test('atomic source and destination guards fence changes between validation and insert',async t=>{
+test('atomic source and destination guards fence changes between validation and insert',async()=>{
   for(const change of ['busy','target','owner']){
     const h=await harness();const a=await h.seed();
     // initializeWorkspace is itself a batch; arm the second batch only.

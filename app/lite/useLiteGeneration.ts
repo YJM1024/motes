@@ -12,32 +12,37 @@ const stepIds: GenerationStepId[] = ['plan', 'execute', 'check', 'save'];
 const initialProgress = (requestId: string): GenerationProgress => ({ requestId, updatedAt: '', steps: stepIds.map(id => ({ id, state: 'pending' })) });
 
 type CompletedGeneration = { projectId: string; versionId: string; progress: GenerationProgress };
-type Props = { workspaceId: string | null; context: RecoveryContext; baseVersionId?: string; navigation: RefObject<number>; enabled: boolean; onSaved: (project: Project, attempt: RecoveryAttempt) => void; onAcceptedSend?: (attempt: RecoveryAttempt) => void; onExplicitRejection?: (attempt: RecoveryAttempt) => void };
-export function useLiteGeneration({ workspaceId, context, baseVersionId, navigation, enabled, onSaved, onAcceptedSend, onExplicitRejection }: Props) {
+type Props = { workspaceId: string | null; context: RecoveryContext; baseVersionId?: string; navigation: RefObject<number>; navigationVersion: number; enabled: boolean; onSaved: (project: Project, attempt: RecoveryAttempt) => void; onAcceptedSend?: (attempt: RecoveryAttempt) => void; onExplicitRejection?: (attempt: RecoveryAttempt) => void };
+export function useLiteGeneration({ workspaceId, context, baseVersionId, navigation, navigationVersion, enabled, onSaved, onAcceptedSend, onExplicitRejection }: Props) {
   const [attempts, setAttempts] = useState<RecoveryAttempt[]>([]), [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [generation, setGeneration] = useState(0), [progress, setProgress] = useState<GenerationProgress | null>(null), [progressRequestId, setProgressRequestId] = useState<string | null>(null), [progressCycle, setProgressCycle] = useState(0), [completed, setCompleted] = useState<CompletedGeneration | null>(null);
   const all = useRef<RecoveryAttempt[]>([]), owner = useRef<string | null>(null), epoch = useRef(0), active = useRef<{ attempt: RecoveryAttempt; controller: AbortController } | null>(null);
-  const navigationVersion = navigation.current; const scope = contextKey(context), scopeRef = useRef(scope), mounted = useRef(true); scopeRef.current = scope;
-  const savedCallback = useRef(onSaved); savedCallback.current = onSaved;
-  const acceptedCallback = useRef(onAcceptedSend); acceptedCallback.current = onAcceptedSend;
-  const rejectedCallback = useRef(onExplicitRejection); rejectedCallback.current = onExplicitRejection;
+  const scope = contextKey(context), scopeRef = useRef(scope), mounted = useRef(true);
+  const savedCallback = useRef(onSaved), acceptedCallback = useRef(onAcceptedSend), rejectedCallback = useRef(onExplicitRejection);
+  useLayoutEffect(() => {
+    scopeRef.current = scope;
+    savedCallback.current = onSaved; acceptedCallback.current = onAcceptedSend; rejectedCallback.current = onExplicitRejection;
+  }, [scope, onSaved, onAcceptedSend, onExplicitRejection]);
   const storageKey = workspaceId ? 'motes-lite-outbox:' + workspaceId : '';
+  const recovered = !busy ? attempts.find(a => a.recovered && matchesContext(a, context)) : undefined;
+  const observedRequestId = progressRequestId ?? recovered?.requestId ?? null;
+  const visibleProgress = progress ?? (recovered ? initialProgress(recovered.requestId) : null);
   function write(next: RecoveryAttempt[]) {
     all.current = next; setAttempts(next);
     if (owner.current) { try { sessionStorage.setItem('motes-lite-outbox:' + owner.current, JSON.stringify(next)); } catch { setNotice('浏览器不能保存请求记录，请保持此页打开直到结果确认。'); } }
   }
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; active.current?.controller.abort(); }; }, []);
   useEffect(() => {
-    if (!progressRequestId) return;
+    if (!observedRequestId) return;
     const controller = new AbortController();
     const capturedScope = scope, capturedNavigation = navigationVersion;
-    void pollGenerationProgress(progressRequestId, controller.signal,
+    void pollGenerationProgress(observedRequestId, controller.signal,
       async (id, signal) => {
         try { return await liteApi<{ requestId: string; status?: string; progress?: GenerationProgress }>(`/api/requests/${encodeURIComponent(id)}`, undefined, signal); }
         catch (error) { if (error instanceof LiteApiError && error.status === 404) return { requestId: id, status: 'not-found' }; throw error; }
       },
       value => { if (mounted.current && scopeRef.current === capturedScope && navigation.current === capturedNavigation) setProgress({ ...value, steps: stepIds.map(id => value.steps.find(step => step.id === id)!) }); });
     return () => controller.abort();
-  }, [progressRequestId, progressCycle]);
+  }, [observedRequestId, progressCycle, navigationVersion, scope, navigation]);
   useLayoutEffect(() => {
     if (owner.current === workspaceId) return;
     owner.current = workspaceId;
@@ -50,11 +55,6 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
     if (active.current) { const previous = active.current; active.current = null; previous.controller.abort(); write(failOriginalAttempt(all.current, previous.attempt, '已离开原操作。结果尚未确认，请核对原请求。')); }
     setBusy(false); setNotice(''); setProgressRequestId(null); setProgress(null); setGeneration(n => n + 1);
   }, [scope, navigationVersion]);
-  useEffect(() => {
-    if (busy) return;
-    const recovered = attempts.find(a => a.recovered && matchesContext(a, context));
-    if (recovered) { setProgress(initialProgress(recovered.requestId)); setProgressRequestId(recovered.requestId); }
-  }, [attempts, busy, scope]);
   function accept(attempt: RecoveryAttempt, project: Project, resultVersionId?: string) {
     if (!validLiteProject(project, attempt.projectId)) throw new Error('保存结果尚未完整返回，请核对原请求。');
     const base = project.versions.find(version => version.id === attempt.baseVersionId);
@@ -111,7 +111,7 @@ export function useLiteGeneration({ workspaceId, context, baseVersionId, navigat
     write(failOriginalAttempt(all.current, pending.attempt, '已停止本页等待；请核对原请求，服务端执行及模型费用可能继续。')); setBusy(false); setProgressRequestId(null); setNotice('已停止本页等待。原请求可能继续执行并产生模型费用，请先核对结果。');
   }
   function dismiss(attempt: RecoveryAttempt) { const state = recovery.stateFor(attempt); if (attempt.retryConfirmed || state?.retry === 'new') write(removeFinishedAttempt(all.current, attempt)); }
-  return { dismiss, attempts: attempts.filter(a => matchesContext(a, context)), busy, notice, progress, completed, recovery, send, stop };
+  return { dismiss, attempts: attempts.filter(a => matchesContext(a, context)), busy, notice, progress: visibleProgress, completed, recovery, send, stop };
 }
 
 

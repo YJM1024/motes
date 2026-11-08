@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Publication } from '@/lib/motes/publication-types';
 import { publicationUrl } from '@/lib/motes/publication-client';
 import { applicationPreflight } from '@/lib/motes/application-preflight';
@@ -8,15 +8,17 @@ type Mutation = { action: 'publish'; versionId: string; expectedRevision: number
 export default function LitePublication({ appId, versionId, number, html }: { appId: string; versionId: string; number: number; html: string }) {
   const [publication, setPublication] = useState<Publication | null>(null), [ready, setReady] = useState(false), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [confirm, setConfirm] = useState<'publish' | 'unpublish' | false>(false), [pending, setPending] = useState<Mutation | null>(null);
   const mounted = useRef(true), visibleVersion = useRef(versionId);
-  visibleVersion.current = versionId;
-  useEffect(() => { setConfirm(false); }, [versionId]);
+  useLayoutEffect(() => { visibleVersion.current = versionId; }, [versionId]);
+  const [confirmVersion, setConfirmVersion] = useState(versionId);
+  if (confirmVersion !== versionId) { setConfirmVersion(versionId); setConfirm(false); }
   const path = '/api/projects/' + appId + '/publication', key = 'motes-lite-publication:' + appId;
   function clearPending() { try { sessionStorage.removeItem(key); } catch {} }
   async function reconnect() { setLoading(true); setMessage(''); try { const data = await liteApi<{ publication: Publication | null }>(path); if (mounted.current) { setPublication(data.publication); setReady(true); setMessage('已连接发布服务。'); } } catch (e) { if (mounted.current) setMessage(e instanceof Error ? e.message : '发布服务暂时不可用。'); } finally { if (mounted.current) setLoading(false); } }
   useEffect(() => {
     mounted.current = true; const controller = new AbortController();
-    try { const prior = JSON.parse(sessionStorage.getItem(key) || 'null'); if ((prior?.action === 'unpublish' || prior?.action === 'publish' && typeof prior.versionId === 'string') && Number.isSafeInteger(prior.expectedRevision) && typeof prior.requestId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(prior.requestId) && prior.expectedRevision >= 0) setPending(prior); } catch {}
-    void liteApi<{ publication: Publication | null }>(path, undefined, controller.signal).then(data => { if (mounted.current) { setPublication(data.publication); setReady(true); } }).catch(e => { if (mounted.current) setMessage(e.message); }).finally(() => { if (mounted.current) setLoading(false); });
+    let restored: Mutation | null = null;
+    try { const prior = JSON.parse(sessionStorage.getItem(key) || 'null'); if ((prior?.action === 'unpublish' || prior?.action === 'publish' && typeof prior.versionId === 'string') && Number.isSafeInteger(prior.expectedRevision) && typeof prior.requestId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(prior.requestId) && prior.expectedRevision >= 0) restored = prior; } catch {}
+    void liteApi<{ publication: Publication | null }>(path, undefined, controller.signal).then(data => { if (mounted.current) { setPending(restored); setPublication(data.publication); setReady(true); } }).catch(e => { if (mounted.current) { setPending(restored); setMessage(e.message); } }).finally(() => { if (mounted.current) setLoading(false); });
     return () => { mounted.current = false; controller.abort(); };
   }, [path, key]);
   async function publish(action: 'publish' | 'unpublish' = 'publish') {
